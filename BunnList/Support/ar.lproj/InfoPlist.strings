@@ -1,0 +1,3 @@
+/* Camera permission text (Arabic). */
+"NSCameraUsageDescription" = "نستخدم الكاميرا لتصوير كيس القهوة وقراءة بياناته لإضافته إلى مجموعتك.";
+"CFBundleDisplayName" = "بن لست";

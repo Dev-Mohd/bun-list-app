@@ -1,0 +1,67 @@
+{
+  "label": "دليل تجريبي",
+  "roasters": [
+    { "id": "sample:roaster/a", "nameAr": "محمصة تجريبية أ", "nameEn": "Sample Roaster A", "cityAr": null },
+    { "id": "sample:roaster/b", "nameAr": "محمصة تجريبية ب", "nameEn": "Sample Roaster B", "cityAr": null }
+  ],
+  "products": [
+    {
+      "id": "sample:product/guji",
+      "roasterID": "sample:roaster/a",
+      "nameAr": "غوجي التجريبي",
+      "nameEn": "Sample Guji",
+      "origin": { "type": "SINGLE_COUNTRY", "countryCodes": ["ET"] },
+      "processCode": "WASHED",
+      "flavorCodes": ["FLORAL", "CITRUS"],
+      "recommendedBrewMethods": ["V60", "CHEMEX"],
+      "approval": "approved"
+    },
+    {
+      "id": "sample:product/huila",
+      "roasterID": "sample:roaster/a",
+      "nameAr": "هويلا التجريبي",
+      "nameEn": "Sample Huila",
+      "origin": { "type": "SINGLE_COUNTRY", "countryCodes": ["CO"] },
+      "processCode": "NATURAL",
+      "flavorCodes": ["BERRY", "CHOCOLATE"],
+      "recommendedBrewMethods": ["ESPRESSO", "AEROPRESS"],
+      "approval": "approved"
+    },
+    {
+      "id": "sample:product/nyeri",
+      "roasterID": "sample:roaster/b",
+      "nameAr": "نييري التجريبي",
+      "nameEn": "Sample Nyeri",
+      "origin": { "type": "SINGLE_COUNTRY", "countryCodes": ["KE"] },
+      "processCode": "WASHED",
+      "flavorCodes": ["BERRY", "TEA_LIKE"],
+      "recommendedBrewMethods": ["V60"],
+      "approval": "approved"
+    },
+    {
+      "id": "sample:product/house-blend",
+      "roasterID": "sample:roaster/b",
+      "nameAr": "خلطة البيت التجريبية",
+      "nameEn": "Sample House Blend",
+      "origin": { "type": "MULTI_COUNTRY", "countryCodes": ["ET", "CO"] },
+      "processCode": null,
+      "flavorCodes": ["CARAMEL", "NUTTY"],
+      "recommendedBrewMethods": ["ESPRESSO"],
+      "approval": "approved"
+    }
+  ],
+  "lots": [
+    { "id": "sample:lot/guji-2024", "productID": "sample:product/guji",
+      "season": { "known": { "label": "حصاد ٢٠٢٤", "harvestYear": 2024 } }, "roastBatchCode": null, "approval": "approved" },
+    { "id": "sample:lot/guji-2025", "productID": "sample:product/guji",
+      "season": { "known": { "label": "حصاد ٢٠٢٥", "harvestYear": 2025 } }, "roastBatchCode": null, "approval": "approved" },
+    { "id": "sample:lot/guji-unknown", "productID": "sample:product/guji",
+      "season": { "unknown": {} }, "roastBatchCode": null, "approval": "approved" },
+    { "id": "sample:lot/huila-unknown", "productID": "sample:product/huila",
+      "season": { "unknown": {} }, "roastBatchCode": null, "approval": "approved" },
+    { "id": "sample:lot/nyeri-unknown", "productID": "sample:product/nyeri",
+      "season": { "unknown": {} }, "roastBatchCode": null, "approval": "approved" },
+    { "id": "sample:lot/house-blend-unknown", "productID": "sample:product/house-blend",
+      "season": { "unknown": {} }, "roastBatchCode": null, "approval": "approved" }
+  ]
+}
