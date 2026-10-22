@@ -18,7 +18,7 @@ final class AppModel: ObservableObject {
 
     private var controller: LocalSnapshotController?
     private let makeStore: () throws -> LocalSnapshotStore
-    private let now: () -> Date
+    let now: () -> Date
 
     init(makeStore: @escaping () throws -> LocalSnapshotStore, now: @escaping () -> Date = Date.init) {
         self.makeStore = makeStore
