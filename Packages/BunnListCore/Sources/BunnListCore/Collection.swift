@@ -142,6 +142,26 @@ public struct CollectionBook: Codable, Equatable, Sendable {
 
     public init() {}
 
+    /// Entries and ratings carry no inherent order (the UI sorts them for display), and storage that
+    /// splits entries into rows may restore them in a different order. Compare them by content keyed
+    /// on clientID so a round-trip through such a store is equal; append-only logs compare in order.
+    public static func == (lhs: CollectionBook, rhs: CollectionBook) -> Bool {
+        keyed(lhs.entries) == keyed(rhs.entries)
+            && keyed(lhs.ratings) == keyed(rhs.ratings)
+            && lhs.firstCollectionEvents == rhs.firstCollectionEvents
+            && lhs.assignmentEvents == rhs.assignmentEvents
+            && lhs.rewardAliases == rhs.rewardAliases
+            && lhs.processedOperations == rhs.processedOperations
+    }
+
+    private static func keyed(_ entries: [CollectionEntry]) -> [ClientID: CollectionEntry] {
+        Dictionary(entries.map { ($0.clientID, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private static func keyed(_ ratings: [RatingVote]) -> [ClientID: RatingVote] {
+        Dictionary(ratings.map { ($0.clientID, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
     struct ProcessedOperation: Codable, Equatable, Sendable {
         let operationID: ClientID
         let fingerprint: String
