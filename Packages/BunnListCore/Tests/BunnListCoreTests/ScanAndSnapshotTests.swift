@@ -138,3 +138,28 @@ final class StorageSplitTests: XCTestCase {
         XCTAssertEqual(restored, book)
     }
 }
+
+final class C02SnapshotTests: XCTestCase {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testExperiencesAndRecipesRoundTripAndOlderSnapshotsDecode() throws {
+        let owner = OwnerID.newGuest()
+        var snapshot = LocalSnapshot(session: LocalSession(guest: owner))
+        _ = try snapshot.experiences.add(owner: owner, lot: LotID("sample:lot/guji-2025"), methodCode: "V60",
+                                         stars: 4, brewedAt: t0, now: t0, publish: true)
+        let g = try NumericInputParser.parse("250", policy: .decimal(maxIntegerDigits: 4, maxFractionDigits: 1))!
+        snapshot.recipes.saveDraft(Recipe(owner: owner, title: "وصفة", methodCode: "V60", temperature: .hot,
+                                          lotID: nil, doseGrams: nil, hotWaterGrams: g, iceGrams: nil, yieldGrams: nil,
+                                          waterTempC: nil, grinder: "", grindSetting: "", notes: "",
+                                          steps: [RecipeStep(kind: .pour, addedWaterGrams: g, seconds: 30, note: "")], now: t0))
+
+        let data = try JSONEncoder().encode(snapshot)
+        XCTAssertEqual(try JSONDecoder().decode(LocalSnapshot.self, from: data), snapshot)
+
+        // A snapshot written before C02 (no experiences/recipes keys) still decodes with empty books.
+        let legacy = Data(#"{"schemaVersion":1,"session":\#(String(decoding: try JSONEncoder().encode(LocalSession(guest: owner)), as: UTF8.self)),"book":\#(String(decoding: try JSONEncoder().encode(CollectionBook()), as: UTF8.self))}"#.utf8)
+        let decoded = try JSONDecoder().decode(LocalSnapshot.self, from: legacy)
+        XCTAssertTrue(decoded.experiences.experiences.isEmpty)
+        XCTAssertTrue(decoded.recipes.recipes.isEmpty)
+    }
+}

@@ -7,11 +7,26 @@ public struct LocalSnapshot: Codable, Equatable, Sendable {
     public var schemaVersion: Int
     public var session: LocalSession
     public var book: CollectionBook
+    public var experiences: ExperienceBook
+    public var recipes: RecipeBook
 
-    public init(session: LocalSession = LocalSession(), book: CollectionBook = CollectionBook()) {
+    public init(session: LocalSession = LocalSession(), book: CollectionBook = CollectionBook(),
+                experiences: ExperienceBook = ExperienceBook(), recipes: RecipeBook = RecipeBook()) {
         schemaVersion = Self.currentSchemaVersion
         self.session = session
         self.book = book
+        self.experiences = experiences
+        self.recipes = recipes
+    }
+
+    // Tolerate snapshots written before experiences/recipes existed (same schema version, additive).
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        session = try container.decode(LocalSession.self, forKey: .session)
+        book = try container.decode(CollectionBook.self, forKey: .book)
+        experiences = try container.decodeIfPresent(ExperienceBook.self, forKey: .experiences) ?? ExperienceBook()
+        recipes = try container.decodeIfPresent(RecipeBook.self, forKey: .recipes) ?? RecipeBook()
     }
 }
 

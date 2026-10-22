@@ -22,7 +22,7 @@ public enum LifecycleError: Error, Equatable, Sendable {
     case staleRevision(expected: Int, actual: Int)
 }
 
-public struct ContentState: Codable, Equatable, Sendable {
+public struct ContentState: Codable, Equatable, Hashable, Sendable {
     public let kind: ContentKind
     public private(set) var lifecycle: ContentLifecycle
     public private(set) var moderation: ModerationStatus
