@@ -132,7 +132,8 @@ struct LotControls: View {
             } else {
                 Text("لا تقييمات بعد").font(.caption).foregroundStyle(.secondary)
             }
-            StarRatingControl(value: model.myRating(for: lot.id) ?? 0) { stars in rate(stars) }
+            StarRatingControl(value: model.myRating(for: lot.id) ?? 0,
+                              idPrefix: "rating-\(lot.id.rawValue)-") { stars in rate(stars) }
             Text("تقييمك يعني أنك جربته.").font(.caption2).foregroundStyle(.secondary)
         }
         .accessibilityIdentifier("rating-\(lot.id.rawValue)")

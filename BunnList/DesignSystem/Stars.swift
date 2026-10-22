@@ -19,6 +19,8 @@ struct StarsDisplay: View {
 struct StarRatingControl: View {
     let value: Int
     var label = "تقييمك"
+    /// Prefix so multiple rating controls on one screen have unique star identifiers.
+    var idPrefix = ""
     let onChange: (Int) -> Void
 
     var body: some View {
@@ -35,7 +37,7 @@ struct StarRatingControl: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(label): \(i)")
                 .accessibilityAddTraits(i == value ? [.isSelected] : [])
-                .accessibilityIdentifier("star-\(i)")
+                .accessibilityIdentifier("\(idPrefix)star-\(i)")
             }
         }
     }

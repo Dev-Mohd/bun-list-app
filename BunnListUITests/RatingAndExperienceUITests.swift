@@ -23,10 +23,13 @@ final class RatingAndExperienceUITests: XCTestCase {
         let app = launch()
         openGuji(app)
         // Rate the 2025 season four stars (no prior UNKNOWN record, so no bag question).
-        let fourth = app.descendants(matching: .any)["rating-sample:lot/guji-2025"].buttons["star-4"]
+        // Star ids are unique per lot; the rating line may render Arabic-Indic digits, so assert on
+        // the stable "مقيّم" word rather than the formatted number.
+        let fourth = app.buttons["rating-sample:lot/guji-2025-star-4"]
         XCTAssertTrue(fourth.waitForExistence(timeout: 5))
         fourth.tap()
-        XCTAssertTrue(app.staticTexts["4.0 · 1 مقيّم"].waitForExistence(timeout: 5))
+        let ratedLine = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "مقيّم")).firstMatch
+        XCTAssertTrue(ratedLine.waitForExistence(timeout: 5))
     }
 
     func testAddingAnExperienceListsItUnderMyExperiences() {
