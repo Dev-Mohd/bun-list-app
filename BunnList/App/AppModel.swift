@@ -102,10 +102,11 @@ final class AppModel: ObservableObject {
         _ = try? perform { try change(&$0.book, owner, catalog, at) }
     }
 
-    /// Runs a Core change and saves it. Bag questions are not errors for the user; everything else
-    /// shows a retryable message and leaves the visible state unchanged.
+    /// Runs a Core change and saves it. Domain errors (a bag question, a validation block, a
+    /// not-owner guard) rethrow cleanly so the caller can react; only a storage/unknown failure
+    /// shows the generic retry message, with the visible state left unchanged.
     @discardableResult
-    private func perform<T>(_ change: (inout LocalSnapshot) throws -> T) throws -> T {
+    func perform<T>(_ change: (inout LocalSnapshot) throws -> T) throws -> T {
         guard let controller else {
             errorMessage = "البيانات المحلية غير متاحة."
             throw LocalStoreError.writeFailed
@@ -114,9 +115,8 @@ final class AppModel: ObservableObject {
             let result = try controller.mutate(change)
             snapshot = controller.snapshot
             return result
-        } catch let error as CollectionError {
-            if case .needsBagDecision = error { throw error }
-            errorMessage = "تعذّر تنفيذ العملية. حاول مرة أخرى."
+        } catch let error where error is CollectionError || error is RecipeError
+            || error is ExperienceError || error is LifecycleError {
             throw error
         } catch {
             errorMessage = "تعذّر الحفظ على الجهاز. لم يتغير شيء؛ حاول مرة أخرى."

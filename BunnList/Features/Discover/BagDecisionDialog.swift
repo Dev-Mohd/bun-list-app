@@ -1,12 +1,18 @@
 import BunnListCore
 import SwiftUI
 
-/// A collect that is waiting for the same-bag answer. The operation ID is reused for the answer.
+/// A collect or rate waiting for the same-bag answer. The operation ID is reused for the answer.
 struct PendingBag: Identifiable {
+    enum Kind: Equatable {
+        case collect
+        case rate(stars: Int)
+    }
+
     let id = UUID()
     let lot: LotID
     let conflict: BagConflict
     let operationID: ClientID
+    var kind: Kind = .collect
 }
 
 /// «هل هو نفس الكيس؟» — shown when the user holds the UNKNOWN lot and picks a known season, or the reverse.
@@ -47,8 +53,13 @@ private struct BagDecisionDialog: ViewModifier {
 
     private func answer(_ request: PendingBag, _ decision: BagDecision) {
         pending = nil
-        if case let .done(outcome) = model.collect(request.lot, decision: decision, operationID: request.operationID) {
-            onDone(outcome)
+        switch request.kind {
+        case .collect:
+            if case let .done(outcome) = model.collect(request.lot, decision: decision, operationID: request.operationID) {
+                onDone(outcome)
+            }
+        case let .rate(stars):
+            _ = model.rate(request.lot, stars: stars, decision: decision, operationID: request.operationID)
         }
     }
 }

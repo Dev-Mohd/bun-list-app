@@ -29,7 +29,7 @@ public struct RecipeReference: Codable, Hashable, Sendable {
     public let version: Int
 }
 
-public enum RecipeProblem: Equatable, Sendable {
+public enum RecipeProblem: Equatable, Hashable, Sendable {
     case missingTitle
     case missingMethod
     case missingHotWater

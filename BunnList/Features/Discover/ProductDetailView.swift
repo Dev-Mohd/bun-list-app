@@ -48,6 +48,7 @@ struct ProductDetailView: View {
             .navigationTitle(product.nameAr)
             .navigationBarTitleDisplayMode(.inline)
             .bagDecisionDialog($pendingBag)
+            .navigationDestination(for: LotID.self) { LotActivityView(lotID: $0) }
             .sheet(item: $assignment) { request in
                 SeasonAssignmentSheet(source: request.source, catalog: catalog)
             }
@@ -103,19 +104,52 @@ struct LotControls: View {
             Toggle("ودي أجرب", isOn: Binding(get: { entry?.wantsToTry ?? false }, set: { model.setWantsToTry($0, lot: lot.id) }))
             Toggle("جربته", isOn: Binding(get: { entry?.isTried ?? false }, set: { model.setTried($0, lot: lot.id) }))
 
+            ratingSection
+
             if lot.season.isUnknown, hasKnownSeasons, entry?.isActive == true {
                 Button("حدّد موسم سجلي", systemImage: "calendar.badge.checkmark", action: onAssignSeason)
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("assign-season-\(lot.id.rawValue)")
             }
+
+            NavigationLink(value: lot.id) {
+                let n = model.experiences(for: lot.id).count
+                Label(n == 0 ? "التجارب والوصفات" : "التجارب والوصفات (\(n.formatted()))", systemImage: "cup.and.saucer")
+            }
+            .accessibilityIdentifier("activity-\(lot.id.rawValue)")
         }
         .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var ratingSection: some View {
+        let stats = model.ratingStats(for: lot.id)
+        VStack(alignment: .leading, spacing: 6) {
+            if let average = stats.average {
+                Label("\(average.formatted(.number.precision(.fractionLength(1)))) · \(stats.count.formatted()) مقيّم",
+                      systemImage: "star.leadinghalf.filled")
+                    .font(.caption).foregroundStyle(Brand.ink)
+            } else {
+                Text("لا تقييمات بعد").font(.caption).foregroundStyle(.secondary)
+            }
+            StarRatingControl(value: model.myRating(for: lot.id) ?? 0) { stars in rate(stars) }
+            Text("تقييمك يعني أنك جربته.").font(.caption2).foregroundStyle(.secondary)
+        }
+        .accessibilityIdentifier("rating-\(lot.id.rawValue)")
     }
 
     private func collect() {
         let operationID = ClientID()
         if case let .needsDecision(conflict) = model.collect(lot.id, operationID: operationID) {
             pendingBag = PendingBag(lot: lot.id, conflict: conflict, operationID: operationID)
+        }
+    }
+
+    private func rate(_ stars: Int) {
+        guard stars >= 1 else { return } // clearing a vote is deferred; 1–5 only for now
+        let operationID = ClientID()
+        if case let .needsDecision(conflict) = model.rate(lot.id, stars: stars, operationID: operationID) {
+            pendingBag = PendingBag(lot: lot.id, conflict: conflict, operationID: operationID, kind: .rate(stars: stars))
         }
     }
 }
