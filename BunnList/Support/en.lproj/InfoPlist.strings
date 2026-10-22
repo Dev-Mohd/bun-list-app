@@ -1,0 +1,3 @@
+/* Camera permission text (English). */
+"NSCameraUsageDescription" = "We use the camera to photograph coffee bags and read their details for your collection.";
+"CFBundleDisplayName" = "BunnList";
