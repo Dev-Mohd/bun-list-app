@@ -136,7 +136,6 @@ struct LotControls: View {
                               idPrefix: "rating-\(lot.id.rawValue)-") { stars in rate(stars) }
             Text("تقييمك يعني أنك جربته.").font(.caption2).foregroundStyle(.secondary)
         }
-        .accessibilityIdentifier("rating-\(lot.id.rawValue)")
     }
 
     private func collect() {

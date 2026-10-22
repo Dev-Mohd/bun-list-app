@@ -27,6 +27,7 @@ final class RatingAndExperienceUITests: XCTestCase {
         // the stable "مقيّم" word rather than the formatted number.
         let fourth = app.buttons["rating-sample:lot/guji-2025-star-4"]
         XCTAssertTrue(fourth.waitForExistence(timeout: 5))
+        if !fourth.isHittable { app.swipeUp() }
         fourth.tap()
         let ratedLine = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "مقيّم")).firstMatch
         XCTAssertTrue(ratedLine.waitForExistence(timeout: 5))
