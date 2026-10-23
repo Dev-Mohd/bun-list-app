@@ -109,6 +109,7 @@ struct LiveLotDetailView: View {
             wantsToTry: wantsToTry ?? flags.wantsToTry,
             tried: tried ?? flags.tried
         )
+        Haptics.tap()
         let previous = flags
         flags = updated // optimistic
         Task { await persist(updated, previous: previous) }

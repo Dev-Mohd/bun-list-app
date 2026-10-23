@@ -10,6 +10,7 @@ struct AccountView: View {
     @State private var editingRecipe: ClientID?
     @State private var showSignIn = false
     @State private var confirmDelete = false
+    @State private var showSettings = false
     @State private var serverItems: [RemoteCollectionItem] = []
 
     private var counts: (owned: Int, tried: Int, favorite: Int, wants: Int) {
@@ -66,6 +67,13 @@ struct AccountView: View {
                 }
             }
             .navigationTitle("ملفي")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityIdentifier("open-settings")
+                }
+            }
+            .sheet(isPresented: $showSettings) { SettingsView() }
             .task { await loadServerCollection() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await loadServerCollection() } }
             .sheet(item: Binding(get: { editingRecipe.map(RecipeRef.init) }, set: { editingRecipe = $0?.id })) { ref in
