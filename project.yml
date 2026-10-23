@@ -15,6 +15,11 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_EMIT_LOC_STRINGS: YES
+    # Simulator-only project: no Apple Developer team yet, so don't require signing.
+    # (Set a team + automatic signing when building for a real device or TestFlight.)
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
 packages:
   BunnListCore:
     path: Packages/BunnListCore
@@ -46,7 +51,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.devmohd.bunnlist
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: NO
   BunnListTests:
     type: bundle.unit-test
