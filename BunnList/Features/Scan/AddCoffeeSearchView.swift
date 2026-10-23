@@ -1,5 +1,7 @@
 import BunnListCore
+import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Find a real coffee on the server and add it to your collection. Opened from the
 /// scan tab. (Suggesting a brand-new coffee is the next step.)
@@ -14,12 +16,17 @@ struct AddCoffeeSearchView: View {
     @State private var added: Set<String> = []
     @State private var message: String?
     @State private var showSuggest = false
+    @State private var showCamera = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var recognizedLines: [String] = []
+    @State private var isReading = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     var body: some View {
         NavigationStack {
             List {
+                scanSection
                 if let message {
                     Section { Label(message, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary) }
                 }
@@ -45,6 +52,20 @@ struct AddCoffeeSearchView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "ابحث بالاسم أو المحمصة")
             .onSubmit(of: .search) { Task { await search() } }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraCaptureView(onImage: { data in
+                    showCamera = false
+                    Task { await readImage(data) }
+                }, onCancel: { showCamera = false })
+                .ignoresSafeArea()
+            }
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                Task { @MainActor in
+                    if let data = try? await item.loadTransferable(type: Data.self) { await readImage(data) }
+                    photoItem = nil
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
@@ -56,6 +77,53 @@ struct AddCoffeeSearchView: View {
                 SuggestCoffeeView(prefillName: query.trimmingCharacters(in: .whitespacesAndNewlines))
                     .environmentObject(auth)
             }
+        }
+    }
+
+    private var scanSection: some View {
+        Section {
+            Button { showCamera = true } label: { Label("صوّر الكيس", systemImage: "camera") }
+                .accessibilityIdentifier("add-capture")
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Label("اختر صورة", systemImage: "photo.on.rectangle")
+            }
+            if isReading {
+                HStack(spacing: 8) { ProgressView(); Text("نقرأ الكيس…").foregroundStyle(.secondary) }
+            }
+            if !recognizedLines.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("اضغط على نص لتبحث فيه:").font(.caption).foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(recognizedLines, id: \.self) { line in
+                                Button(line) { query = line; Task { await search() } }
+                                    .font(.caption)
+                                    .padding(.horizontal, 10).padding(.vertical, 5)
+                                    .background(Brand.olive.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(Brand.olive)
+                            }
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("صوّر الكيس")
+        } footer: {
+            Text("نقرأ النص من صورة الكيس ونبحث فيه. (على المحاكي استخدم «اختر صورة».)")
+        }
+    }
+
+    private func readImage(_ data: Data) async {
+        isReading = true
+        message = nil
+        defer { isReading = false }
+        let lines = await BagTextRecognizer.recognize(data)
+        recognizedLines = lines
+        if let first = lines.first {
+            query = first
+            await search()
+        } else {
+            message = "ما قدرنا نقرأ نصًا واضحًا. جرّب صورة أوضح أو ابحث يدويًا."
         }
     }
 
