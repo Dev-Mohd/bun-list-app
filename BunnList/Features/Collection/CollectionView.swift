@@ -23,8 +23,10 @@ enum CollectionFilter: String, CaseIterable, Identifiable {
 
 struct CollectionView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var auth: AuthModel
     @State private var filter: CollectionFilter = .all
     @State private var query = ""
+    @State private var serverItems: [RemoteCollectionItem] = []
 
     var body: some View {
         NavigationStack {
@@ -38,17 +40,35 @@ struct CollectionView: View {
             .navigationTitle("مجموعتي")
             .searchable(text: $query, prompt: "ابحث في مجموعتك")
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
+            .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
+            .refreshable { await loadServerCollection() }
+            .task { await loadServerCollection() }
+            .onChange(of: auth.isSignedIn) { _, _ in Task { await loadServerCollection() } }
         }
     }
 
     private func content(_ catalog: Catalog) -> some View {
         let entries = visibleEntries(catalog)
         return List {
+            if auth.isSignedIn {
+                Section("محفوظة في حسابك") {
+                    if serverItems.isEmpty {
+                        Text("لم تحفظ محاصيل من «محاصيل مباشرة» بعد. علّم قهوة بـ «لديّ» أو «مفضّل».")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(serverItems) { item in
+                            NavigationLink(value: item.slug) { ServerCollectionRow(item: item) }
+                        }
+                    }
+                }
+            }
             Section {
                 ViewThatFits(in: .horizontal) {
                     filterPicker.pickerStyle(.segmented)
                     filterPicker.pickerStyle(.menu)
                 }
+            } header: {
+                Text("على هذا الجهاز (تجريبي)")
             } footer: {
                 Text("محفوظة على هذا الجهاز كزائر. حذف التطبيق يحذفها.")
             }
@@ -90,6 +110,39 @@ struct CollectionView: View {
                 return tokens.allSatisfy { text.contains($0) }
             }
             .sorted { ($0.firstCollectedAt ?? $0.createdAt) > ($1.firstCollectedAt ?? $1.createdAt) }
+    }
+
+    private func loadServerCollection() async {
+        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; return }
+        let client = CatalogAPIClient(transport: URLSessionTransport())
+        do {
+            serverItems = try await client.fetchCollection(accessToken: token)
+        } catch APIError.unauthorized {
+            if let fresh = await auth.refreshAccessToken() {
+                serverItems = (try? await client.fetchCollection(accessToken: fresh)) ?? serverItems
+            }
+        } catch {
+            // keep what we have; not fatal
+        }
+    }
+}
+
+private struct ServerCollectionRow: View {
+    let item: RemoteCollectionItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(item.nameAr).font(.headline).foregroundStyle(Brand.ink)
+            Text(item.roasterNameAr).font(.subheadline).foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                if item.owned { Label("لديّ", systemImage: "checkmark.circle") }
+                if item.tried { Label("جربته", systemImage: "cup.and.saucer") }
+                if item.favorite { Label("مفضل", systemImage: "heart") }
+                if item.wantsToTry { Label("ودي أجرب", systemImage: "bookmark") }
+            }
+            .font(.caption).foregroundStyle(Brand.olive)
+        }
+        .padding(.vertical, 4)
     }
 }
 
