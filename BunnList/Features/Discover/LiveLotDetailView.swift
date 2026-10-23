@@ -36,6 +36,7 @@ struct LiveLotDetailView: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var myReview: RemoteMyReview?
     @State private var showReviewForm = false
+    @State private var flags = RemoteCollectionFlags(owned: false, favorite: false, wantsToTry: false, tried: false)
 
     init(slug: String) {
         self.slug = slug
@@ -64,6 +65,76 @@ struct LiveLotDetailView: View {
         .task {
             await model.load()
             await loadMyReview()
+            await loadCollection()
+        }
+    }
+
+    private var collectionControls: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                collectionToggle("لديّ", "checkmark.circle.fill", flags.owned) { apply(owned: !flags.owned) }
+                collectionToggle("مفضّل", "heart.fill", flags.favorite) { apply(favorite: !flags.favorite) }
+            }
+            HStack(spacing: 8) {
+                collectionToggle("ودّي أجرّب", "bookmark.fill", flags.wantsToTry) { apply(wantsToTry: !flags.wantsToTry) }
+                collectionToggle("جرّبته", "cup.and.saucer.fill", flags.tried) { apply(tried: !flags.tried) }
+            }
+        }
+    }
+
+    private func collectionToggle(_ label: String, _ icon: String, _ isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: icon)
+                .font(.subheadline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(isOn ? Brand.olive.opacity(0.18) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(isOn ? Brand.olive : .secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("collection-\(label)")
+    }
+
+    private func apply(owned: Bool? = nil, favorite: Bool? = nil, wantsToTry: Bool? = nil, tried: Bool? = nil) {
+        let updated = RemoteCollectionFlags(
+            owned: owned ?? flags.owned,
+            favorite: favorite ?? flags.favorite,
+            wantsToTry: wantsToTry ?? flags.wantsToTry,
+            tried: tried ?? flags.tried
+        )
+        let previous = flags
+        flags = updated // optimistic
+        Task { await persist(updated, previous: previous) }
+    }
+
+    private func persist(_ updated: RemoteCollectionFlags, previous: RemoteCollectionFlags) async {
+        guard let token = auth.currentAccessToken() else { flags = previous; return }
+        let client = CatalogAPIClient(transport: URLSessionTransport())
+        func put(_ t: String) async throws -> RemoteCollectionFlags {
+            try await client.updateCollectionFlags(slug: slug, accessToken: t, owned: updated.owned,
+                                                   favorite: updated.favorite, wantsToTry: updated.wantsToTry, tried: updated.tried)
+        }
+        do {
+            flags = try await put(token)
+        } catch APIError.unauthorized {
+            if let fresh = await auth.refreshAccessToken(), let saved = try? await put(fresh) { flags = saved }
+            else { flags = previous }
+        } catch {
+            flags = previous // revert on failure
+        }
+    }
+
+    private func loadCollection() async {
+        guard auth.isSignedIn, let token = auth.currentAccessToken() else { return }
+        let client = CatalogAPIClient(transport: URLSessionTransport())
+        do {
+            flags = try await client.fetchCollectionFlags(slug: slug, accessToken: token)
+        } catch APIError.unauthorized {
+            if let fresh = await auth.refreshAccessToken(), let loaded = try? await client.fetchCollectionFlags(slug: slug, accessToken: fresh) {
+                flags = loaded
+            }
+        } catch {
+            // keep defaults
         }
     }
 
@@ -89,6 +160,10 @@ struct LiveLotDetailView: View {
                 if let description = lot.descriptionAr, !description.isEmpty {
                     section("الوصف") { Text(description).font(.body).foregroundStyle(.secondary) }
                 }
+                if auth.isSignedIn {
+                    section("مجموعتي") { collectionControls }
+                }
+
                 if !lot.brewStats.isEmpty {
                     section("التقييم حسب طريقة التحضير") { brewStats(lot.brewStats) }
                 }

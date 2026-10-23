@@ -7,7 +7,7 @@ import Foundation
 // become `APIError`; anything else becomes `AuthClientError`.
 
 public struct HTTPRequest: Sendable {
-    public enum Method: String, Sendable { case get = "GET", post = "POST", delete = "DELETE" }
+    public enum Method: String, Sendable { case get = "GET", post = "POST", put = "PUT", delete = "DELETE" }
     public let method: Method
     public let path: String
     public let body: Data?

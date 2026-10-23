@@ -90,6 +90,31 @@ final class CatalogAPIClientTests: XCTestCase {
         XCTAssertNil(review)
     }
 
+    func testUpdateCollectionSendsFlagsAndBearer() async throws {
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(#"{"owned":true,"favorite":false,"wantsToTry":true,"tried":false}"#.utf8)) }
+        let client = CatalogAPIClient(transport: transport)
+        let flags = try await client.updateCollectionFlags(slug: "s", accessToken: "acc.jwt",
+                                                           owned: true, favorite: false, wantsToTry: true, tried: false)
+        XCTAssertTrue(flags.owned)
+        XCTAssertTrue(flags.wantsToTry)
+        let req = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(req.method, .put)
+        XCTAssertEqual(req.path, "/api/v1/catalog/lots/s/collection")
+        XCTAssertEqual(req.bearer, "acc.jwt")
+        let sent = (try? JSONSerialization.jsonObject(with: req.body ?? Data())) as? [String: Any]
+        XCTAssertEqual(sent?["owned"] as? Bool, true)
+        XCTAssertEqual(sent?["wantsToTry"] as? Bool, true)
+    }
+
+    func testFetchCollectionDecodesEntries() async throws {
+        let body = #"{"entries":[{"lotId":"l1","slug":"s1","nameAr":"قهوة","roasterNameAr":"محمصة","owned":true,"favorite":false,"wantsToTry":false,"tried":true}]}"#
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(body.utf8)) }
+        let items = try await CatalogAPIClient(transport: transport).fetchCollection(accessToken: "acc.jwt")
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.slug, "s1")
+        XCTAssertEqual(items.first?.tried, true)
+    }
+
     func testServerErrorThrows() async {
         let transport = FakeTransport { _ in HTTPResponse(status: 500, body: Data("boom".utf8)) }
         let client = CatalogAPIClient(transport: transport)

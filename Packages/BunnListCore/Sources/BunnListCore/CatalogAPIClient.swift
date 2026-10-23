@@ -136,6 +136,40 @@ public struct CatalogAPIClient: Sendable {
         }
     }
 
+    /// GET /api/v1/catalog/lots/[slug]/collection — the caller's flags for one lot.
+    public func fetchCollectionFlags(slug: String, accessToken: String) async throws -> RemoteCollectionFlags {
+        let response = try await transport.send(
+            HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)/collection", bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteCollectionFlags.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// PUT /api/v1/catalog/lots/[slug]/collection — set the caller's flags for one lot.
+    public func updateCollectionFlags(
+        slug: String, accessToken: String,
+        owned: Bool, favorite: Bool, wantsToTry: Bool, tried: Bool
+    ) async throws -> RemoteCollectionFlags {
+        let payload: [String: Any] = ["owned": owned, "favorite": favorite, "wantsToTry": wantsToTry, "tried": tried]
+        let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .put, path: "/api/v1/catalog/lots/\(slug)/collection", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteCollectionFlags.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// GET /api/v1/collection — the caller's whole collection.
+    public func fetchCollection(accessToken: String) async throws -> [RemoteCollectionItem] {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/collection", bearer: accessToken))
+        try Self.checkContract(response)
+        struct Wrapper: Decodable { let entries: [RemoteCollectionItem] }
+        do { return try JSONDecoder().decode(Wrapper.self, from: response.body).entries }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
     /// Maps the shared error contract (401/403/409/422/429) to APIError, other non-2xx to AuthClientError.
     private static func checkContract(_ response: HTTPResponse) throws {
         switch response.status {
@@ -167,4 +201,29 @@ public struct RemoteReviewResult: Codable, Equatable, Sendable {
     public let averageRating: Double
     public let reviewCount: Int
     public let review: RemoteMyReview
+}
+
+/// The caller's collection flags for one lot.
+public struct RemoteCollectionFlags: Codable, Equatable, Sendable {
+    public let owned: Bool
+    public let favorite: Bool
+    public let wantsToTry: Bool
+    public let tried: Bool
+
+    public init(owned: Bool, favorite: Bool, wantsToTry: Bool, tried: Bool) {
+        self.owned = owned; self.favorite = favorite; self.wantsToTry = wantsToTry; self.tried = tried
+    }
+}
+
+/// One lot in the caller's collection (flags + enough to display it).
+public struct RemoteCollectionItem: Codable, Equatable, Sendable, Identifiable {
+    public var id: String { lotId }
+    public let lotId: String
+    public let slug: String
+    public let nameAr: String
+    public let roasterNameAr: String
+    public let owned: Bool
+    public let favorite: Bool
+    public let wantsToTry: Bool
+    public let tried: Bool
 }
