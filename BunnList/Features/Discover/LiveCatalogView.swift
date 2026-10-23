@@ -30,7 +30,9 @@ final class LiveCatalogModel: ObservableObject {
 
 struct LiveCatalogView: View {
     @StateObject private var model = LiveCatalogModel()
+    @EnvironmentObject private var auth: AuthModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showMyCollection = false
 
     var body: some View {
         NavigationStack {
@@ -65,7 +67,16 @@ struct LiveCatalogView: View {
             .navigationTitle("محاصيل مباشرة")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
+            .navigationDestination(isPresented: $showMyCollection) { MyCollectionView() }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } }
+                if auth.isSignedIn {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { showMyCollection = true } label: { Label("مجموعتي", systemImage: "square.stack.3d.up") }
+                            .accessibilityIdentifier("open-my-collection")
+                    }
+                }
+            }
         }
         .task { await model.load() }
     }
