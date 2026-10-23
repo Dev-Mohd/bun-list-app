@@ -199,6 +199,26 @@ public struct CatalogAPIClient: Sendable {
         catch { throw AuthClientError.malformedResponse }
     }
 
+    /// POST /api/v1/submissions — suggest a new coffee for review. Returns its id.
+    public func submitCoffee(
+        name: String, roasterName: String, originName: String?, note: String?, accessToken: String
+    ) async throws -> String {
+        var payload: [String: Any] = ["name": name, "roasterName": roasterName]
+        if let originName, !originName.isEmpty { payload["originName"] = originName }
+        if let note, !note.isEmpty { payload["note"] = note }
+        let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .post, path: "/api/v1/submissions", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        struct Created: Decodable { let id: String }
+        do {
+            return try JSONDecoder().decode(Created.self, from: response.body).id
+        } catch {
+            throw AuthClientError.malformedResponse
+        }
+    }
+
     /// Maps the shared error contract (401/403/409/422/429) to APIError, other non-2xx to AuthClientError.
     private static func checkContract(_ response: HTTPResponse) throws {
         switch response.status {

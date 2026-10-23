@@ -137,6 +137,21 @@ final class CatalogAPIClientTests: XCTestCase {
         XCTAssertFalse(path.contains(" "))
     }
 
+    func testSubmitCoffeeSendsFieldsAndBearerAndReturnsID() async throws {
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(#"{"ok":true,"id":"sub-1"}"#.utf8)) }
+        let client = CatalogAPIClient(transport: transport)
+        let id = try await client.submitCoffee(name: "يرجاتشيف", roasterName: "كامل ستيب", originName: "إثيوبيا", note: "لذيذة", accessToken: "acc.jwt")
+        XCTAssertEqual(id, "sub-1")
+        let req = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(req.method, .post)
+        XCTAssertEqual(req.path, "/api/v1/submissions")
+        XCTAssertEqual(req.bearer, "acc.jwt")
+        let sent = (try? JSONSerialization.jsonObject(with: req.body ?? Data())) as? [String: Any]
+        XCTAssertEqual(sent?["name"] as? String, "يرجاتشيف")
+        XCTAssertEqual(sent?["roasterName"] as? String, "كامل ستيب")
+        XCTAssertEqual(sent?["originName"] as? String, "إثيوبيا")
+    }
+
     func testServerErrorThrows() async {
         let transport = FakeTransport { _ in HTTPResponse(status: 500, body: Data("boom".utf8)) }
         let client = CatalogAPIClient(transport: transport)

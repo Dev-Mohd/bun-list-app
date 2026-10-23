@@ -13,6 +13,7 @@ struct AddCoffeeSearchView: View {
     @State private var isSearching = false
     @State private var added: Set<String> = []
     @State private var message: String?
+    @State private var showSuggest = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -29,7 +30,9 @@ struct AddCoffeeSearchView: View {
                         ContentUnavailableView {
                             Label("ما لقيناها", systemImage: "magnifyingglass")
                         } description: {
-                            Text("جرّب اسمًا آخر، أو اقترحها كقهوة جديدة (قريبًا).")
+                            Text("جرّب اسمًا آخر، أو اقترحها كقهوة جديدة.")
+                        } actions: {
+                            Button("اقترح قهوة جديدة") { showSuggest = true }.buttonStyle(.borderedProminent)
                         }
                     }
                 } else {
@@ -42,7 +45,17 @@ struct AddCoffeeSearchView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "ابحث بالاسم أو المحمصة")
             .onSubmit(of: .search) { Task { await search() } }
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showSuggest = true } label: { Label("اقترح", systemImage: "plus") }
+                        .accessibilityIdentifier("open-suggest")
+                }
+            }
+            .sheet(isPresented: $showSuggest) {
+                SuggestCoffeeView(prefillName: query.trimmingCharacters(in: .whitespacesAndNewlines))
+                    .environmentObject(auth)
+            }
         }
     }
 
