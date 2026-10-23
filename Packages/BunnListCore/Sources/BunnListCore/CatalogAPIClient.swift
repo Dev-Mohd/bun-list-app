@@ -102,6 +102,20 @@ public struct CatalogAPIClient: Sendable {
         }
     }
 
+    /// GET /api/v1/catalog/lots/[slug]/reviews — public: the lot's published reviews.
+    public func fetchReviews(slug: String) async throws -> [RemoteReview] {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)/reviews"))
+        guard (200..<300).contains(response.status) else {
+            throw AuthClientError.server(status: response.status)
+        }
+        struct Wrapper: Decodable { let reviews: [RemoteReview] }
+        do {
+            return try JSONDecoder().decode(Wrapper.self, from: response.body).reviews
+        } catch {
+            throw AuthClientError.malformedResponse
+        }
+    }
+
     /// POST /api/v1/catalog/lots/[slug]/review — create/update the caller's review.
     /// Contract statuses map to APIError (401 so the caller can refresh + retry).
     public func submitReview(
@@ -182,6 +196,17 @@ public struct CatalogAPIClient: Sendable {
         default: throw AuthClientError.server(status: response.status)
         }
     }
+}
+
+/// A published review of a lot by someone, for display.
+public struct RemoteReview: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let rating: Int
+    public let brewMethod: String
+    public let wouldBuyAgain: Bool
+    public let body: String?
+    public let authorName: String
+    public let createdAt: String
 }
 
 /// The caller's review of a lot.

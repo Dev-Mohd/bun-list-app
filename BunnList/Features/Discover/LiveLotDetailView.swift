@@ -37,6 +37,7 @@ struct LiveLotDetailView: View {
     @State private var myReview: RemoteMyReview?
     @State private var showReviewForm = false
     @State private var flags = RemoteCollectionFlags(owned: false, favorite: false, wantsToTry: false, tried: false)
+    @State private var reviews: [RemoteReview] = []
 
     init(slug: String) {
         self.slug = slug
@@ -66,7 +67,13 @@ struct LiveLotDetailView: View {
             await model.load()
             await loadMyReview()
             await loadCollection()
+            await loadReviews()
         }
+    }
+
+    private func loadReviews() async {
+        let client = CatalogAPIClient(transport: URLSessionTransport())
+        reviews = (try? await client.fetchReviews(slug: slug)) ?? []
     }
 
     private var collectionControls: some View {
@@ -169,6 +176,14 @@ struct LiveLotDetailView: View {
                 }
 
                 reviewSection(lot)
+
+                if !reviews.isEmpty {
+                    section("تقييمات الناس") {
+                        VStack(spacing: 14) {
+                            ForEach(reviews) { PublicReviewRow(review: $0) }
+                        }
+                    }
+                }
             }
             .padding()
         }
@@ -205,7 +220,10 @@ struct LiveLotDetailView: View {
 
     private func applyResult(_ result: RemoteReviewResult) {
         myReview = result.review
-        Task { await model.load() } // refresh aggregates + per-method stats
+        Task {
+            await model.load() // refresh aggregates + per-method stats
+            await loadReviews()
+        }
     }
 
     private func loadMyReview() async {
@@ -286,6 +304,51 @@ struct LiveLotDetailView: View {
         case "COLD_BREW": return "كولد برو"
         default: return "أخرى"
         }
+    }
+}
+
+/// One published review in the "تقييمات الناس" list.
+private struct PublicReviewRow: View {
+    let review: RemoteReview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(review.authorName).font(.subheadline.weight(.semibold))
+                Spacer()
+                stars
+            }
+            HStack(spacing: 8) {
+                Text(LiveLotDetailView.brewLabel(review.brewMethod))
+                if review.wouldBuyAgain { Label("يشتريه ثانية", systemImage: "arrow.clockwise") }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            if let body = review.body, !body.isEmpty {
+                Text(body).font(.callout)
+            }
+            if let date = Self.shortDate(review.createdAt) {
+                Text(date).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var stars: some View {
+        HStack(spacing: 2) {
+            ForEach(1...5, id: \.self) { index in
+                Image(systemName: index <= review.rating ? "star.fill" : "star")
+                    .font(.caption2).foregroundStyle(Brand.olive)
+            }
+        }
+    }
+
+    private static func shortDate(_ iso: String) -> String? {
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = withFraction.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        return date?.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
