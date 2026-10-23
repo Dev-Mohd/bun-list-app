@@ -16,11 +16,14 @@ protocol TokenStoring {
     func clear()
 }
 
-/// Keychain-backed session storage. Tokens are sensitive, so they live in the
-/// Keychain (not UserDefaults), reachable only after first unlock on this device.
+/// Session storage: the Keychain when it is available (signed builds), with a
+/// UserDefaults fallback for unsigned dev/simulator builds where the Keychain has
+/// no entitlement and writes fail. A signed production build always uses the
+/// Keychain path and never touches the fallback.
 struct KeychainTokenStore: TokenStoring {
     private let service = "dev.devmohd.bunnlist.auth"
     private let account = "session"
+    private let defaultsKey = "dev.devmohd.bunnlist.session.fallback"
 
     private var baseQuery: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
@@ -28,7 +31,29 @@ struct KeychainTokenStore: TokenStoring {
          kSecAttrAccount as String: account]
     }
 
+    // MARK: TokenStoring
+
     func load() -> StoredSession? {
+        if let fromKeychain = loadKeychain() { return fromKeychain }
+        return loadDefaults()
+    }
+
+    func save(_ session: StoredSession) {
+        if saveKeychain(session) {
+            clearDefaults() // keychain is the source of truth when it works
+        } else {
+            saveDefaults(session)
+        }
+    }
+
+    func clear() {
+        SecItemDelete(baseQuery as CFDictionary)
+        clearDefaults()
+    }
+
+    // MARK: Keychain
+
+    private func loadKeychain() -> StoredSession? {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -38,21 +63,36 @@ struct KeychainTokenStore: TokenStoring {
         return try? JSONDecoder().decode(StoredSession.self, from: data)
     }
 
-    func save(_ session: StoredSession) {
-        guard let data = try? JSONEncoder().encode(session) else { return }
+    /// Returns true only if the token was actually written to the Keychain.
+    private func saveKeychain(_ session: StoredSession) -> Bool {
+        guard let data = try? JSONEncoder().encode(session) else { return false }
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-        let status = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
+        let updateStatus = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecSuccess { return true }
+        if updateStatus == errSecItemNotFound {
             var insert = baseQuery
             insert.merge(attributes) { _, new in new }
-            SecItemAdd(insert as CFDictionary, nil)
+            return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
         }
+        return false
     }
 
-    func clear() {
-        SecItemDelete(baseQuery as CFDictionary)
+    // MARK: UserDefaults fallback (unsigned dev/simulator builds only)
+
+    private func loadDefaults() -> StoredSession? {
+        guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return nil }
+        return try? JSONDecoder().decode(StoredSession.self, from: data)
+    }
+
+    private func saveDefaults(_ session: StoredSession) {
+        guard let data = try? JSONEncoder().encode(session) else { return }
+        UserDefaults.standard.set(data, forKey: defaultsKey)
+    }
+
+    private func clearDefaults() {
+        UserDefaults.standard.removeObject(forKey: defaultsKey)
     }
 }
