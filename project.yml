@@ -21,6 +21,9 @@ settings:
 packages:
   BunnListCore:
     path: Packages/BunnListCore
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "7.1.0"
 targets:
   BunnList:
     type: application
@@ -29,6 +32,10 @@ targets:
       - path: BunnList
     dependencies:
       - package: BunnListCore
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
     info:
       path: BunnList/Support/Info.plist
       properties:
@@ -38,6 +45,11 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [ar, en]
         LSRequiresIPhoneOS: true
+        # Google Sign-In: client id + the reversed-client-id URL scheme for the OAuth callback.
+        GIDClientID: 838115774852-hovrsujh0oek5a8jc3p6fu4ieto179ab.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.838115774852-hovrsujh0oek5a8jc3p6fu4ieto179ab
         # No non-exempt encryption → skips the export-compliance prompt on upload.
         ITSAppUsesNonExemptEncryption: false
         # Default (Arabic) value; ar.lproj/en.lproj InfoPlist.strings localize it.

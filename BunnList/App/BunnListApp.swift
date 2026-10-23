@@ -1,4 +1,5 @@
 import BunnListCore
+import GoogleSignIn
 import SwiftUI
 
 @main
@@ -13,6 +14,7 @@ struct BunnListApp: App {
                 .environmentObject(auth)
                 .environment(\.layoutDirection, .rightToLeft)
                 .tint(Brand.olive)
+                .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
         }
     }
 }
