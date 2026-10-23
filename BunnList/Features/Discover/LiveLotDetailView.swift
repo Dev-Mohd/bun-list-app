@@ -33,6 +33,9 @@ final class LiveLotDetailModel: ObservableObject {
 struct LiveLotDetailView: View {
     let slug: String
     @StateObject private var model: LiveLotDetailModel
+    @EnvironmentObject private var auth: AuthModel
+    @State private var myReview: RemoteMyReview?
+    @State private var showReviewForm = false
 
     init(slug: String) {
         self.slug = slug
@@ -58,7 +61,10 @@ struct LiveLotDetailView: View {
         }
         .navigationTitle("المحصول")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await model.load() }
+        .task {
+            await model.load()
+            await loadMyReview()
+        }
     }
 
     private func detail(_ lot: RemoteLotDetail) -> some View {
@@ -86,8 +92,58 @@ struct LiveLotDetailView: View {
                 if !lot.brewStats.isEmpty {
                     section("التقييم حسب طريقة التحضير") { brewStats(lot.brewStats) }
                 }
+
+                reviewSection(lot)
             }
             .padding()
+        }
+        .sheet(isPresented: $showReviewForm) {
+            ReviewFormView(slug: slug, brewMethods: lot.recommendedBrewMethods, existing: myReview, onSaved: applyResult)
+                .environmentObject(auth)
+        }
+    }
+
+    @ViewBuilder
+    private func reviewSection(_ lot: RemoteLotDetail) -> some View {
+        Divider().padding(.vertical, 4)
+        if auth.isSignedIn {
+            VStack(alignment: .leading, spacing: 8) {
+                if let mine = myReview {
+                    Label("تقييمك: \(mine.rating) من ٥ · \(LiveLotDetailView.brewLabel(mine.brewMethod))",
+                          systemImage: "checkmark.seal.fill")
+                        .font(.subheadline).foregroundStyle(Brand.olive)
+                }
+                Button {
+                    showReviewForm = true
+                } label: {
+                    Label(myReview == nil ? "قيّم هذا المحصول" : "عدّل تقييمك", systemImage: "star")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("review-cta")
+            }
+        } else {
+            Text("سجّل الدخول من تبويب «حسابي» لتقييم هذا المحصول.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    private func applyResult(_ result: RemoteReviewResult) {
+        myReview = result.review
+        Task { await model.load() } // refresh aggregates + per-method stats
+    }
+
+    private func loadMyReview() async {
+        guard auth.isSignedIn, let token = auth.currentAccessToken() else { myReview = nil; return }
+        let client = CatalogAPIClient(transport: URLSessionTransport())
+        do {
+            myReview = try await client.fetchMyReview(slug: slug, accessToken: token)
+        } catch APIError.unauthorized {
+            if let fresh = await auth.refreshAccessToken() {
+                myReview = try? await client.fetchMyReview(slug: slug, accessToken: fresh)
+            }
+        } catch {
+            myReview = nil // no prefill; not fatal
         }
     }
 

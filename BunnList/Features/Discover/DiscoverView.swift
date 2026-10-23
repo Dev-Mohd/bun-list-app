@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DiscoverView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var auth: AuthModel
     @State private var query = ""
     @State private var filters = CatalogFilters()
     @State private var showLiveCatalog = false
@@ -31,7 +32,7 @@ struct DiscoverView: View {
                 }
             }
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
-            .sheet(isPresented: $showLiveCatalog) { LiveCatalogView() }
+            .sheet(isPresented: $showLiveCatalog) { LiveCatalogView().environmentObject(auth) }
         }
     }
 

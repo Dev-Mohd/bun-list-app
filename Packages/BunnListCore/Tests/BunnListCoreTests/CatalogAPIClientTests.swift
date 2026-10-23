@@ -52,6 +52,44 @@ final class CatalogAPIClientTests: XCTestCase {
         XCTAssertEqual(transport.requests.first?.path, "/api/v1/catalog/lots/yirgacheffe-natural")
     }
 
+    func testSubmitReviewSendsBearerAndBodyAndDecodesResult() async throws {
+        let responseBody = #"{"averageRating":4.5,"reviewCount":3,"review":{"rating":5,"brewMethod":"V60","wouldBuyAgain":true,"body":"ممتاز"}}"#
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(responseBody.utf8)) }
+        let client = CatalogAPIClient(transport: transport)
+
+        let result = try await client.submitReview(slug: "yirgacheffe-natural", accessToken: "acc.jwt",
+                                                    rating: 5, brewMethod: "V60", wouldBuyAgain: true, body: "ممتاز")
+        XCTAssertEqual(result.averageRating, 4.5, accuracy: 0.001)
+        XCTAssertEqual(result.reviewCount, 3)
+        XCTAssertEqual(result.review.rating, 5)
+
+        let req = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(req.method, .post)
+        XCTAssertEqual(req.path, "/api/v1/catalog/lots/yirgacheffe-natural/review")
+        XCTAssertEqual(req.bearer, "acc.jwt")
+        let sent = (try? JSONSerialization.jsonObject(with: req.body ?? Data())) as? [String: Any]
+        XCTAssertEqual(sent?["rating"] as? Int, 5)
+        XCTAssertEqual(sent?["brewMethod"] as? String, "V60")
+        XCTAssertEqual(sent?["wouldBuyAgain"] as? Bool, true)
+        XCTAssertEqual(sent?["body"] as? String, "ممتاز")
+    }
+
+    func testSubmitReviewMapsUnauthorizedForRefresh() async {
+        let transport = FakeTransport { _ in HTTPResponse(status: 401, body: Data(#"{"error":"unauthorized"}"#.utf8)) }
+        let client = CatalogAPIClient(transport: transport)
+        await XCTAssertThrowsErrorAsync(
+            try await client.submitReview(slug: "s", accessToken: "expired", rating: 4, brewMethod: "V60", wouldBuyAgain: false, body: nil)
+        ) { error in
+            XCTAssertEqual(error as? APIError, .unauthorized)
+        }
+    }
+
+    func testFetchMyReviewReturnsNilWhenNone() async throws {
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(#"{"review":null}"#.utf8)) }
+        let review = try await CatalogAPIClient(transport: transport).fetchMyReview(slug: "s", accessToken: "acc.jwt")
+        XCTAssertNil(review)
+    }
+
     func testServerErrorThrows() async {
         let transport = FakeTransport { _ in HTTPResponse(status: 500, body: Data("boom".utf8)) }
         let client = CatalogAPIClient(transport: transport)

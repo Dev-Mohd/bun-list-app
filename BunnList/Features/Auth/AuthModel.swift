@@ -42,6 +42,23 @@ final class AuthModel: ObservableObject {
 
     var isSignedIn: Bool { if case .signedIn = state { return true } else { return false } }
 
+    /// The current access token, if signed in.
+    func currentAccessToken() -> String? { store.load()?.accessToken }
+
+    /// Rotates the access token using the stored refresh token. Returns a fresh
+    /// access token, or nil if refresh failed (in which case the session is cleared).
+    func refreshAccessToken() async -> String? {
+        guard let session = store.load() else { return nil }
+        do {
+            let tokens = try await client.refresh(refreshToken: session.refreshToken)
+            store.save(StoredSession(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, accountID: tokens.accountID))
+            return tokens.accessToken
+        } catch {
+            signOut()
+            return nil
+        }
+    }
+
     // MARK: - Actions
 
     func sendCode(email: String) async {
