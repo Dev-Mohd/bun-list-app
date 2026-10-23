@@ -5,6 +5,7 @@ struct DiscoverView: View {
     @EnvironmentObject private var model: AppModel
     @State private var query = ""
     @State private var filters = CatalogFilters()
+    @State private var showLiveCatalog = false
 
     var body: some View {
         NavigationStack {
@@ -19,11 +20,18 @@ struct DiscoverView: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
                         prompt: "الاسم أو المحمصة أو المنشأ أو النكهة")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showLiveCatalog = true } label: {
+                        Label("محاصيل مباشرة", systemImage: "cloud")
+                    }
+                    .accessibilityIdentifier("open-live-catalog")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if let catalog = model.catalog { FilterMenu(filters: $filters, catalog: catalog) }
                 }
             }
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
+            .sheet(isPresented: $showLiveCatalog) { LiveCatalogView() }
         }
     }
 
