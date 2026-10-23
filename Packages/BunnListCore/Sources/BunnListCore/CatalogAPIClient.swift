@@ -30,6 +30,43 @@ public struct RemoteLot: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+/// Per-brew-method rating summary for a lot.
+public struct RemoteBrewStat: Codable, Equatable, Sendable, Identifiable {
+    public var id: String { method }
+    public let method: String
+    public let averageRating: Double
+    public let reviewCount: Int
+    public let wouldBuyAgain: Int
+
+    public init(method: String, averageRating: Double, reviewCount: Int, wouldBuyAgain: Int) {
+        self.method = method; self.averageRating = averageRating
+        self.reviewCount = reviewCount; self.wouldBuyAgain = wouldBuyAgain
+    }
+}
+
+/// A single published lot with its full detail (GET /api/v1/catalog/lots/[slug]).
+public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let slug: String
+    public let name: String
+    public let nameAr: String
+    public let roasterNameAr: String
+    public let originNameAr: String?
+    public let originCode: String?
+    public let process: String
+    public let processLabel: String?
+    public let flavorNotes: [String]
+    public let roastLevel: String?
+    public let averageRating: Double
+    public let reviewCount: Int
+    public let imageUrl: String?
+    public let descriptionAr: String?
+    public let regionAr: String?
+    public let variety: String?
+    public let recommendedBrewMethods: [String]
+    public let brewStats: [RemoteBrewStat]
+}
+
 public struct CatalogAPIClient: Sendable {
     private struct Feed: Decodable { let lots: [RemoteLot] }
 
@@ -47,6 +84,19 @@ public struct CatalogAPIClient: Sendable {
         }
         do {
             return try JSONDecoder().decode(Feed.self, from: response.body).lots
+        } catch {
+            throw AuthClientError.malformedResponse
+        }
+    }
+
+    /// GET /api/v1/catalog/lots/[slug] — one lot's full detail.
+    public func fetchLotDetail(slug: String) async throws -> RemoteLotDetail {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)"))
+        guard (200..<300).contains(response.status) else {
+            throw AuthClientError.server(status: response.status)
+        }
+        do {
+            return try JSONDecoder().decode(RemoteLotDetail.self, from: response.body)
         } catch {
             throw AuthClientError.malformedResponse
         }

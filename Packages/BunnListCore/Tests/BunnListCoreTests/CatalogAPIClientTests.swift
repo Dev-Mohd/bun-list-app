@@ -38,6 +38,20 @@ final class CatalogAPIClientTests: XCTestCase {
         XCTAssertTrue(lots.isEmpty)
     }
 
+    func testFetchLotDetailDecodesAndCallsSlugPath() async throws {
+        let body = """
+        {"id":"lot-1","slug":"yirgacheffe-natural","name":"Yirgacheffe Natural","nameAr":"يرجاتشيف طبيعي","roasterNameAr":"كامل ستيب","originNameAr":"إثيوبيا","originCode":"ET","process":"NATURAL","processLabel":"Natural","flavorNotes":["فراولة"],"roastLevel":null,"averageRating":4.5,"reviewCount":2,"imageUrl":null,"descriptionAr":"وصف","regionAr":"يرجاتشيف","variety":"Heirloom","recommendedBrewMethods":["V60"],"brewStats":[{"method":"V60","averageRating":4.8,"reviewCount":5,"wouldBuyAgain":4}]}
+        """
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(body.utf8)) }
+        let detail = try await CatalogAPIClient(transport: transport).fetchLotDetail(slug: "yirgacheffe-natural")
+        XCTAssertEqual(detail.descriptionAr, "وصف")
+        XCTAssertEqual(detail.variety, "Heirloom")
+        let stat = try XCTUnwrap(detail.brewStats.first)
+        XCTAssertEqual(stat.method, "V60")
+        XCTAssertEqual(stat.averageRating, 4.8, accuracy: 0.001)
+        XCTAssertEqual(transport.requests.first?.path, "/api/v1/catalog/lots/yirgacheffe-natural")
+    }
+
     func testServerErrorThrows() async {
         let transport = FakeTransport { _ in HTTPResponse(status: 500, body: Data("boom".utf8)) }
         let client = CatalogAPIClient(transport: transport)

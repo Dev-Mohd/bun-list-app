@@ -55,12 +55,16 @@ struct LiveCatalogView: View {
                             Text("لم تُنشر محاصيل على الخادم بعد. تُضاف لاحقًا من لوحة الموقع، وتظهر هنا تلقائيًا.")
                         }
                     } else {
-                        List(lots) { LiveLotRow(lot: $0) }
+                        List(lots) { lot in
+                            NavigationLink(value: lot.slug) { LiveLotRow(lot: lot) }
+                                .accessibilityIdentifier("live-lot-\(lot.slug)")
+                        }
                     }
                 }
             }
             .navigationTitle("محاصيل مباشرة")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
         }
         .task { await model.load() }
