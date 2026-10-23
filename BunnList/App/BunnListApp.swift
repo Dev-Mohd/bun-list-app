@@ -25,10 +25,14 @@ enum AppTab: Hashable {
 
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var auth: AuthModel
+    @AppStorage("continuedAsGuest") private var continuedAsGuest = false
     @State private var tab: AppTab = .discover
 
     var body: some View {
-        if let loadError = model.loadError {
+        if !auth.isSignedIn && !continuedAsGuest {
+            WelcomeView(continuedAsGuest: $continuedAsGuest)
+        } else if let loadError = model.loadError {
             ContentUnavailableView {
                 Label("تعذّر فتح البيانات", systemImage: "exclamationmark.triangle")
             } description: {

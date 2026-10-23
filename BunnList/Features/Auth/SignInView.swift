@@ -1,8 +1,4 @@
-import AuthenticationServices
-import GoogleSignIn
-import GoogleSignInSwift
 import SwiftUI
-import UIKit
 
 /// Email sign-in: enter an email, receive a 6-digit code, enter it. Dismisses itself
 /// once signed in. All server talk and state live in `AuthModel`.
@@ -43,52 +39,11 @@ struct SignInView: View {
 
     private var quickSignInSection: some View {
         Section {
-            SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.fullName, .email]
-            } onCompletion: { result in
-                handleApple(result)
-            }
-            .signInWithAppleButtonStyle(.black)
-            .frame(height: 48)
-            .listRowInsets(EdgeInsets())
-            .accessibilityIdentifier("signin-apple")
-
-            GoogleSignInButton(action: signInWithGoogle)
-                .frame(height: 48)
-                .listRowInsets(EdgeInsets())
-                .accessibilityIdentifier("signin-google")
+            QuickSignInButtons(height: 48)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         } header: {
             Text("الدخول السريع")
         }
-    }
-
-    private func handleApple(_ result: Result<ASAuthorization, Error>) {
-        guard case let .success(authorization) = result,
-              let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let tokenData = credential.identityToken,
-              let token = String(data: tokenData, encoding: .utf8) else { return }
-        Task { await auth.signInWithApple(identityToken: token) }
-    }
-
-    private func signInWithGoogle() {
-        guard let root = Self.rootViewController() else { return }
-        Task {
-            do {
-                let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: root)
-                guard let idToken = result.user.idToken?.tokenString else { return }
-                await auth.signInWithGoogle(idToken: idToken)
-            } catch {
-                // user canceled or sign-in failed — nothing to show
-            }
-        }
-    }
-
-    private static func rootViewController() -> UIViewController? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .rootViewController
     }
 
     private var emailStep: some View {
