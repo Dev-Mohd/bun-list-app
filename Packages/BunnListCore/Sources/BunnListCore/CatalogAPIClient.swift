@@ -247,6 +247,8 @@ public struct RemoteCollectionItem: Codable, Equatable, Sendable, Identifiable {
     public let slug: String
     public let nameAr: String
     public let roasterNameAr: String
+    public let originNameAr: String?
+    public let originCode: String?
     public let owned: Bool
     public let favorite: Bool
     public let wantsToTry: Bool

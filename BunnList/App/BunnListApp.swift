@@ -20,7 +20,7 @@ struct BunnListApp: App {
 }
 
 enum AppTab: Hashable {
-    case discover, collection, scan, community, account
+    case discover, collection, scan, journeys, account
 }
 
 struct RootView: View {
@@ -51,9 +51,9 @@ struct RootView: View {
                 ScanView()
                     .tabItem { Label("مسح", systemImage: "camera.viewfinder") }
                     .tag(AppTab.scan)
-                CommunityView()
-                    .tabItem { Label("المجتمع", systemImage: "person.3") }
-                    .tag(AppTab.community)
+                JourneysView()
+                    .tabItem { Label("رحلتك", systemImage: "map") }
+                    .tag(AppTab.journeys)
                 AccountView()
                     .tabItem { Label("حسابي", systemImage: "person.crop.circle") }
                     .tag(AppTab.account)
