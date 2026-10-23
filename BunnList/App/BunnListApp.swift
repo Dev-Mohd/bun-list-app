@@ -4,11 +4,13 @@ import SwiftUI
 @main
 struct BunnListApp: App {
     @StateObject private var model = AppModel.live()
+    @StateObject private var auth = AuthModel.live()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
+                .environmentObject(auth)
                 .environment(\.layoutDirection, .rightToLeft)
                 .tint(Brand.olive)
         }

@@ -1,10 +1,13 @@
 import BunnListCore
 import SwiftUI
 
-/// Guest-only account screen. No sign-in, points or challenges are shown because none exist yet.
+/// Account screen: email sign-in (one-time code) plus the on-device collection summary.
 struct AccountView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var auth: AuthModel
     @State private var editingRecipe: ClientID?
+    @State private var showSignIn = false
+    @State private var confirmDelete = false
 
     var body: some View {
         let entries = model.book.activeEntries(owner: model.owner)
@@ -12,11 +15,7 @@ struct AccountView: View {
         NavigationStack {
             List {
                 Section { BrandHeading(subtitle: "حسابك على هذا الجهاز") }
-                Section("الحالة") {
-                    Label("تستخدم التطبيق كزائر", systemImage: "person.crop.circle.badge.questionmark")
-                    Text("تسجيل الدخول والمزامنة غير متاحين في هذه النسخة. مجموعتك محفوظة على هذا الجهاز فقط.")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
+                accountStatusSection
                 Section("مجموعتك") {
                     LabeledContent("لديّ", value: entries.filter(\.isOwned).count.formatted())
                     LabeledContent("جربته", value: entries.filter(\.isTried).count.formatted())
@@ -45,6 +44,35 @@ struct AccountView: View {
             .navigationTitle("حسابي")
             .sheet(item: Binding(get: { editingRecipe.map(RecipeRef.init) }, set: { editingRecipe = $0?.id })) { ref in
                 RecipeEditor(lotID: model.recipe(ref.id)?.lotID, existing: ref.id)
+            }
+            .sheet(isPresented: $showSignIn) { SignInView() }
+            .confirmationDialog("حذف الحساب نهائيًا؟", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("حذف الحساب", role: .destructive) { Task { await auth.deleteAccount() } }
+                Button("إلغاء", role: .cancel) {}
+            } message: {
+                Text("سيُحذف حسابك وبياناته على الخادم نهائيًا. لا يمكن التراجع. مجموعتك على هذا الجهاز تبقى.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var accountStatusSection: some View {
+        switch auth.state {
+        case .signedIn(let accountID):
+            Section("الحساب") {
+                Label("مسجّل الدخول", systemImage: "checkmark.seal.fill").foregroundStyle(Brand.olive)
+                LabeledContent("المعرّف", value: String(accountID.prefix(12)) + "…")
+                Button("تسجيل الخروج") { auth.signOut() }
+                Button("حذف الحساب", role: .destructive) { confirmDelete = true }
+                    .accessibilityIdentifier("account-delete")
+            }
+        default:
+            Section("الحالة") {
+                Label("تستخدم التطبيق كزائر", systemImage: "person.crop.circle.badge.questionmark")
+                Text("سجّل الدخول برمز يصل إلى بريدك لحفظ حسابك. مجموعتك محفوظة على هذا الجهاز.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("تسجيل الدخول بالبريد") { showSignIn = true }
+                    .accessibilityIdentifier("account-signin")
             }
         }
     }
