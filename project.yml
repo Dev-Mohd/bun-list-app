@@ -38,6 +38,8 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [ar, en]
         LSRequiresIPhoneOS: true
+        # No non-exempt encryption → skips the export-compliance prompt on upload.
+        ITSAppUsesNonExemptEncryption: false
         # Default (Arabic) value; ar.lproj/en.lproj InfoPlist.strings localize it.
         NSCameraUsageDescription: نستخدم الكاميرا لتصوير كيس القهوة وقراءة بياناته لإضافته إلى مجموعتك.
         UIApplicationSceneManifest:
