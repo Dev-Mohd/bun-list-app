@@ -67,11 +67,13 @@ struct AccountView: View {
                     .accessibilityIdentifier("account-delete")
             }
         default:
-            Section("الحالة") {
+            Section("تسجيل الدخول") {
                 Label("تستخدم التطبيق كزائر", systemImage: "person.crop.circle.badge.questionmark")
-                Text("سجّل الدخول برمز يصل إلى بريدك لحفظ حسابك. مجموعتك محفوظة على هذا الجهاز.")
+                Text("سجّل الدخول لحفظ حسابك ومزامنة مجموعتك بين أجهزتك. مجموعتك الحالية محفوظة على هذا الجهاز.")
                     .font(.callout).foregroundStyle(.secondary)
-                Button("تسجيل الدخول بالبريد") { showSignIn = true }
+                QuickSignInButtons(height: 48)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                Button("كمّل بالإيميل") { showSignIn = true }
                     .accessibilityIdentifier("account-signin")
             }
         }
