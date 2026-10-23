@@ -1,102 +1,108 @@
 import BunnListCore
 import SwiftUI
 
+/// Discover: published coffee from the server is the primary content. Search runs on
+/// the server; loading, empty and error states are explicit and actionable. Demo data
+/// is never shown as a fallback — it lives behind a clearly labeled "الدليل التجريبي"
+/// entry in the toolbar.
 struct DiscoverView: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var auth: AuthModel
+    private enum Phase: Equatable {
+        case loading
+        case loaded([RemoteLot])
+        case failed
+    }
+
+    @State private var phase: Phase = .loading
     @State private var query = ""
-    @State private var filters = CatalogFilters()
-    @State private var showLiveCatalog = false
+    @State private var searchResults: [RemoteLot]?
+    @State private var isSearching = false
+    @State private var showSample = false
+
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let catalog = model.catalog {
-                    content(catalog)
-                } else {
-                    ProgressView()
+            content
+                .navigationTitle("اكتشف")
+                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
+                            prompt: "ابحث بالاسم أو المحمصة")
+                .onSubmit(of: .search) { Task { await search() } }
+                .onChange(of: query) { _, newValue in
+                    if newValue.trimmingCharacters(in: .whitespaces).isEmpty { searchResults = nil }
                 }
-            }
-            .navigationTitle("اكتشف")
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: "الاسم أو المحمصة أو المنشأ أو النكهة")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showLiveCatalog = true } label: {
-                        Label("محاصيل مباشرة", systemImage: "cloud")
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showSample = true } label: {
+                            Label("الدليل التجريبي", systemImage: "flask")
+                        }
+                        .accessibilityIdentifier("open-sample-catalog")
                     }
-                    .accessibilityIdentifier("open-live-catalog")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    if let catalog = model.catalog { FilterMenu(filters: $filters, catalog: catalog) }
-                }
-            }
-            .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
-            .sheet(isPresented: $showLiveCatalog) { LiveCatalogView().environmentObject(auth) }
+                .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
+                .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
+                .navigationDestination(isPresented: $showSample) { SampleCatalogView() }
+                .task { if case .loading = phase { await load() } }
+                .refreshable { await load() }
         }
     }
 
-    private func content(_ catalog: Catalog) -> some View {
-        let results = CatalogSearch.products(in: catalog, query: query, filters: filters)
-        let browsing = query.trimmingCharacters(in: .whitespaces).isEmpty && filters.isEmpty
-        return List {
-            Section {
-                BrandHeading()
-                SampleBadge(text: "\(catalog.label): أسماء ومحامص توضيحية، بلا تقييمات أو أعداد مستخدمين")
+    @ViewBuilder
+    private var content: some View {
+        switch phase {
+        case .loading:
+            ProgressView("جارٍ تحميل المحاصيل…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .failed:
+            ContentUnavailableView {
+                Label("تعذّر تحميل المحاصيل", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text("تحقّق من اتصالك ثم أعد المحاولة.")
+            } actions: {
+                Button("إعادة المحاولة") { Task { await load() } }.buttonStyle(.borderedProminent)
             }
-            if !filters.isEmpty {
-                Section {
-                    Button("مسح المرشحات") { filters = CatalogFilters() }
-                        .accessibilityIdentifier("clear-filters")
-                }
-            }
-            Section(browsing ? "الدليل" : "النتائج") {
-                if results.isEmpty {
+        case let .loaded(all):
+            list(searchResults ?? all, isSearchResult: searchResults != nil)
+        }
+    }
+
+    private func list(_ lots: [RemoteLot], isSearchResult: Bool) -> some View {
+        List {
+            if isSearching {
+                Section { HStack { Spacer(); ProgressView(); Spacer() } }
+            } else if lots.isEmpty {
+                if isSearchResult {
                     ContentUnavailableView.search(text: query)
                 } else {
-                    ForEach(results) { product in
-                        NavigationLink(value: product.id) { ProductRow(product: product, catalog: catalog) }
-                            .accessibilityIdentifier("product-\(product.id.rawValue)")
+                    ContentUnavailableView {
+                        Label("لا محاصيل منشورة بعد", systemImage: "cup.and.saucer")
+                    } description: {
+                        Text("تظهر هنا القهوة فور نشرها.")
+                    }
+                }
+            } else {
+                Section(isSearchResult ? "النتائج" : "المحاصيل") {
+                    ForEach(lots) { lot in
+                        NavigationLink(value: lot.slug) { LiveLotRow(lot: lot) }
+                            .accessibilityIdentifier("live-lot-\(lot.slug)")
                     }
                 }
             }
         }
     }
-}
 
-private struct FilterMenu: View {
-    @Binding var filters: CatalogFilters
-    let catalog: Catalog
-
-    var body: some View {
-        Menu {
-            Picker("المحمصة", selection: $filters.roasterID) {
-                Text("كل المحامص").tag(RoasterID?.none)
-                ForEach(catalog.roasters) { Text($0.nameAr).tag(Optional($0.id)) }
-            }
-            codePicker("المنشأ", all: "كل المناشئ", selection: $filters.countryCode,
-                       entries: used(\.origin.countryCodes).compactMap(ReferenceCodes.country))
-            codePicker("المعالجة", all: "كل المعالجات", selection: $filters.processCode,
-                       entries: used { [$0.processCode].compactMap { $0 } }.compactMap(ReferenceCodes.process))
-            codePicker("النكهة", all: "كل النكهات", selection: $filters.flavorCode,
-                       entries: used(\.flavorCodes).compactMap(ReferenceCodes.flavor))
-            codePicker("طريقة التحضير المقترحة", all: "كل الطرق", selection: $filters.brewMethodCode,
-                       entries: used(\.recommendedBrewMethods).compactMap(ReferenceCodes.brewMethod))
-        } label: {
-            Label("ترشيح", systemImage: filters.isEmpty ? "line.3.horizontal.decrease.circle"
-                  : "line.3.horizontal.decrease.circle.fill")
+    private func load() async {
+        do {
+            phase = .loaded(try await client.fetchLots())
+        } catch {
+            phase = .failed
         }
-        .accessibilityIdentifier("filters")
     }
 
-    private func used(_ codes: (CoffeeProduct) -> [String]) -> [String] {
-        Array(Set(catalog.products.flatMap(codes))).sorted()
-    }
-
-    private func codePicker(_ title: String, all: String, selection: Binding<String?>, entries: [ReferenceEntry]) -> some View {
-        Picker(title, selection: selection) {
-            Text(all).tag(String?.none)
-            ForEach(entries, id: \.code) { Text($0.nameAr).tag(Optional($0.code)) }
-        }
+    private func search() async {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard q.count >= 2 else { return }
+        isSearching = true
+        defer { isSearching = false }
+        searchResults = (try? await client.searchLots(query: q)) ?? []
     }
 }

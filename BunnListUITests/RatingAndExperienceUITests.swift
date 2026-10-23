@@ -14,6 +14,10 @@ final class RatingAndExperienceUITests: XCTestCase {
 
     private func openGuji(_ app: XCUIApplication) {
         app.tabBars.buttons["اكتشف"].tap()
+        // Demo products now live behind the labeled sample-catalog entry.
+        let sample = app.buttons["open-sample-catalog"]
+        XCTAssertTrue(sample.waitForExistence(timeout: 5))
+        sample.tap()
         let guji = app.buttons["product-sample:product/guji"]
         XCTAssertTrue(guji.waitForExistence(timeout: 5))
         guji.tap()

@@ -82,7 +82,7 @@ struct LiveCatalogView: View {
     }
 }
 
-private struct LiveLotRow: View {
+struct LiveLotRow: View {
     let lot: RemoteLot
 
     var body: some View {
