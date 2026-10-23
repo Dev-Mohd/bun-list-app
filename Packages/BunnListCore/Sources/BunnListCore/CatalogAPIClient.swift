@@ -89,6 +89,21 @@ public struct CatalogAPIClient: Sendable {
         }
     }
 
+    /// GET /api/v1/catalog/search?q=... — search published lots (name / roaster).
+    public func searchLots(query: String) async throws -> [RemoteLot] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/search?q=\(encoded)"))
+        guard (200..<300).contains(response.status) else {
+            throw AuthClientError.server(status: response.status)
+        }
+        struct Wrapper: Decodable { let lots: [RemoteLot] }
+        do {
+            return try JSONDecoder().decode(Wrapper.self, from: response.body).lots
+        } catch {
+            throw AuthClientError.malformedResponse
+        }
+    }
+
     /// GET /api/v1/catalog/lots/[slug] — one lot's full detail.
     public func fetchLotDetail(slug: String) async throws -> RemoteLotDetail {
         let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)"))

@@ -29,8 +29,11 @@ struct RootView: View {
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
     @State private var tab: AppTab = .discover
 
+    /// UI tests launch straight into the tabs, past the welcome gate.
+    private var uiTesting: Bool { ProcessInfo.processInfo.arguments.contains("-uiTesting") }
+
     var body: some View {
-        if !auth.isSignedIn && !continuedAsGuest {
+        if !uiTesting && !auth.isSignedIn && !continuedAsGuest {
             WelcomeView(continuedAsGuest: $continuedAsGuest)
         } else if let loadError = model.loadError {
             ContentUnavailableView {

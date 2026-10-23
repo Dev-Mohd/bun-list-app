@@ -6,6 +6,8 @@ import UIKit
 /// Capture or pick → (demo) extraction → editable review → match → choose the season → collect.
 struct ScanView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var auth: AuthModel
+    @State private var showServerSearch = false
     @State private var flow = ScanFlow()
     @State private var fields = ExtractedBagFields()
     @State private var entryState: ScanEntryState = .noCamera
@@ -35,6 +37,7 @@ struct ScanView: View {
             }
             .navigationTitle("مسح")
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
+            .sheet(isPresented: $showServerSearch) { AddCoffeeSearchView().environmentObject(auth) }
             .onAppear { entryState = camera.entryState }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView(onImage: { data in
@@ -58,6 +61,14 @@ struct ScanView: View {
 
     private var startView: some View {
         List {
+            Section {
+                Button { showServerSearch = true } label: {
+                    Label("ابحث وأضف قهوة من الخادم", systemImage: "plus.magnifyingglass")
+                }
+                .accessibilityIdentifier("scan-server-search")
+            } footer: {
+                Text("ابحث في قهوة الخادم الحقيقية وأضفها لمجموعتك.")
+            }
             Section {
                 SampleBadge(text: "القراءة في هذه النسخة تجريبية: الصورة لا تُرسل ولا تُحفظ، والنتيجة موسومة.")
             }

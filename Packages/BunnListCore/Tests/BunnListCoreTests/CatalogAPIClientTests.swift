@@ -126,6 +126,17 @@ final class CatalogAPIClientTests: XCTestCase {
         XCTAssertEqual(transport.requests.first?.path, "/api/v1/catalog/lots/yirgacheffe-natural/reviews")
     }
 
+    func testSearchLotsEncodesQueryAndDecodes() async throws {
+        let body = #"{"lots":[{"id":"l1","slug":"s1","name":"Yirgacheffe","nameAr":"يرجاتشيف","roasterNameAr":"كامل ستيب","originNameAr":"إثيوبيا","originCode":"ET","process":"NATURAL","processLabel":"Natural","flavorNotes":[],"roastLevel":null,"averageRating":4.5,"reviewCount":2,"imageUrl":null}]}"#
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(body.utf8)) }
+        let lots = try await CatalogAPIClient(transport: transport).searchLots(query: "يرجا")
+        XCTAssertEqual(lots.count, 1)
+        XCTAssertEqual(lots.first?.slug, "s1")
+        let path = try XCTUnwrap(transport.requests.first?.path)
+        XCTAssertTrue(path.hasPrefix("/api/v1/catalog/search?q="))
+        XCTAssertFalse(path.contains(" "))
+    }
+
     func testServerErrorThrows() async {
         let transport = FakeTransport { _ in HTTPResponse(status: 500, body: Data("boom".utf8)) }
         let client = CatalogAPIClient(transport: transport)
