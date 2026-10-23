@@ -12,9 +12,11 @@ struct WelcomeView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Brand.olive)
+            Image("BunnListSymbol")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 96)
+                .accessibilityHidden(true)
             Text("بن لست")
                 .font(.system(size: 40, weight: .black))
                 .foregroundStyle(Brand.ink)
