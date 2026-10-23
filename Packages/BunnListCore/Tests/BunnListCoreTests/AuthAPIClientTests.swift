@@ -37,6 +37,26 @@ final class AuthAPIClientTests: XCTestCase {
         XCTAssertEqual(body(req)["deviceId"] as? String, "dev-1")
     }
 
+    func testExchangeSendsProviderCredentialAndDecodesTokens() async throws {
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: try! JSONSerialization.data(withJSONObject: ["accessToken": "a", "refreshToken": "r", "accessExpiresInSeconds": 900, "accountId": "acct-1", "isNewAccount": true])) }
+        let client = AuthAPIClient(transport: transport)
+        let tokens = try await client.exchange(provider: "apple", credential: "apple.id.token", deviceID: "dev-1")
+        XCTAssertEqual(tokens.accountID, "acct-1")
+        let req = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(req.path, "/api/v1/auth/exchange")
+        XCTAssertEqual(body(req)["provider"] as? String, "apple")
+        XCTAssertEqual(body(req)["credential"] as? String, "apple.id.token")
+        XCTAssertEqual(body(req)["deviceId"] as? String, "dev-1")
+    }
+
+    func testExchangeMapsProviderNotConfiguredToUnauthorized() async {
+        let transport = FakeTransport { _ in HTTPResponse(status: 401, body: Data(#"{"error":"unauthorized","reason":"provider_not_configured"}"#.utf8)) }
+        let client = AuthAPIClient(transport: transport)
+        await XCTAssertThrowsErrorAsync(try await client.exchange(provider: "apple", credential: "x", deviceID: "d")) { error in
+            XCTAssertEqual(error as? APIError, .unauthorized)
+        }
+    }
+
     func testRequestEmailCodePostsEmail() async throws {
         let transport = FakeTransport { _ in HTTPResponse(status: 200, body: try! JSONSerialization.data(withJSONObject: ["ok": true])) }
         let client = AuthAPIClient(transport: transport)

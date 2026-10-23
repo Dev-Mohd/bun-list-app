@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 /// Email sign-in: enter an email, receive a 6-digit code, enter it. Dismisses itself
@@ -13,6 +14,7 @@ struct SignInView: View {
             Form {
                 switch auth.state {
                 case .signedOut:
+                    appleSection
                     emailStep
                 case let .awaitingCode(pendingEmail):
                     codeStep(email: pendingEmail)
@@ -34,6 +36,30 @@ struct SignInView: View {
             .overlay { if auth.isBusy { ProgressView() } }
         }
         .onChange(of: auth.isSignedIn) { _, signedIn in if signedIn { dismiss() } }
+    }
+
+    private var appleSection: some View {
+        Section {
+            SignInWithAppleButton(.signIn) { request in
+                request.requestedScopes = [.fullName, .email]
+            } onCompletion: { result in
+                handleApple(result)
+            }
+            .signInWithAppleButtonStyle(.black)
+            .frame(height: 48)
+            .listRowInsets(EdgeInsets())
+            .accessibilityIdentifier("signin-apple")
+        } header: {
+            Text("الدخول السريع")
+        }
+    }
+
+    private func handleApple(_ result: Result<ASAuthorization, Error>) {
+        guard case let .success(authorization) = result,
+              let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let token = String(data: tokenData, encoding: .utf8) else { return }
+        Task { await auth.signInWithApple(identityToken: token) }
     }
 
     private var emailStep: some View {

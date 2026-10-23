@@ -83,6 +83,15 @@ final class AuthModel: ObservableObject {
         }
     }
 
+    /// Exchanges an Apple identity token (from Sign in with Apple) for app tokens.
+    func signInWithApple(identityToken: String) async {
+        await run {
+            let tokens = try await client.exchange(provider: "apple", credential: identityToken, deviceID: deviceID)
+            store.save(StoredSession(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, accountID: tokens.accountID))
+            state = .signedIn(accountID: tokens.accountID)
+        }
+    }
+
     func resendCode() async {
         guard case let .awaitingCode(email) = state else { return }
         await run { try await client.requestEmailCode(email: email) }

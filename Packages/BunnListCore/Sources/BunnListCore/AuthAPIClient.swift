@@ -71,6 +71,16 @@ public struct AuthAPIClient: Sendable {
         self.transport = transport
     }
 
+    /// POST /api/v1/auth/exchange — trade a provider identity token (Apple/Google) for tokens.
+    public func exchange(provider: String, credential: String, deviceID: String) async throws -> AuthTokens {
+        let response = try await transport.send(
+            HTTPRequest(method: .post, path: "/api/v1/auth/exchange",
+                        body: json(["provider": provider, "credential": credential, "deviceId": deviceID]))
+        )
+        try check(response)
+        return try decode(AuthTokens.self, from: response.body)
+    }
+
     /// POST /api/v1/auth/email/request — begin email login. Always neutral.
     public func requestEmailCode(email: String) async throws {
         let response = try await transport.send(
