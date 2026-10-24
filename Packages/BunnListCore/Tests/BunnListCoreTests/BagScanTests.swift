@@ -80,4 +80,15 @@ final class BagScanTests: XCTestCase {
     func testSplittingFlavorNotes() {
         XCTAssertEqual(CoffeeSuggestion.notes(from: "شوكولاتة غنية، كراميل, نهاية حلوة،"), ["شوكولاتة غنية", "كراميل", "نهاية حلوة"])
     }
+
+    func testUploadingASuggestionPhoto() async throws {
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(#"{"photoPath":"submissions/s1.jpg"}"#.utf8)) }
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2])
+        try await CatalogAPIClient(transport: transport).uploadSuggestionPhoto(submissionID: "s1", jpeg: jpeg, accessToken: "acc")
+        let req = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(req.method, .put)
+        XCTAssertEqual(req.path, "/api/v1/submissions/s1/photo")
+        let sent = (try? JSONSerialization.jsonObject(with: req.body ?? Data())) as? [String: Any]
+        XCTAssertEqual(sent?["imageBase64"] as? String, jpeg.base64EncodedString())
+    }
 }

@@ -18,14 +18,17 @@ struct SuggestCoffeeView: View {
     @State private var isBusy = false
     @State private var errorMessage: String?
     @State private var submitted = false
+    @State private var photoMessage: String?
+    @State private var photoUploadFailed = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
-    init(prefillName: String = "", scanned: RemoteBagExtraction? = nil, prefillPhoto: UIImage? = nil) {
+    /// `productPhoto` must already be a background-removed cut-out; raw photos are never uploaded.
+    init(prefillName: String = "", scanned: RemoteBagExtraction? = nil, productPhoto: UIImage? = nil) {
         let start = scanned.map(CoffeeSuggestion.init(scanned:)) ?? CoffeeSuggestion(name: prefillName)
         _suggestion = State(initialValue: start)
         _flavorText = State(initialValue: start.flavorNotes.joined(separator: "، "))
-        _photo = State(initialValue: prefillPhoto)
+        _photo = State(initialValue: productPhoto)
     }
 
     var body: some View {
@@ -41,6 +44,10 @@ struct SuggestCoffeeView: View {
                     Image(uiImage: photo).resizable().scaledToFit()
                         .frame(height: 180).frame(maxWidth: .infinity)
                         .listRowInsets(EdgeInsets())
+                    Button("إزالة الصورة", role: .destructive) { self.photo = nil }
+                }
+                if let photoMessage {
+                    Label(photoMessage, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.orange)
                 }
                 Button { showCamera = true } label: { Label("صوّر الكيس", systemImage: "camera") }
                 PhotosPicker(selection: $photoItem, matching: .images) {
@@ -49,7 +56,7 @@ struct SuggestCoffeeView: View {
             } header: {
                 Text("صورة (اختياري)")
             } footer: {
-                Text("الصورة تساعد في المراجعة. (تُرفع للخادم في تحديث قادم.)")
+                Text("نفصل الكيس عن الخلفية على جوالك ونرفع صورة المنتج فقط. صورة المنتج تُستخدم في دليل بُن لست.")
             }
 
             Section("اسم القهوة") {
@@ -126,15 +133,24 @@ struct SuggestCoffeeView: View {
         ContentUnavailableView {
             Label("تم إرسال اقتراحك", systemImage: "checkmark.seal.fill")
         } description: {
-            Text("شكرًا لمساهمتك! سنراجع القهوة ونضيفها للدليل.")
+            Text(photoUploadFailed
+                 ? "شكرًا لمساهمتك! وصل الاقتراح لكن الصورة ما انرفعت، تقدر ترسلها لاحقًا."
+                 : "شكرًا لمساهمتك! سنراجع القهوة ونضيفها للدليل، ويظهر اسمك كمكتشف لها.")
         } actions: {
             Button("تم") { dismiss() }.buttonStyle(.borderedProminent)
         }
     }
 
-    /// Crops the bag out of a new photo when possible.
+    /// Keeps only the bag, lifted out of its background. When that fails the raw photo
+    /// is dropped (it may show people or places), and we ask for a cleaner shot.
     private func setPhoto(_ image: UIImage) async {
-        photo = await BagCutout.cardImage(from: image) ?? image
+        photoMessage = nil
+        if let cutout = await BagCutout.cardImage(from: image) {
+            photo = cutout
+        } else {
+            photo = nil
+            photoMessage = "ما قدرنا نفصل الكيس عن الخلفية. صوّره على خلفية سادة بإضاءة جيدة، أو أرسل بدون صورة."
+        }
     }
 
     private func submit() async {
@@ -148,7 +164,14 @@ struct SuggestCoffeeView: View {
         var toSend = suggestion
         toSend.flavorNotes = CoffeeSuggestion.notes(from: flavorText)
         do {
-            _ = try await auth.withToken { try await client.submitCoffee(toSend, accessToken: $0) }
+            let id = try await auth.withToken { try await client.submitCoffee(toSend, accessToken: $0) }
+            if let photo, let jpeg = AIBagScanView.compressed(photo) {
+                do {
+                    try await auth.withToken { try await client.uploadSuggestionPhoto(submissionID: id, jpeg: jpeg, accessToken: $0) }
+                } catch {
+                    photoUploadFailed = true
+                }
+            }
             Haptics.tap()
             submitted = true
         } catch APIError.unauthorized {

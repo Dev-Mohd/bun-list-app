@@ -21,6 +21,8 @@ struct AIBagScanView: View {
     @State private var showCamera = false
     @State private var photoItem: PhotosPickerItem?
     @State private var suggestion: BagSuggestion?
+    /// The bag lifted out of the photo, when the device could find it.
+    @State private var cutout: UIImage?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -55,7 +57,7 @@ struct AIBagScanView: View {
                 }
             }
             .sheet(item: $suggestion) { s in
-                SuggestCoffeeView(scanned: s.extraction, prefillPhoto: s.photo)
+                SuggestCoffeeView(scanned: s.extraction, productPhoto: s.photo)
                     .environmentObject(auth)
             }
         }
@@ -172,7 +174,7 @@ struct AIBagScanView: View {
                         NavigationLink(value: lot.slug) { LiveLotRow(lot: lot) }
                     }
                     Button {
-                        suggestion = BagSuggestion(extraction: e, photo: image)
+                        suggestion = BagSuggestion(extraction: e, photo: cutout)
                     } label: {
                         Label(result.matches.isEmpty ? "اقترحها للإضافة" : "مو منهم؟ اقترحها للإضافة",
                               systemImage: "plus.circle")
@@ -207,6 +209,7 @@ struct AIBagScanView: View {
     // MARK: Network
 
     private func read(_ image: UIImage) async {
+        cutout = nil
         phase = .reading(image)
         guard let jpeg = Self.compressed(image) else {
             phase = .failed("تعذّر تجهيز الصورة.")
@@ -216,9 +219,10 @@ struct AIBagScanView: View {
             let result = try await auth.withToken { try await client.scanBag(jpeg: jpeg, accessToken: $0) }
             Haptics.tap()
             phase = .result(image, result)
-            // Lift the bag out of the photo for a clean card; keep the original if that fails.
+            // Lift the bag out of the photo for a clean card; only the cut-out is ever uploaded.
             if result.extraction.isCoffeeBag, let card = await BagCutout.cardImage(from: image),
                case .result(_, let current) = phase, current == result {
+                cutout = card
                 phase = .result(card, result)
             }
         } catch APIError.rateLimited {
@@ -253,5 +257,5 @@ struct AIBagScanView: View {
 private struct BagSuggestion: Identifiable {
     let id = UUID()
     let extraction: RemoteBagExtraction
-    let photo: UIImage
+    let photo: UIImage?
 }

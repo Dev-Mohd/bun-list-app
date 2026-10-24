@@ -147,3 +147,14 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 }
+
+extension CatalogAPIClient {
+    /// Attaches the product photo (a cut-out JPEG ≤ 2 MB) to the caller's pending suggestion.
+    public func uploadSuggestionPhoto(submissionID: String, jpeg: Data, accessToken: String) async throws {
+        let data = (try? JSONSerialization.data(withJSONObject: ["imageBase64": jpeg.base64EncodedString()])) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .put, path: "/api/v1/submissions/\(submissionID)/photo", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+    }
+}
