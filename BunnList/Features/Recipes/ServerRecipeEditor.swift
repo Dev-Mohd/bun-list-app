@@ -17,6 +17,10 @@ struct ServerRecipeEditor: View {
     @State private var editingStep: StepRef?
     @State private var isBusy = false
     @State private var errorMessage: String?
+    /// Simple shows the essentials; pro opens brewer, filter, roast, grinder and pour details.
+    @AppStorage("recipeProMode") private var proMode = false
+    /// The viewer's own grinder, used to show converted settings.
+    @AppStorage("myGrinderID") private var myGrinderID = ""
     let onSaved: (RemoteRecipe) -> Void
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
@@ -41,6 +45,12 @@ struct ServerRecipeEditor: View {
             ScrollView {
                 VStack(spacing: 16) {
                     RecipeSummaryCard(draft: draft)
+                    Picker("الوضع", selection: $proMode) {
+                        Text("بسيط").tag(false)
+                        Text("احترافي").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("recipe-mode")
                     if isNew { presetsCard }
                     infoCard
                     methodCard
@@ -62,10 +72,11 @@ struct ServerRecipeEditor: View {
             }
             .sheet(item: $editingStep) { ref in
                 if draft.steps.indices.contains(ref.index) {
-                    StepEditor(step: draft.steps[ref.index], number: ref.index + 1) { updated in
-                        guard draft.steps.indices.contains(ref.index) else { return }
-                        if let updated { draft.steps[ref.index] = updated } else { draft.steps.remove(at: ref.index) }
-                        syncHotWaterToPours()
+                    StepEditor(step: draft.steps[ref.index], number: ref.index + 1,
+                               startAt: draft.startTimes[ref.index],
+                               pourTo: draft.steps[ref.index].kind.addsWater ? draft.cumulativeWater[ref.index] : nil,
+                               canMoveStart: ref.index > 0, proMode: proMode) { result in
+                        apply(result, at: ref.index)
                     }
                     .presentationDetents([.medium, .large])
                 }
@@ -116,6 +127,31 @@ struct ServerRecipeEditor: View {
                     }
                 }
             }
+            if proMode {
+                field("الأداة") {
+                    TextField("مثال: V60 02", text: $draft.brewer).textFieldStyle(.roundedBorder)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Brewers.suggestions(for: draft.methodCode), id: \.self) { name in
+                                ChoiceChip(title: name, isSelected: draft.brewer == name) { draft.brewer = name }
+                            }
+                        }
+                    }
+                }
+                if !draft.isEspresso {
+                    field("الفلتر") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(FilterType.allCases, id: \.self) { filter in
+                                    ChoiceChip(title: filter.nameAr, isSelected: draft.filterType == filter) {
+                                        draft.filterType = draft.filterType == filter ? nil : filter
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -131,6 +167,31 @@ struct ServerRecipeEditor: View {
                 Button("تغيير القهوة") { showCoffeePicker = true }.font(.subheadline)
             } else {
                 Text("وصفة عامة تصلح لأي قهوة.").font(.caption).foregroundStyle(.secondary)
+            }
+            if proMode {
+                field("درجة التحميص") {
+                    HStack(spacing: 8) {
+                        ForEach(RoastLevel.allCases, id: \.self) { roast in
+                            ChoiceChip(title: roast.nameAr, isSelected: draft.roastLevel == roast) {
+                                draft.roastLevel = draft.roastLevel == roast ? nil : roast
+                            }
+                        }
+                    }
+                    if let roast = draft.roastLevel, draft.waterTempC != roast.suggestedTempC, draft.methodCode != "COLD_BREW" {
+                        Button("استخدم الحرارة المقترحة \(RecipeText.number(roast.suggestedTempC))°م") {
+                            draft.waterTempC = roast.suggestedTempC
+                        }
+                        .font(.caption)
+                    }
+                }
+                field("عمر البن من التحميص") {
+                    Stepper(value: Binding(get: { draft.restDays ?? 0 }, set: { draft.restDays = $0 > 0 ? $0 : nil }),
+                            in: 0...90) {
+                        Text(draft.restDays.map { "\($0.formatted()) يوم" } ?? "غير محدد").monospacedDigit()
+                    }
+                    Text(draft.isEspresso ? "الأفضل للإسبريسو ١٠–٤٠ يوم." : "الأفضل للفلتر ٧–٣٠ يوم.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -167,15 +228,79 @@ struct ServerRecipeEditor: View {
 
     private var grindCard: some View {
         card("الطحن") {
-            HStack(spacing: 12) {
-                field("المطحنة") {
-                    TextField("مثال: Comandante", text: $draft.grinder).textFieldStyle(.roundedBorder)
+            field("درجة الطحن") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(GrindLevel.allCases, id: \.self) { level in
+                            ChoiceChip(title: level.nameAr, isSelected: draft.grindLevel == level) {
+                                draft.grindLevel = level
+                                draft.grindMicrons = nil
+                            }
+                        }
+                    }
                 }
-                field("الدرجة") {
-                    TextField("مثال: 24", text: $draft.grindSetting).textFieldStyle(.roundedBorder)
+                if let level = draft.grindLevel {
+                    Text("تناسب عادة: \(level.usedForAr)").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            if proMode {
+                field("المطحنة") {
+                    Picker("المطحنة", selection: grinderBinding) {
+                        Text("اختر مطحنتك").tag("")
+                        ForEach(Grinder.all) { Text($0.name).tag($0.id) }
+                        Text("أخرى").tag("other")
+                    }
+                    .pickerStyle(.menu)
+                    if grinderBinding.wrappedValue == "other" {
+                        TextField("اسم المطحنة", text: $draft.grinder).textFieldStyle(.roundedBorder)
+                    }
+                }
+                field("الإعداد (كليك / رقم)") {
+                    TextField("مثال: 24", text: Binding(
+                        get: { draft.grindSetting },
+                        set: { text in
+                            draft.grindSetting = text
+                            let clicks = Double(text.replacingOccurrences(of: ",", with: "."))
+                            if let grinder = Grinder.find(draft.grinderModel), grinder.micronsPerClick != nil, let clicks {
+                                draft.setGrind(grinderID: grinder.id, clicks: clicks)
+                                draft.grindSetting = text
+                            }
+                        }
+                    ))
+                    .keyboardType(.decimalPad)
+                    .textFieldStyle(.roundedBorder)
+                }
+                if let microns = draft.grindMicrons {
+                    Label("≈ \(microns.formatted()) ميكرون · \(GrindLevel.level(forMicrons: microns).nameAr)", systemImage: "ruler")
+                        .font(.caption).foregroundStyle(Brand.olive)
+                    Text("أي أحد يقرأ وصفتك بيشوف الدرجة محوّلة لمطحنته (تقريبيًا).")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
         }
+    }
+
+    /// Grinder choice: a catalog id, "other" (free-text name), or "" for none.
+    private var grinderBinding: Binding<String> {
+        Binding(
+            get: {
+                if let id = draft.grinderModel, Grinder.find(id) != nil { return id }
+                return draft.grinder.isEmpty && draft.grinderModel == nil ? "" : "other"
+            },
+            set: { id in
+                switch id {
+                case "": draft.grinderModel = nil; draft.grinder = ""; draft.grindMicrons = nil
+                case "other": draft.grinderModel = nil; draft.grindMicrons = nil
+                default:
+                    draft.grinder = Grinder.find(id)?.name ?? ""
+                    let clicks = Double(draft.grindSetting.replacingOccurrences(of: ",", with: "."))
+                    let text = draft.grindSetting
+                    draft.setGrind(grinderID: id, clicks: clicks)
+                    draft.grindSetting = text
+                    myGrinderID = id
+                }
+            }
+        )
     }
 
     private var stepsCard: some View {
@@ -191,15 +316,28 @@ struct ServerRecipeEditor: View {
                         .font(.caption.monospaced())
                 }
             }
+            let starts = draft.startTimes
             ForEach(Array(draft.steps.enumerated()), id: \.offset) { index, step in
                 Button { editingStep = StepRef(index: index) } label: {
-                    StepRow(number: index + 1, step: step, cumulative: step.kind.addsWater ? cumulative[index] : nil)
+                    StepRow(number: index + 1, step: step, startAt: starts[index],
+                            pourTo: step.kind.addsWater ? cumulative[index] : nil, proMode: proMode)
                 }
                 .buttonStyle(.plain)
             }
+            if !draft.steps.isEmpty {
+                HStack {
+                    Label("ينتهي النزول عند", systemImage: "flag.checkered").font(.subheadline)
+                    Spacer()
+                    Stepper(value: Binding(get: { draft.totalSeconds }, set: { draft.setFinish($0) }),
+                            in: min(starts.last ?? 0, 3600)...3600, step: 5) {
+                        Text(RecipeText.duration(draft.totalSeconds)).font(.subheadline.monospaced())
+                    }
+                    .fixedSize()
+                }
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach([RecipeStepKind.bloom, .pour, .wait, .swirl, .serve], id: \.self) { kind in
+                    ForEach(RecipeText.stepKinds, id: \.self) { kind in
                         ChoiceChip(title: RecipeText.stepKind(kind), icon: RecipeText.stepIcon(kind), isSelected: false) {
                             addStep(kind)
                         }
@@ -420,6 +558,21 @@ struct ServerRecipeEditor: View {
         if let ratio { draft.applyRatio(ratio) }
     }
 
+    private func apply(_ result: StepEditor.Result?, at index: Int) {
+        guard draft.steps.indices.contains(index) else { return }
+        guard let result else {
+            draft.steps.remove(at: index)
+            syncHotWaterToPours()
+            return
+        }
+        var step = result.step
+        if !step.kind.addsWater { step.addedWaterGrams = nil }
+        draft.steps[index] = step
+        draft.setStart(index, to: result.startAt)
+        if step.kind.addsWater, let pourTo = result.pourTo { draft.setPourTo(index, grams: pourTo) }
+        syncHotWaterToPours()
+    }
+
     private func addStep(_ kind: RecipeStepKind) {
         var step = RemoteRecipeStep(kind: kind, seconds: kind == .wait ? 30 : nil)
         if kind.addsWater { step.addedWaterGrams = 50 }
@@ -472,7 +625,9 @@ private struct StepRef: Identifiable {
 private struct StepRow: View {
     let number: Int
     let step: RemoteRecipeStep
-    let cumulative: Double?
+    let startAt: Int
+    let pourTo: Double?
+    let proMode: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -481,15 +636,20 @@ private struct StepRow: View {
                 .frame(width: 40, height: 40)
                 .background(Color.black, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
-                Text(RecipeText.stepKind(step.kind)).font(.headline)
+                HStack(spacing: 6) {
+                    Text(RecipeText.duration(startAt)).font(.subheadline.monospaced()).foregroundStyle(.secondary)
+                    Text(RecipeText.stepKind(step.kind)).font(.headline)
+                }
+                if proMode, step.kind.addsWater, let detail = RecipeText.pourDetail(step) {
+                    Text(detail).font(.caption).foregroundStyle(Brand.olive)
+                }
                 if !step.note.isEmpty {
                     Text(step.note).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
-                if let cumulative { Text("\(RecipeText.number(cumulative))غ").font(.subheadline.monospaced()) }
-                if let seconds = step.seconds { Text(RecipeText.duration(seconds)).font(.caption.monospaced()).foregroundStyle(.secondary) }
+            if let pourTo {
+                Text("حتى \(RecipeText.number(pourTo))غ").font(.subheadline.monospaced().bold())
             }
             Image(systemName: "chevron.left").font(.caption).foregroundStyle(.secondary)
         }
@@ -499,16 +659,32 @@ private struct StepRow: View {
     }
 }
 
-/// Edit one step. Passing nil to `onDone` deletes it.
+/// Edit one step the way a competition brew sheet reads: when it starts and the
+/// scale reading to pour to. Returning nil deletes the step.
 private struct StepEditor: View {
+    struct Result {
+        let step: RemoteRecipeStep
+        let startAt: Int
+        let pourTo: Double?
+    }
+
     @Environment(\.dismiss) private var dismiss
     @State private var step: RemoteRecipeStep
+    @State private var startAt: Int
+    @State private var pourTo: Double
     let number: Int
-    let onDone: (RemoteRecipeStep?) -> Void
+    let canMoveStart: Bool
+    let proMode: Bool
+    let onDone: (Result?) -> Void
 
-    init(step: RemoteRecipeStep, number: Int, onDone: @escaping (RemoteRecipeStep?) -> Void) {
+    init(step: RemoteRecipeStep, number: Int, startAt: Int, pourTo: Double?, canMoveStart: Bool,
+         proMode: Bool, onDone: @escaping (Result?) -> Void) {
         _step = State(initialValue: step)
+        _startAt = State(initialValue: startAt)
+        _pourTo = State(initialValue: pourTo ?? 0)
         self.number = number
+        self.canMoveStart = canMoveStart
+        self.proMode = proMode
         self.onDone = onDone
     }
 
@@ -516,27 +692,39 @@ private struct StepEditor: View {
         NavigationStack {
             Form {
                 Picker("النوع", selection: $step.kind) {
-                    ForEach([RecipeStepKind.bloom, .pour, .wait, .swirl, .serve], id: \.self) {
+                    ForEach(RecipeText.stepKinds, id: \.self) {
                         Label(RecipeText.stepKind($0), systemImage: RecipeText.stepIcon($0)).tag($0)
                     }
                 }
-                if step.kind.addsWater {
-                    LabeledContent("الماء المضاف (غ)") {
-                        TextField("50", value: Binding(
-                            get: { step.addedWaterGrams ?? 0 },
-                            set: { step.addedWaterGrams = $0 > 0 ? $0 : nil }
-                        ), format: .number)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
+                Section {
+                    if canMoveStart {
+                        Stepper(value: $startAt, in: 0...3600, step: 5) {
+                            LabeledContent("يبدأ عند", value: RecipeText.duration(startAt)).monospacedDigit()
+                        }
+                    } else {
+                        LabeledContent("يبدأ عند", value: RecipeText.duration(0))
                     }
+                    if step.kind.addsWater {
+                        LabeledContent("صب حتى (غ على الميزان)") {
+                            TextField("150", value: $pourTo, format: .number)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                } footer: {
+                    Text(step.kind.addsWater ? "اكتب قراءة الميزان في نهاية الصبة، مثل أوراق البطولات." : "خطوة بدون ماء.")
                 }
-                LabeledContent("المدة (ث)") {
-                    TextField("30", value: Binding(
-                        get: { step.seconds ?? 0 },
-                        set: { step.seconds = $0 > 0 ? $0 : nil }
-                    ), format: .number)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
+                if proMode && step.kind.addsWater {
+                    Section("الصبة") {
+                        Picker("الطريقة", selection: $step.pourStyle) {
+                            Text("—").tag(PourStyle?.none)
+                            ForEach(PourStyle.allCases, id: \.self) { Text($0.nameAr).tag(Optional($0)) }
+                        }
+                        Picker("السرعة", selection: $step.pourSpeed) {
+                            Text("—").tag(PourSpeed?.none)
+                            ForEach(PourSpeed.allCases, id: \.self) { Text($0.nameAr).tag(Optional($0)) }
+                        }
+                    }
                 }
                 Section("ملاحظة") {
                     TextField("مثال: صب بشكل دائري من المنتصف", text: $step.note, axis: .vertical).lineLimit(2...4)
@@ -551,8 +739,8 @@ private struct StepEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("تم") {
-                        if !step.kind.addsWater { step.addedWaterGrams = nil }
-                        onDone(step)
+                        if !step.kind.addsWater { step.pourStyle = nil; step.pourSpeed = nil }
+                        onDone(Result(step: step, startAt: startAt, pourTo: step.kind.addsWater ? pourTo : nil))
                         dismiss()
                     }
                 }

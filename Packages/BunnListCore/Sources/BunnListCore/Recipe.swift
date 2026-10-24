@@ -3,8 +3,8 @@ import Foundation
 public enum BrewTemperature: String, Codable, Hashable, Sendable { case hot, iced }
 
 public enum RecipeStepKind: String, Codable, Hashable, Sendable {
-    case bloom, pour, wait, swirl, serve
-    /// Only bloom and pour add water; wait and swirl and serve do not.
+    case bloom, pour, wait, swirl, stir, press, serve
+    /// Only bloom and pour add water; the others do not.
     public var addsWater: Bool { self == .bloom || self == .pour }
 }
 
@@ -38,6 +38,10 @@ public enum RecipeProblem: Equatable, Hashable, Sendable {
     case missingEspressoDose
     case missingEspressoYield
     case waterOnNonPourStep
+    /// Server recipes only: the publish standard needs a grind so anyone can repeat it.
+    case missingGrind
+    /// Server recipes only: non-espresso recipes need at least one step.
+    case missingSteps
 }
 
 public struct RecipeValidation: Equatable, Sendable {

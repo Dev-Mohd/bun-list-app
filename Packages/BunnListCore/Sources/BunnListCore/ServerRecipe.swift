@@ -10,9 +10,13 @@ public struct RemoteRecipeStep: Codable, Equatable, Hashable, Sendable {
     public var addedWaterGrams: Double?
     public var seconds: Int?
     public var note: String
+    public var pourStyle: PourStyle?
+    public var pourSpeed: PourSpeed?
 
-    public init(kind: RecipeStepKind, addedWaterGrams: Double? = nil, seconds: Int? = nil, note: String = "") {
+    public init(kind: RecipeStepKind, addedWaterGrams: Double? = nil, seconds: Int? = nil, note: String = "",
+                pourStyle: PourStyle? = nil, pourSpeed: PourSpeed? = nil) {
         self.kind = kind; self.addedWaterGrams = addedWaterGrams; self.seconds = seconds; self.note = note
+        self.pourStyle = pourStyle; self.pourSpeed = pourSpeed
     }
 }
 
@@ -40,6 +44,13 @@ public struct RemoteRecipe: Codable, Equatable, Hashable, Sendable, Identifiable
     public let waterTempC: Double?
     public let grinder: String
     public let grindSetting: String
+    public let grinderModel: String?
+    public let grindLevel: GrindLevel?
+    public let grindMicrons: Int?
+    public let brewer: String?
+    public let filterType: FilterType?
+    public let roastLevel: RoastLevel?
+    public let restDays: Int?
     public let notes: String
     public let steps: [RemoteRecipeStep]
     public let sourceId: String?
@@ -62,6 +73,14 @@ public struct RecipeDraft: Equatable, Sendable {
     public var waterTempC: Double?
     public var grinder: String
     public var grindSetting: String
+    /// A `Grinder.id`, or free text for a grinder not in the list.
+    public var grinderModel: String?
+    public var grindLevel: GrindLevel?
+    public var grindMicrons: Int?
+    public var brewer: String
+    public var filterType: FilterType?
+    public var roastLevel: RoastLevel?
+    public var restDays: Int?
     public var notes: String
     public var steps: [RemoteRecipeStep]
     /// Set when this draft copies someone's published recipe.
@@ -86,6 +105,13 @@ public struct RecipeDraft: Equatable, Sendable {
         waterTempC = 96
         grinder = ""
         grindSetting = ""
+        grinderModel = nil
+        grindLevel = nil
+        grindMicrons = nil
+        brewer = ""
+        filterType = nil
+        roastLevel = nil
+        restDays = nil
         notes = ""
         steps = Self.pourOverSteps(total: 250)
     }
@@ -103,6 +129,13 @@ public struct RecipeDraft: Equatable, Sendable {
         waterTempC = recipe.waterTempC
         grinder = recipe.grinder
         grindSetting = recipe.grindSetting
+        grinderModel = recipe.grinderModel
+        grindLevel = recipe.grindLevel
+        grindMicrons = recipe.grindMicrons
+        brewer = recipe.brewer ?? ""
+        filterType = recipe.filterType
+        roastLevel = recipe.roastLevel
+        restDays = recipe.restDays
         notes = recipe.notes
         steps = recipe.steps
         sourceID = recipe.sourceId
@@ -194,13 +227,74 @@ public struct RecipeDraft: Equatable, Sendable {
             if (doseGrams ?? 0) <= 0 { problems.append(.missingEspressoDose) }
             if (yieldGrams ?? 0) <= 0 { problems.append(.missingEspressoYield) }
         } else {
-            guard let hot = hotWaterGrams, hot > 0 else {
+            if let hot = hotWaterGrams, hot > 0 {
+                if abs(pours.reduce(0, +) - hot) > 1 { problems.append(.pourSumDoesNotMatchHotWater) }
+            } else {
                 problems.append(.missingHotWater)
-                return problems
             }
-            if abs(pours.reduce(0, +) - hot) > 1 { problems.append(.pourSumDoesNotMatchHotWater) }
         }
+        // The publish standard: a grind, and steps unless espresso.
+        if grindLevel == nil && grindSetting.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            problems.append(.missingGrind)
+        }
+        if !isEspresso && steps.isEmpty { problems.append(.missingSteps) }
         return problems
+    }
+
+    // MARK: Competition-sheet view: each step starts at a time and pours to a scale reading.
+
+    /// Seconds from the start at which each step begins.
+    public var startTimes: [Int] {
+        var running = 0
+        return steps.map { step in
+            defer { running += step.seconds ?? 0 }
+            return running
+        }
+    }
+
+    /// Moves the start of step `index`; the boundary with the previous step moves,
+    /// later steps keep their start times.
+    public mutating func setStart(_ index: Int, to seconds: Int) {
+        guard index > 0, steps.indices.contains(index) else { return }
+        let starts = startTimes
+        let end = index + 1 < steps.count ? starts[index + 1] : totalSeconds
+        let clamped = min(max(seconds, starts[index - 1]), end)
+        steps[index - 1].seconds = clamped - starts[index - 1]
+        steps[index].seconds = end - clamped
+    }
+
+    /// Sets the scale reading to pour up to by the end of water step `index`; the next
+    /// water step absorbs the difference so later readings stay where they were.
+    public mutating func setPourTo(_ index: Int, grams: Double) {
+        guard steps.indices.contains(index), steps[index].kind.addsWater else { return }
+        let cumulative = cumulativeWater
+        let before = cumulative[index] - (steps[index].addedWaterGrams ?? 0)
+        let newAdded = max(grams - before, 0)
+        let delta = newAdded - (steps[index].addedWaterGrams ?? 0)
+        steps[index].addedWaterGrams = newAdded
+        if let next = steps.indices.first(where: { $0 > index && steps[$0].kind.addsWater }) {
+            steps[next].addedWaterGrams = (steps[next].addedWaterGrams ?? 0) - delta
+        } else if !isEspresso {
+            hotWaterGrams = (hotWaterGrams ?? 0) + delta
+        }
+    }
+
+    /// When the brew ends (the drawdown finishes); moves only the last step's length.
+    public mutating func setFinish(_ seconds: Int) {
+        guard let last = steps.indices.last else { return }
+        steps[last].seconds = max(seconds - startTimes[last], 0)
+    }
+
+    /// Picks a grinder and click setting; fills microns and level when the grinder is convertible.
+    public mutating func setGrind(grinderID: String?, clicks: Double?) {
+        grinderModel = grinderID
+        if let clicks { grindSetting = clicks == clicks.rounded() ? String(Int(clicks)) : String(clicks) }
+        if let grinder = Grinder.find(grinderID), let clicks, let microns = grinder.microns(forClicks: clicks) {
+            grindMicrons = microns
+            grindLevel = GrindLevel.level(forMicrons: microns)
+        } else {
+            grindMicrons = nil
+        }
     }
 
     /// JSON body for POST /api/v1/recipes.
@@ -219,12 +313,21 @@ public struct RecipeDraft: Equatable, Sendable {
             "waterTempC": num(waterTempC),
             "grinder": grinder,
             "grindSetting": grindSetting,
+            "grinderModel": grinderModel.map { $0 as Any } ?? NSNull(),
+            "grindLevel": grindLevel.map { $0.rawValue as Any } ?? NSNull(),
+            "grindMicrons": grindMicrons.map { $0 as Any } ?? NSNull(),
+            "brewer": brewer,
+            "filterType": filterType.map { $0.rawValue as Any } ?? NSNull(),
+            "roastLevel": roastLevel.map { $0.rawValue as Any } ?? NSNull(),
+            "restDays": restDays.map { $0 as Any } ?? NSNull(),
             "notes": notes,
             "steps": steps.map { step -> [String: Any] in
                 ["kind": step.kind.rawValue,
                  "addedWaterGrams": step.kind.addsWater ? num(step.addedWaterGrams) : NSNull(),
                  "seconds": step.seconds.map { $0 as Any } ?? NSNull(),
-                 "note": step.note]
+                 "note": step.note,
+                 "pourStyle": step.kind.addsWater ? (step.pourStyle.map { $0.rawValue as Any } ?? NSNull()) : NSNull(),
+                 "pourSpeed": step.kind.addsWater ? (step.pourSpeed.map { $0.rawValue as Any } ?? NSNull()) : NSNull()]
             },
             "publish": publish,
         ]

@@ -47,12 +47,14 @@ final class BrewGuideTests: XCTestCase {
         d.steps[0].seconds = 15
         d.steps[0].addedWaterGrams = 20
         d.steps[1].addedWaterGrams = 130 // keep pours = 250
-        d.grindSetting = ""
+        d.roastLevel = .dark
+        d.restDays = 2
         let tips = BrewAdvisor.tips(for: d)
         XCTAssertTrue(tips.contains(.waterTooCool))
         XCTAssertTrue(tips.contains(.shortBloom))
         XCTAssertTrue(tips.contains(.smallBloom))
-        XCTAssertTrue(tips.contains(.missingGrind))
+        XCTAssertTrue(tips.contains(.veryFreshBeans))
+        XCTAssertFalse(tips.contains(.darkRoastHot)) // 80°C is already low
     }
 
     func testAdvisorFlagsRatioAndTime() {

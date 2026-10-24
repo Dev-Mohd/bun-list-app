@@ -18,6 +18,9 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
     public let yieldGrams: Double?
     public let waterTempC: Double
     public let grindAr: String
+    public let grindLevel: GrindLevel
+    public let brewer: String
+    public let filterType: FilterType?
     public let steps: [RemoteRecipeStep]
 
     public static func presets(for methodCode: String) -> [BrewPreset] { all.filter { $0.methodCode == methodCode } }
@@ -26,7 +29,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "v60-classic", nameAr: "V60 الكلاسيكية", summaryAr: "متوازنة وواضحة النكهات · ١:١٦٫٧ · ٢:٥٥",
             methodCode: "V60", temperature: .hot, doseGrams: 15, hotWaterGrams: 250, iceGrams: nil, yieldGrams: nil,
-            waterTempC: 94, grindAr: "متوسط إلى ناعم",
+            waterTempC: 94, grindAr: "متوسط إلى ناعم", grindLevel: .mediumFine, brewer: "V60 02", filterType: .paperWhite,
             steps: [
                 .init(kind: .bloom, addedWaterGrams: 45, seconds: 45,
                       note: "صب ٤٥غ بحركة دائرية حتى يتبلل كل البن، ثم حرّك القمع حركة دائرية خفيفة."),
@@ -38,7 +41,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "v60-46", nameAr: "طريقة ٤:٦", summaryAr: "طريقة تيتسو كاسويا · خمس صبات · ١:١٥ · ٣:٣٠",
             methodCode: "V60", temperature: .hot, doseGrams: 20, hotWaterGrams: 300, iceGrams: nil, yieldGrams: nil,
-            waterTempC: 92, grindAr: "خشن",
+            waterTempC: 92, grindAr: "خشن", grindLevel: .coarse, brewer: "V60 02", filterType: .paperWhite,
             steps: [
                 .init(kind: .bloom, addedWaterGrams: 50, seconds: 45,
                       note: "أول ٤٠٪ تتحكم بالحلاوة والحموضة: صبة أولى أصغر = حموضة أوضح."),
@@ -51,7 +54,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "v60-iced", nameAr: "المثلجة اليابانية", summaryAr: "صب على الثلج · ثلج ٣٧٪ · ١:١٦",
             methodCode: "V60", temperature: .iced, doseGrams: 20, hotWaterGrams: 200, iceGrams: 120, yieldGrams: nil,
-            waterTempC: 94, grindAr: "متوسط إلى ناعم (أنعم قليلًا من الساخنة)",
+            waterTempC: 94, grindAr: "متوسط إلى ناعم (أنعم قليلًا من الساخنة)", grindLevel: .mediumFine, brewer: "V60 02", filterType: .paperWhite,
             steps: [
                 .init(kind: .bloom, addedWaterGrams: 50, seconds: 45, note: "الثلج في الإبريق تحت القمع. صب ٥٠غ للتفتيح."),
                 .init(kind: .pour, addedWaterGrams: 70, seconds: 30, note: "حتى ١٢٠غ."),
@@ -63,7 +66,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "chemex-classic", nameAr: "كيمكس للمشاركة", summaryAr: "كوبان صافيان · ١:١٦٫٧ · ٤:٠٠",
             methodCode: "CHEMEX", temperature: .hot, doseGrams: 30, hotWaterGrams: 500, iceGrams: nil, yieldGrams: nil,
-            waterTempC: 94, grindAr: "متوسط إلى خشن",
+            waterTempC: 94, grindAr: "متوسط إلى خشن", grindLevel: .mediumCoarse, brewer: "Chemex 6 أكواب", filterType: .paperWhite,
             steps: [
                 .init(kind: .bloom, addedWaterGrams: 60, seconds: 45,
                       note: "اغسل الورق جيدًا بالماء الحار قبل البدء. صب ٦٠غ وحرّك بلطف."),
@@ -74,7 +77,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "aeropress-classic", nameAr: "إيروبرس اليومية", summaryAr: "نظيفة وحلوة · ١:١٦ · ٢:٤٠",
             methodCode: "AEROPRESS", temperature: .hot, doseGrams: 15, hotWaterGrams: 240, iceGrams: nil, yieldGrams: nil,
-            waterTempC: 90, grindAr: "متوسط إلى ناعم",
+            waterTempC: 90, grindAr: "متوسط إلى ناعم", grindLevel: .mediumFine, brewer: "AeroPress", filterType: .paperWhite,
             steps: [
                 .init(kind: .bloom, addedWaterGrams: 40, seconds: 30, note: "صب ٤٠غ وحرّك ثلاث مرات."),
                 .init(kind: .pour, addedWaterGrams: 200, seconds: 15, note: "أكمل حتى ٢٤٠غ."),
@@ -85,7 +88,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "french-clean", nameAr: "فرنش برس النظيفة", summaryAr: "قوام غني بدون رواسب · ١:١٦٫٧ · ١٠:٠٠",
             methodCode: "FRENCH_PRESS", temperature: .hot, doseGrams: 30, hotWaterGrams: 500, iceGrams: nil, yieldGrams: nil,
-            waterTempC: 95, grindAr: "متوسط إلى خشن",
+            waterTempC: 95, grindAr: "متوسط إلى خشن", grindLevel: .coarse, brewer: "Bodum", filterType: .metal,
             steps: [
                 .init(kind: .pour, addedWaterGrams: 500, seconds: 15, note: "صب كل الماء بسرعة وتأكد أن البن تبلل كله."),
                 .init(kind: .wait, seconds: 240, note: "اتركها ٤ دقائق بدون تحريك."),
@@ -96,7 +99,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "espresso-classic", nameAr: "إسبريسو ١:٢", summaryAr: "١٨غ ← ٣٦غ في ٢٥–٣٠ ثانية",
             methodCode: "ESPRESSO", temperature: .hot, doseGrams: 18, hotWaterGrams: nil, iceGrams: nil, yieldGrams: 36,
-            waterTempC: 93, grindAr: "ناعم",
+            waterTempC: 93, grindAr: "ناعم", grindLevel: .extraFine, brewer: "سلة ١٨غ", filterType: nil,
             steps: [
                 .init(kind: .serve, seconds: 28,
                       note: "وزّع البن ودكّه بثبات. الهدف ٣٦غ في ٢٥–٣٠ ثانية: أسرع = نعّم الطحنة، أبطأ = خشّنها."),
@@ -104,7 +107,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
         BrewPreset(
             id: "cold-brew", nameAr: "كولد برو مركّز", summaryAr: "١:١٠ · نقع ١٢–١٦ ساعة · يُخفف ١:١",
             methodCode: "COLD_BREW", temperature: .iced, doseGrams: 100, hotWaterGrams: 1000, iceGrams: nil, yieldGrams: nil,
-            waterTempC: 20, grindAr: "خشن جدًا",
+            waterTempC: 20, grindAr: "خشن جدًا", grindLevel: .extraCoarse, brewer: "مرطبان", filterType: .cloth,
             steps: [
                 .init(kind: .pour, addedWaterGrams: 1000, seconds: 60,
                       note: "صب ماء بحرارة الغرفة وحرّك حتى يتبلل كل البن."),
@@ -115,7 +118,7 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
 }
 
 extension RecipeDraft {
-    /// Replaces brew parameters and steps with the preset's; keeps title, notes, coffee and grinder.
+    /// Replaces brew parameters, brewer and steps with the preset's; keeps title, notes, coffee and grinder.
     public mutating func apply(_ preset: BrewPreset) {
         methodCode = preset.methodCode
         temperature = preset.temperature
@@ -124,7 +127,10 @@ extension RecipeDraft {
         iceGrams = preset.iceGrams
         yieldGrams = preset.yieldGrams
         waterTempC = preset.waterTempC
-        grindSetting = preset.grindAr
+        grindLevel = preset.grindLevel
+        grindMicrons = nil
+        brewer = preset.brewer
+        filterType = preset.filterType
         steps = preset.steps
     }
 }
@@ -140,7 +146,8 @@ public enum BrewTip: Equatable, Hashable, Sendable {
     case fastBrew(typical: ClosedRange<Int>)
     case slowBrew(typical: ClosedRange<Int>)
     case icedShare
-    case missingGrind
+    case darkRoastHot
+    case veryFreshBeans
 
     public var messageAr: String {
         switch self {
@@ -153,7 +160,8 @@ public enum BrewTip: Equatable, Hashable, Sendable {
         case let .fastBrew(r): return "الوقت أقصر من المعتاد (\(Self.t(r.lowerBound))–\(Self.t(r.upperBound))): جرّب طحنة أنعم."
         case let .slowBrew(r): return "الوقت أطول من المعتاد (\(Self.t(r.lowerBound))–\(Self.t(r.upperBound))): جرّب طحنة أخشن."
         case .icedShare: return "في الطريقة اليابانية خلّ الثلج ٣٠–٤٠٪ من الماء الكلي."
-        case .missingGrind: return "اكتب درجة الطحن ليقدر غيرك يكرر وصفتك بدقة."
+        case .darkRoastHot: return "للتحميص الغامق اخفض الحرارة إلى ٨٨–٩٠°م لتقليل المرارة."
+        case .veryFreshBeans: return "البن طازج جدًا: غاز ثاني أكسيد الكربون يعيق الاستخلاص. اتركه يرتاح أسبوعًا على الأقل."
         }
     }
 
@@ -217,7 +225,9 @@ public enum BrewAdvisor {
             if share < 0.25 || share > 0.5 { tips.append(.icedShare) }
         }
 
-        if draft.grindSetting.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { tips.append(.missingGrind) }
+        if draft.roastLevel == .dark, let temp = draft.waterTempC, temp > 93 { tips.append(.darkRoastHot) }
+        if let rest = draft.restDays, rest < (draft.isEspresso ? 7 : 4) { tips.append(.veryFreshBeans) }
+
         return tips
     }
 

@@ -13,6 +13,7 @@ struct RecipeDetailView: View {
     @State private var confirmDelete = false
     @State private var errorMessage: String?
     @State private var brewing = false
+    @AppStorage("myGrinderID") private var myGrinderID = ""
     let onChange: (RecipeChange) -> Void
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
@@ -62,13 +63,24 @@ struct RecipeDetailView: View {
                         if recipe.temperature == .iced { row("الثلج", recipe.iceGrams.map { "\(RecipeText.number($0)) غ" }) }
                     }
                     row("الحرارة", recipe.waterTempC.map { "\(RecipeText.number($0))°م" })
-                    row("المطحنة", recipe.grinder.isEmpty ? nil : recipe.grinder)
-                    row("درجة الطحن", recipe.grindSetting.isEmpty ? nil : recipe.grindSetting)
+                    row("الأداة", (recipe.brewer ?? "").isEmpty ? nil : recipe.brewer)
+                    row("الفلتر", recipe.filterType?.nameAr)
+                    row("التحميص", recipe.roastLevel?.nameAr)
+                    row("عمر البن", recipe.restDays.map { "\($0.formatted()) يوم" })
+                }
+
+                section("الطحن") {
+                    row("الدرجة", recipe.grindLevel?.nameAr)
+                    row("المطحنة", recipe.grinder.isEmpty ? Grinder.find(recipe.grinderModel)?.name : recipe.grinder)
+                    row("الإعداد", recipe.grindSetting.isEmpty ? nil : recipe.grindSetting)
+                    row("بالميكرون (تقريبي)", recipe.grindMicrons.map { "≈ \($0.formatted())" })
+                    grindConversion
                 }
 
                 if !recipe.steps.isEmpty {
                     section("الخطوات") {
                         let cumulative = draft.cumulativeWater
+                        let starts = draft.startTimes
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                             HStack(alignment: .top, spacing: 12) {
                                 Text((index + 1).formatted())
@@ -76,21 +88,27 @@ struct RecipeDetailView: View {
                                     .frame(width: 32, height: 32)
                                     .background(Color.black, in: Circle())
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(RecipeText.stepKind(step.kind)).font(.headline)
+                                    HStack(spacing: 6) {
+                                        Text(RecipeText.duration(starts[index])).font(.subheadline.monospaced()).foregroundStyle(.secondary)
+                                        Text(RecipeText.stepKind(step.kind)).font(.headline)
+                                    }
+                                    if let detail = RecipeText.pourDetail(step) {
+                                        Text(detail).font(.caption).foregroundStyle(Brand.olive)
+                                    }
                                     if !step.note.isEmpty { Text(step.note).font(.callout).foregroundStyle(.secondary) }
                                 }
                                 Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    if step.kind.addsWater {
-                                        Text("\(RecipeText.number(cumulative[index]))غ").font(.subheadline.monospaced())
-                                    }
-                                    if let seconds = step.seconds {
-                                        Text(RecipeText.duration(seconds)).font(.caption.monospaced()).foregroundStyle(.secondary)
-                                    }
+                                if step.kind.addsWater {
+                                    Text("حتى \(RecipeText.number(cumulative[index]))غ").font(.subheadline.monospaced().bold())
                                 }
                             }
                         }
                     }
+                }
+
+                if draft.totalSeconds > 0 {
+                    Label("ينتهي النزول عند \(RecipeText.duration(draft.totalSeconds))", systemImage: "flag.checkered")
+                        .font(.subheadline)
                 }
 
                 if !recipe.notes.isEmpty {
@@ -153,6 +171,27 @@ struct RecipeDetailView: View {
             .accessibilityLabel("خيارات الوصفة")
         } else if auth.isSignedIn {
             Button { onChange(.copy(recipe)) } label: { Label("انسخ لوصفاتي", systemImage: "doc.on.doc") }
+        }
+    }
+
+    /// The author's grind converted to the viewer's grinder, when both are convertible.
+    @ViewBuilder
+    private var grindConversion: some View {
+        if let microns = recipe.grindMicrons {
+            let mine = Grinder.find(myGrinderID)
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("مطحنتي", selection: $myGrinderID) {
+                    Text("اختر مطحنتك").tag("")
+                    ForEach(Grinder.all.filter { $0.micronsPerClick != nil }) { Text($0.name).tag($0.id) }
+                }
+                .pickerStyle(.menu)
+                if let mine, let clicks = mine.clicks(forMicrons: microns) {
+                    Label("على \(mine.name): ≈ \(clicks.formatted()) كليك", systemImage: "arrow.left.arrow.right")
+                        .font(.subheadline.bold()).foregroundStyle(Brand.olive)
+                    Text("تحويل تقريبي من الصفر (التصاق الشفرات). اضبط بالتذوق.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

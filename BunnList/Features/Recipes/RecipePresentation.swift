@@ -26,6 +26,8 @@ enum RecipeText {
         case .pour: return "صبة"
         case .wait: return "انتظار"
         case .swirl: return "تدوير"
+        case .stir: return "تقليب"
+        case .press: return "ضغط"
         case .serve: return "تقديم"
         }
     }
@@ -36,8 +38,18 @@ enum RecipeText {
         case .pour: return "drop.fill"
         case .wait: return "hourglass"
         case .swirl: return "tornado"
+        case .stir: return "arrow.triangle.2.circlepath"
+        case .press: return "arrow.down.to.line"
         case .serve: return "cup.and.saucer.fill"
         }
+    }
+
+    static let stepKinds: [RecipeStepKind] = [.bloom, .pour, .wait, .swirl, .stir, .press, .serve]
+
+    /// "دائري · بطيء" for a pour, or nil when neither is set.
+    static func pourDetail(_ step: RemoteRecipeStep) -> String? {
+        let parts = [step.pourStyle?.nameAr, step.pourSpeed?.nameAr].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     static func number(_ value: Double?) -> String {
@@ -64,6 +76,8 @@ enum RecipeText {
         case .missingEspressoDose: return "حدّد وزن البن"
         case .missingEspressoYield: return "حدّد وزن الناتج"
         case .waterOnNonPourStep: return "الماء يُضاف فقط في التفتيح والصبات"
+        case .missingGrind: return "حدّد درجة الطحن"
+        case .missingSteps: return "أضف خطوات التحضير"
         }
     }
 

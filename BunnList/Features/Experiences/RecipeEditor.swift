@@ -191,6 +191,8 @@ struct RecipeEditor: View {
         case .missingEspressoDose: return "أدخل جرعة البن."
         case .missingEspressoYield: return "أدخل وزن الناتج."
         case .waterOnNonPourStep: return "خطوة انتظار/تدوير لا تأخذ ماءً."
+        case .missingGrind: return "حدّد درجة الطحن."
+        case .missingSteps: return "أضف خطوة واحدة على الأقل."
         }
     }
 }
