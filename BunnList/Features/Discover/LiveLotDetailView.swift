@@ -38,6 +38,7 @@ struct LiveLotDetailView: View {
     @State private var showReviewForm = false
     @State private var flags = RemoteCollectionFlags(owned: false, favorite: false, wantsToTry: false, tried: false)
     @State private var reviews: [RemoteReview] = []
+    @State private var showRecipes = false
 
     init(slug: String) {
         self.slug = slug
@@ -179,6 +180,16 @@ struct LiveLotDetailView: View {
                     section("التقييم حسب طريقة التحضير") { brewStats(lot.brewStats) }
                 }
 
+                section("الوصفات") {
+                    Button { showRecipes = true } label: {
+                        Label("وصفات هذه القهوة", systemImage: "book.closed")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Brand.olive)
+                    .accessibilityIdentifier("lot-recipes")
+                }
+
                 reviewSection(lot)
 
                 if !reviews.isEmpty {
@@ -190,6 +201,11 @@ struct LiveLotDetailView: View {
                 }
             }
             .padding()
+        }
+        .sheet(isPresented: $showRecipes) {
+            RecipesHubView(lot: RemoteRecipeLot(slug: lot.slug, nameAr: lot.nameAr, roasterNameAr: lot.roasterNameAr),
+                           startOn: .explore)
+                .environmentObject(auth)
         }
         .sheet(isPresented: $showReviewForm) {
             ReviewFormView(slug: slug, brewMethods: lot.recommendedBrewMethods, existing: myReview, onSaved: applyResult)

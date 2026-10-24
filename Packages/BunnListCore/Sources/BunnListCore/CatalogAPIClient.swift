@@ -70,7 +70,7 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
 public struct CatalogAPIClient: Sendable {
     private struct Feed: Decodable { let lots: [RemoteLot] }
 
-    private let transport: HTTPTransport
+    let transport: HTTPTransport
 
     public init(transport: HTTPTransport) {
         self.transport = transport
@@ -262,7 +262,7 @@ public struct CatalogAPIClient: Sendable {
         catch { throw AuthClientError.malformedResponse }
     }
 
-    private static func checkContract(_ response: HTTPResponse) throws {
+    static func checkContract(_ response: HTTPResponse) throws {
         switch response.status {
         case 200..<300: return
         case 401: throw APIError.unauthorized

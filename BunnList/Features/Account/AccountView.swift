@@ -11,6 +11,7 @@ struct AccountView: View {
     @State private var showSignIn = false
     @State private var confirmDelete = false
     @State private var showSettings = false
+    @State private var showRecipes = false
     @State private var serverItems: [RemoteCollectionItem] = []
 
     private var counts: (owned: Int, tried: Int, favorite: Int, wants: Int) {
@@ -46,7 +47,15 @@ struct AccountView: View {
 
                 accountStatusSection
 
-                Section("وصفاتي") {
+                Section("الوصفات") {
+                    Button { showRecipes = true } label: {
+                        Label("بار التحضير", systemImage: "book.closed.fill")
+                    }
+                    .accessibilityIdentifier("open-recipes")
+                }
+
+                if !recipes.isEmpty {
+                Section("وصفات على هذا الجهاز") {
                     if recipes.isEmpty {
                         Text("لا وصفات بعد. أنشئ وصفة من صفحة المحصول.").font(.callout).foregroundStyle(.secondary)
                     } else {
@@ -58,6 +67,7 @@ struct AccountView: View {
                                 }
                         }
                     }
+                }
                 }
 
                 Section("عن هذه النسخة") {
@@ -74,6 +84,7 @@ struct AccountView: View {
                 }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showRecipes) { RecipesHubView(startOn: auth.isSignedIn ? .mine : .explore) }
             .task { await loadServerCollection() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await loadServerCollection() } }
             .sheet(item: Binding(get: { editingRecipe.map(RecipeRef.init) }, set: { editingRecipe = $0?.id })) { ref in
