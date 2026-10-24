@@ -220,6 +220,48 @@ public struct CatalogAPIClient: Sendable {
     }
 
     /// Maps the shared error contract (401/403/409/422/429) to APIError, other non-2xx to AuthClientError.
+    /// The caller's non-deleted brew experiences for a lot, newest brew first.
+    public func fetchMyExperiences(slug: String, accessToken: String) async throws -> [RemoteExperience] {
+        let response = try await transport.send(
+            HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)/experiences", bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        struct Wrapper: Decodable { let experiences: [RemoteExperience] }
+        do { return try JSONDecoder().decode(Wrapper.self, from: response.body).experiences }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// Create, or edit by `clientID` (idempotent). `publish` also publishes a draft.
+    public func saveExperience(
+        slug: String, accessToken: String, clientID: String,
+        methodCode: String, stars: Int, brewedAt: Date, note: String, publish: Bool
+    ) async throws -> RemoteExperience {
+        let payload: [String: Any] = [
+            "clientId": clientID, "methodCode": methodCode, "stars": stars,
+            "brewedAt": ISO8601DateFormatter().string(from: brewedAt), "note": note, "publish": publish,
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .post, path: "/api/v1/catalog/lots/\(slug)/experiences", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteExperience.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// Publish / unpublish / delete. An invalid transition is `APIError.conflict`.
+    public func changeExperienceState(
+        id: String, to state: RemoteExperience.State, accessToken: String
+    ) async throws -> RemoteExperience {
+        let data = (try? JSONSerialization.data(withJSONObject: ["state": state.rawValue])) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .patch, path: "/api/v1/experiences/\(id)", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteExperience.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
     private static func checkContract(_ response: HTTPResponse) throws {
         switch response.status {
         case 200..<300: return
@@ -288,4 +330,32 @@ public struct RemoteCollectionItem: Codable, Equatable, Sendable, Identifiable {
     public let favorite: Bool
     public let wantsToTry: Bool
     public let tried: Bool
+}
+
+/// One of the caller's brew experiences on a server lot. Its stars rate this
+/// attempt only, never the lot average.
+public struct RemoteExperience: Codable, Equatable, Sendable, Identifiable {
+    public enum State: String, Codable, Sendable { case draft, published, unpublished, deleted }
+
+    public let id: String
+    public let clientId: String
+    public let methodCode: String
+    public let stars: Int
+    public let brewedAt: String
+    public let note: String
+    public let state: State
+    public let revision: Int
+
+    public init(id: String, clientId: String, methodCode: String, stars: Int,
+                brewedAt: String, note: String, state: State, revision: Int) {
+        self.id = id; self.clientId = clientId; self.methodCode = methodCode; self.stars = stars
+        self.brewedAt = brewedAt; self.note = note; self.state = state; self.revision = revision
+    }
+
+    /// `brewedAt` parsed (server sends ISO-8601 with milliseconds).
+    public var brewedDate: Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: brewedAt) ?? ISO8601DateFormatter().date(from: brewedAt)
+    }
 }

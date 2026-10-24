@@ -170,6 +170,9 @@ struct LiveLotDetailView: View {
                 }
                 if auth.isSignedIn {
                     section("مجموعتي") { collectionControls }
+                    section("تجاربي") {
+                        ServerExperiencesSection(slug: slug) { Task { await loadCollection() } }
+                    }
                 }
 
                 if !lot.brewStats.isEmpty {
