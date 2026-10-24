@@ -154,6 +154,11 @@ struct LiveLotDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(lot.nameAr).font(.title2.bold())
                     Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
+                    if let discoverer = lot.discoveredBy {
+                        Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")
+                            .font(.subheadline).foregroundStyle(Brand.gold)
+                            .accessibilityIdentifier("lot-discoverer")
+                    }
                     if lot.reviewCount > 0 {
                         Label("\(lot.averageRating.formatted(.number.precision(.fractionLength(1)))) · \(lot.reviewCount) تقييم",
                               systemImage: "star.fill")

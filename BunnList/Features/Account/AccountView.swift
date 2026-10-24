@@ -13,6 +13,7 @@ struct AccountView: View {
     @State private var showSettings = false
     @State private var showRecipes = false
     @State private var serverItems: [RemoteCollectionItem] = []
+    @State private var me: RemoteMe?
 
     private var counts: (owned: Int, tried: Int, favorite: Int, wants: Int) {
         if auth.isSignedIn {
@@ -46,6 +47,27 @@ struct AccountView: View {
                 }
 
                 accountStatusSection
+
+                if auth.isSignedIn {
+                    Section("مساهماتي") {
+                        NavigationLink { MySubmissionsView() } label: {
+                            HStack {
+                                Label("اقتراحاتي", systemImage: "sparkles")
+                                Spacer()
+                                if let count = me?.discoveries, count > 0 {
+                                    Text("اكتشفت \(count.formatted()) ⭐").font(.caption.bold()).foregroundStyle(Brand.olive)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("open-my-submissions")
+                        if me?.isAdmin == true {
+                            NavigationLink { AdminReviewView() } label: {
+                                Label("مراجعة الاقتراحات", systemImage: "checkmark.shield")
+                            }
+                            .accessibilityIdentifier("open-admin-review")
+                        }
+                    }
+                }
 
                 Section("الوصفات") {
                     Button { showRecipes = true } label: {
@@ -125,7 +147,8 @@ struct AccountView: View {
     }
 
     private func loadServerCollection() async {
-        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; return }
+        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; me = nil; return }
+        me = try? await auth.withToken { try await CatalogAPIClient(transport: URLSessionTransport()).fetchMe(accessToken: $0) }
         let client = CatalogAPIClient(transport: URLSessionTransport())
         do {
             serverItems = try await client.fetchCollection(accessToken: token)

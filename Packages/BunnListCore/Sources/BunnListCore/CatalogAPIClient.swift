@@ -65,6 +65,8 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
     public let variety: String?
     public let recommendedBrewMethods: [String]
     public let brewStats: [RemoteBrewStat]
+    /// The account whose suggestion became this lot, while that account exists.
+    public let discoveredBy: String?
 }
 
 public struct CatalogAPIClient: Sendable {
