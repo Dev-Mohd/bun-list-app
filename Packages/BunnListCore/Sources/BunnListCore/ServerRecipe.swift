@@ -51,6 +51,13 @@ public struct RemoteRecipe: Codable, Equatable, Hashable, Sendable, Identifiable
     public let filterType: FilterType?
     public let roastLevel: RoastLevel?
     public let restDays: Int?
+    public let waterType: WaterType?
+    public let waterBrand: String?
+    public let waterTdsPpm: Int?
+    public let beverageTds: Double?
+    public let milkDrink: MilkDrink?
+    public let milkType: MilkType?
+    public let milkGrams: Double?
     public let notes: String
     public let steps: [RemoteRecipeStep]
     public let sourceId: String?
@@ -81,6 +88,14 @@ public struct RecipeDraft: Equatable, Sendable {
     public var filterType: FilterType?
     public var roastLevel: RoastLevel?
     public var restDays: Int?
+    public var waterType: WaterType?
+    public var waterBrand: String
+    public var waterTdsPpm: Int?
+    /// Measured or target beverage TDS, in percent.
+    public var beverageTds: Double?
+    public var milkDrink: MilkDrink?
+    public var milkType: MilkType?
+    public var milkGrams: Double?
     public var notes: String
     public var steps: [RemoteRecipeStep]
     /// Set when this draft copies someone's published recipe.
@@ -112,6 +127,13 @@ public struct RecipeDraft: Equatable, Sendable {
         filterType = nil
         roastLevel = nil
         restDays = nil
+        waterType = nil
+        waterBrand = ""
+        waterTdsPpm = nil
+        beverageTds = nil
+        milkDrink = nil
+        milkType = nil
+        milkGrams = nil
         notes = ""
         steps = Self.pourOverSteps(total: 250)
     }
@@ -136,6 +158,13 @@ public struct RecipeDraft: Equatable, Sendable {
         filterType = recipe.filterType
         roastLevel = recipe.roastLevel
         restDays = recipe.restDays
+        waterType = recipe.waterType
+        waterBrand = recipe.waterBrand ?? ""
+        waterTdsPpm = recipe.waterTdsPpm
+        beverageTds = recipe.beverageTds
+        milkDrink = recipe.milkDrink
+        milkType = recipe.milkType
+        milkGrams = recipe.milkGrams
         notes = recipe.notes
         steps = recipe.steps
         sourceID = recipe.sourceId
@@ -241,6 +270,31 @@ public struct RecipeDraft: Equatable, Sendable {
         return problems
     }
 
+    // MARK: Result
+
+    /// Grams of water the grounds hold back in a filter or immersion brew (≈ 2 g per g of coffee).
+    public static let retentionPerGram = 2.0
+
+    /// Estimated beverage weight: the espresso yield, or water minus what the grounds retain (ice included).
+    public var beverageGrams: Double? {
+        if isEspresso { return yieldGrams }
+        guard let hot = hotWaterGrams, let dose = doseGrams else { return nil }
+        let beverage = hot - dose * Self.retentionPerGram + (temperature == .iced ? iceGrams ?? 0 : 0)
+        return beverage > 0 ? beverage : nil
+    }
+
+    /// Extraction yield (%) = TDS% × beverage weight ÷ dose. Approximate for filter (estimated beverage).
+    public var extractionYield: Double? {
+        guard let tds = beverageTds, let beverage = beverageGrams, let dose = doseGrams, dose > 0 else { return nil }
+        return tds * beverage / dose
+    }
+
+    /// Chooses an espresso milk drink and fills its typical milk amount.
+    public mutating func setMilkDrink(_ drink: MilkDrink?) {
+        milkDrink = drink
+        if let drink { milkGrams = drink.typicalMilkGrams } else { milkGrams = nil; milkType = nil }
+    }
+
     // MARK: Competition-sheet view: each step starts at a time and pours to a scale reading.
 
     /// Seconds from the start at which each step begins.
@@ -320,6 +374,13 @@ public struct RecipeDraft: Equatable, Sendable {
             "filterType": filterType.map { $0.rawValue as Any } ?? NSNull(),
             "roastLevel": roastLevel.map { $0.rawValue as Any } ?? NSNull(),
             "restDays": restDays.map { $0 as Any } ?? NSNull(),
+            "waterType": waterType.map { $0.rawValue as Any } ?? NSNull(),
+            "waterBrand": waterBrand,
+            "waterTdsPpm": waterTdsPpm.map { $0 as Any } ?? NSNull(),
+            "beverageTds": num(beverageTds),
+            "milkDrink": isEspresso ? (milkDrink.map { $0.rawValue as Any } ?? NSNull()) : NSNull(),
+            "milkType": isEspresso && milkDrink != nil ? (milkType.map { $0.rawValue as Any } ?? NSNull()) : NSNull(),
+            "milkGrams": isEspresso && milkDrink != nil ? num(milkGrams) : NSNull(),
             "notes": notes,
             "steps": steps.map { step -> [String: Any] in
                 ["kind": step.kind.rawValue,

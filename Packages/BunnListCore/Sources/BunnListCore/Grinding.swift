@@ -159,3 +159,67 @@ public enum Brewers {
         }
     }
 }
+
+public enum WaterType: String, Codable, CaseIterable, Hashable, Sendable {
+    case bottled, filtered, mineralRecipe, tap
+
+    public var nameAr: String {
+        switch self {
+        case .bottled: return "معبأ"
+        case .filtered: return "مفلتر"
+        case .mineralRecipe: return "وصفة معادن"
+        case .tap: return "صنبور"
+        }
+    }
+}
+
+public enum MilkDrink: String, Codable, CaseIterable, Hashable, Sendable {
+    case macchiato, cortado, flatWhite, cappuccino, latte
+
+    public var nameAr: String {
+        switch self {
+        case .macchiato: return "ماكياتو"
+        case .cortado: return "كورتادو"
+        case .flatWhite: return "فلات وايت"
+        case .cappuccino: return "كابتشينو"
+        case .latte: return "لاتيه"
+        }
+    }
+
+    /// A typical amount of steamed milk for a double shot, in grams.
+    public var typicalMilkGrams: Double {
+        switch self {
+        case .macchiato: return 15
+        case .cortado: return 40
+        case .flatWhite: return 120
+        case .cappuccino: return 150
+        case .latte: return 220
+        }
+    }
+
+    /// How the milk is textured, as a barista would say it.
+    public var textureAr: String {
+        switch self {
+        case .macchiato: return "نقطة رغوة فوق الشوت"
+        case .cortado: return "حليب مبخّر بقليل من الرغوة"
+        case .flatWhite: return "رغوة ناعمة رقيقة (ميكروفوم) بسماكة ~١ سم"
+        case .cappuccino: return "رغوة أكثف بسماكة ~١٫٥–٢ سم"
+        case .latte: return "رغوة ناعمة رقيقة ~١ سم"
+        }
+    }
+}
+
+public enum MilkType: String, Codable, CaseIterable, Hashable, Sendable {
+    case whole, skim, lactoseFree, oat, almond, soy
+
+    public var nameAr: String {
+        switch self {
+        case .whole: return "كامل الدسم"
+        case .skim: return "قليل الدسم"
+        case .lactoseFree: return "خالٍ من اللاكتوز"
+        case .oat: return "شوفان"
+        case .almond: return "لوز"
+        case .soy: return "صويا"
+        }
+    }
+}

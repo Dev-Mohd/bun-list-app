@@ -98,4 +98,39 @@ final class BrewGuideTests: XCTestCase {
         XCTAssertEqual(timeline.position(at: 10).stepIndex, 2)
         XCTAssertTrue(BrewTimeline(steps: []).position(at: 0).isFinished)
     }
+
+    func testExtractionYieldAndWaterTips() {
+        var d = draft(BrewPreset.all.first { $0.id == "v60-classic" }!) // 15 g → 250 g
+        XCTAssertEqual(d.beverageGrams, 220)                            // 250 − 2 × 15
+        d.beverageTds = 1.35
+        XCTAssertEqual(d.extractionYield ?? 0, 19.8, accuracy: 0.01)    // 1.35 × 220 ÷ 15
+        XCTAssertEqual(BrewAdvisor.tips(for: d), [])
+
+        d.beverageTds = 1.0
+        XCTAssertTrue(BrewAdvisor.tips(for: d).contains(.underExtracted))
+        XCTAssertTrue(BrewAdvisor.tips(for: d).contains(.beverageTdsOutside(typical: 1.15...1.45)))
+
+        d.beverageTds = nil
+        d.waterTdsPpm = 40
+        XCTAssertEqual(BrewAdvisor.tips(for: d), [.waterTooSoft])
+        d.waterTdsPpm = 300
+        XCTAssertEqual(BrewAdvisor.tips(for: d), [.waterTooHard])
+    }
+
+    func testEspressoYieldUsesTheShotWeight() {
+        var d = draft(BrewPreset.all.first { $0.id == "espresso-classic" }!) // 18 → 36
+        d.beverageTds = 9
+        XCTAssertEqual(d.extractionYield ?? 0, 18, accuracy: 0.01)
+        XCTAssertEqual(BrewAdvisor.tips(for: d), [])
+    }
+
+    func testChoosingAMilkDrinkFillsTypicalMilk() {
+        var d = draft(BrewPreset.all.first { $0.id == "espresso-classic" }!)
+        d.setMilkDrink(.flatWhite)
+        XCTAssertEqual(d.milkGrams, 120)
+        d.milkType = .oat
+        d.setMilkDrink(nil)
+        XCTAssertNil(d.milkGrams)
+        XCTAssertNil(d.milkType)
+    }
 }

@@ -148,6 +148,11 @@ public enum BrewTip: Equatable, Hashable, Sendable {
     case icedShare
     case darkRoastHot
     case veryFreshBeans
+    case waterTooSoft
+    case waterTooHard
+    case underExtracted
+    case overExtracted
+    case beverageTdsOutside(typical: ClosedRange<Double>)
 
     public var messageAr: String {
         switch self {
@@ -161,6 +166,12 @@ public enum BrewTip: Equatable, Hashable, Sendable {
         case let .slowBrew(r): return "الوقت أطول من المعتاد (\(Self.t(r.lowerBound))–\(Self.t(r.upperBound))): جرّب طحنة أخشن."
         case .icedShare: return "في الطريقة اليابانية خلّ الثلج ٣٠–٤٠٪ من الماء الكلي."
         case .darkRoastHot: return "للتحميص الغامق اخفض الحرارة إلى ٨٨–٩٠°م لتقليل المرارة."
+        case .waterTooSoft: return "الماء خفيف جدًا بالمعادن (أقل من ٧٥ ppm): الكوب يطلع باهت. جرّب ماء بين ٧٥ و١٥٠."
+        case .waterTooHard: return "الماء ثقيل بالمعادن (أكثر من ١٥٠ ppm): يخفي الحموضة والحلاوة."
+        case .underExtracted: return "الاستخلاص أقل من ١٨٪: نعّم الطحنة أو ارفع الحرارة."
+        case .overExtracted: return "الاستخلاص أكثر من ٢٢٪: خشّن الطحنة أو اخفض الحرارة."
+        case let .beverageTdsOutside(r):
+            return "قوة المشروب (TDS) خارج النطاق المعتاد \(String(format: "%.2f", r.lowerBound))–\(String(format: "%.2f", r.upperBound))٪."
         case .veryFreshBeans: return "البن طازج جدًا: غاز ثاني أكسيد الكربون يعيق الاستخلاص. اتركه يرتاح أسبوعًا على الأقل."
         }
     }
@@ -181,6 +192,11 @@ public enum BrewAdvisor {
         case "AEROPRESS": return 12...18
         default: return 14...18
         }
+    }
+
+    /// Typical beverage strength (TDS %): SCA brewing chart for filter, common range for espresso.
+    public static func typicalBeverageTds(_ methodCode: String) -> ClosedRange<Double> {
+        methodCode == "ESPRESSO" ? 8...12 : 1.15...1.45
     }
 
     /// Typical total brew time in seconds, or nil when time is not meaningful (cold brew).
@@ -227,6 +243,17 @@ public enum BrewAdvisor {
 
         if draft.roastLevel == .dark, let temp = draft.waterTempC, temp > 93 { tips.append(.darkRoastHot) }
         if let rest = draft.restDays, rest < (draft.isEspresso ? 7 : 4) { tips.append(.veryFreshBeans) }
+
+        if let ppm = draft.waterTdsPpm {
+            if ppm < 75 { tips.append(.waterTooSoft) } else if ppm > 150 { tips.append(.waterTooHard) }
+        }
+        if let tds = draft.beverageTds, method != "COLD_BREW" {
+            let typical = typicalBeverageTds(method)
+            if !typical.contains(tds) { tips.append(.beverageTdsOutside(typical: typical)) }
+        }
+        if let ey = draft.extractionYield, method != "COLD_BREW" {
+            if ey < 18 { tips.append(.underExtracted) } else if ey > 22 { tips.append(.overExtracted) }
+        }
 
         return tips
     }

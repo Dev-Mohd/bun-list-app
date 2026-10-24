@@ -77,6 +77,31 @@ struct RecipeDetailView: View {
                     grindConversion
                 }
 
+                if recipe.waterType != nil || recipe.waterTdsPpm != nil || !(recipe.waterBrand ?? "").isEmpty {
+                    section("الماء") {
+                        row("النوع", recipe.waterType?.nameAr)
+                        row(recipe.waterType == .mineralRecipe ? "الوصفة" : "الماركة",
+                            (recipe.waterBrand ?? "").isEmpty ? nil : recipe.waterBrand)
+                        row("TDS", recipe.waterTdsPpm.map { "\($0.formatted()) ppm" })
+                    }
+                }
+
+                if let drink = recipe.milkDrink {
+                    section("المشروب") {
+                        row("النوع", drink.nameAr)
+                        row("الحليب", recipe.milkType?.nameAr)
+                        row("كمية الحليب", recipe.milkGrams.map { "\(RecipeText.number($0)) غ" })
+                        Text(drink.textureAr).font(.caption).foregroundStyle(Brand.olive)
+                    }
+                }
+
+                if let tds = recipe.beverageTds {
+                    section("النتيجة") {
+                        row("TDS المشروب", "\(tds.formatted())٪")
+                        row("نسبة الاستخلاص", draft.extractionYield.map { "≈ \($0.formatted(.number.precision(.fractionLength(1))))٪" })
+                    }
+                }
+
                 if !recipe.steps.isEmpty {
                     section("الخطوات") {
                         let cumulative = draft.cumulativeWater

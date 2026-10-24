@@ -57,7 +57,10 @@ struct ServerRecipeEditor: View {
                     coffeeCard
                     parametersCard
                     grindCard
+                    if proMode { waterCard }
                     stepsCard
+                    if draft.isEspresso { milkCard }
+                    if proMode { resultCard }
                     tipsCard
                     if canTogglePublish { publishCard }
                 }
@@ -276,6 +279,97 @@ struct ServerRecipeEditor: View {
                     Text("أي أحد يقرأ وصفتك بيشوف الدرجة محوّلة لمطحنته (تقريبيًا).")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
+            }
+        }
+    }
+
+    private var waterCard: some View {
+        card("الماء") {
+            field("نوع الماء") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(WaterType.allCases, id: \.self) { type in
+                            ChoiceChip(title: type.nameAr, isSelected: draft.waterType == type) {
+                                draft.waterType = draft.waterType == type ? nil : type
+                            }
+                        }
+                    }
+                }
+            }
+            HStack(spacing: 12) {
+                field(draft.waterType == .mineralRecipe ? "الوصفة" : "الماركة") {
+                    TextField(draft.waterType == .mineralRecipe ? "مثال: Third Wave Water" : "مثال: نوفا",
+                              text: $draft.waterBrand)
+                        .textFieldStyle(.roundedBorder)
+                }
+                field("TDS (ppm)") {
+                    TextField("110", value: Binding(
+                        get: { draft.waterTdsPpm ?? 0 },
+                        set: { draft.waterTdsPpm = $0 > 0 ? $0 : nil }
+                    ), format: .number)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+                }
+            }
+            Text("المكتوب على العبوة غالبًا «الأملاح الذائبة الكلية». المثالي للقهوة ٧٥–١٥٠ ppm.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private var resultCard: some View {
+        let typical = BrewAdvisor.typicalBeverageTds(draft.methodCode)
+        return card("النتيجة (اختياري)") {
+            field("TDS المشروب (٪)") {
+                TextField(draft.isEspresso ? "9.5" : "1.35", value: $draft.beverageTds.orZero, format: .number)
+                    .keyboardType(.decimalPad)
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+            }
+            Text("المعتاد \(typical.lowerBound.formatted())–\(typical.upperBound.formatted())٪. لمن عنده مقياس انكسار (Refractometer).")
+                .font(.caption2).foregroundStyle(.secondary)
+            if let ey = draft.extractionYield {
+                HStack {
+                    Label("نسبة الاستخلاص", systemImage: "chart.bar.fill")
+                    Spacer()
+                    Text("\(ey.formatted(.number.precision(.fractionLength(1))))٪")
+                        .font(.headline.monospaced())
+                        .foregroundStyle((18...22).contains(ey) ? Brand.olive : .orange)
+                }
+                Text(draft.isEspresso
+                     ? "محسوبة من وزن الشوت. المثالي ١٨–٢٢٪."
+                     : "تقريبية: المشروب ≈ \(RecipeText.number(draft.beverageGrams))غ بعد احتساب ما يمسكه البن (٢غ لكل غرام). المثالي ١٨–٢٢٪.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var milkCard: some View {
+        card("مشروب بالحليب") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ChoiceChip(title: "شوت فقط", isSelected: draft.milkDrink == nil) { draft.setMilkDrink(nil) }
+                    ForEach(MilkDrink.allCases, id: \.self) { drink in
+                        ChoiceChip(title: drink.nameAr, isSelected: draft.milkDrink == drink) { draft.setMilkDrink(drink) }
+                    }
+                }
+            }
+            if let drink = draft.milkDrink {
+                Text(drink.textureAr).font(.caption).foregroundStyle(Brand.olive)
+                field("الحليب") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(MilkType.allCases, id: \.self) { type in
+                                ChoiceChip(title: type.nameAr, isSelected: draft.milkType == type) {
+                                    draft.milkType = draft.milkType == type ? nil : type
+                                }
+                            }
+                        }
+                    }
+                }
+                field("كمية الحليب (غ)") { numberField(RecipeText.number(drink.typicalMilkGrams), value: $draft.milkGrams) }
+                Text("بخّر الحليب إلى ٥٥–٦٥°م؛ أسخن من كذا يفقد حلاوته.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
     }
@@ -746,5 +840,12 @@ private struct StepEditor: View {
                 }
             }
         }
+    }
+}
+
+private extension Binding where Value == Double? {
+    /// Edits an optional number in a TextField: 0 or empty clears it.
+    var orZero: Binding<Double> {
+        Binding<Double>(get: { wrappedValue ?? 0 }, set: { wrappedValue = $0 > 0 ? $0 : nil })
     }
 }
