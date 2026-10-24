@@ -10,6 +10,10 @@ struct SuggestCoffeeView: View {
     @Environment(\.dismiss) private var dismiss
 
     var prefillName: String = ""
+    var prefillRoaster: String = ""
+    var prefillOrigin: String = ""
+    var prefillNote: String = ""
+    var prefillPhoto: UIImage?
 
     @State private var name = ""
     @State private var roasterName = ""
@@ -28,7 +32,13 @@ struct SuggestCoffeeView: View {
         NavigationStack {
             if submitted { successView } else { form }
         }
-        .onAppear { if name.isEmpty { name = prefillName } }
+        .onAppear {
+            if name.isEmpty { name = prefillName }
+            if roasterName.isEmpty { roasterName = prefillRoaster }
+            if origin.isEmpty { origin = prefillOrigin }
+            if note.isEmpty { note = prefillNote }
+            if photo == nil { photo = prefillPhoto }
+        }
     }
 
     private var form: some View {

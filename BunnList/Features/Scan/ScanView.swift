@@ -8,6 +8,7 @@ struct ScanView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var auth: AuthModel
     @State private var showServerSearch = false
+    @State private var showAIScan = false
     @State private var flow = ScanFlow()
     @State private var fields = ExtractedBagFields()
     @State private var entryState: ScanEntryState = .noCamera
@@ -38,6 +39,7 @@ struct ScanView: View {
             .navigationTitle("مسح")
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
             .sheet(isPresented: $showServerSearch) { AddCoffeeSearchView().environmentObject(auth) }
+            .sheet(isPresented: $showAIScan) { AIBagScanView().environmentObject(auth) }
             .onAppear { entryState = camera.entryState }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView(onImage: { data in
@@ -61,6 +63,15 @@ struct ScanView: View {
 
     private var startView: some View {
         List {
+            Section {
+                Button { showAIScan = true } label: {
+                    Label("امسح الكيس بالذكاء الاصطناعي", systemImage: "sparkles")
+                        .font(.headline)
+                }
+                .accessibilityIdentifier("scan-ai")
+            } footer: {
+                Text("صوّر الكيس ويقرأ لك البيانات ويدوّر القهوة في الدليل.")
+            }
             Section {
                 Button { showServerSearch = true } label: {
                     Label("ابحث وأضف قهوة من الخادم", systemImage: "plus.magnifyingglass")
