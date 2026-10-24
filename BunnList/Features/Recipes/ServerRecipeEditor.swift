@@ -41,12 +41,14 @@ struct ServerRecipeEditor: View {
             ScrollView {
                 VStack(spacing: 16) {
                     RecipeSummaryCard(draft: draft)
+                    if isNew { presetsCard }
                     infoCard
                     methodCard
                     coffeeCard
                     parametersCard
                     grindCard
                     stepsCard
+                    tipsCard
                     if canTogglePublish { publishCard }
                 }
                 .padding()
@@ -211,6 +213,54 @@ struct ServerRecipeEditor: View {
         }
     }
 
+    /// Proven starting points for the selected method (new recipes only).
+    private var presetsCard: some View {
+        let presets = BrewPreset.presets(for: draft.methodCode)
+        let shown = presets.isEmpty ? BrewPreset.all : presets
+        return card("ابدأ من وصفة باريستا") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(shown) { preset in
+                        Button {
+                            withAnimation { draft.apply(preset) }
+                            Haptics.tap()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Label(preset.nameAr, systemImage: preset.temperature == .iced ? "snowflake" : "flame.fill")
+                                    .font(.subheadline.bold())
+                                Text(preset.summaryAr).font(.caption).foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.leading)
+                                Text("الطحن: \(preset.grindAr)").font(.caption2).foregroundStyle(Brand.olive)
+                            }
+                            .frame(width: 190, alignment: .leading)
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 14).stroke(Color.secondary.opacity(0.3)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("preset-\(preset.id)")
+                    }
+                }
+            }
+            Text("تختار وصفة وتعدّل عليها بذوقك. اسمك وقهوتك يبقون كما هم.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var tipsCard: some View {
+        let tips = BrewAdvisor.tips(for: draft)
+        if !tips.isEmpty {
+            card("نصائح الباريستا") {
+                ForEach(tips, id: \.self) { tip in
+                    Label(tip.messageAr, systemImage: "lightbulb")
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+        }
+    }
+
     private var publishCard: some View {
         card(nil) {
             Toggle(isOn: $publish) {
@@ -341,6 +391,12 @@ struct ServerRecipeEditor: View {
     }
 
     private func setMethod(_ code: String) {
+        guard code != draft.methodCode else { return }
+        // A new recipe switches to that method's barista recipe as a starting point.
+        if isNew, let preset = BrewPreset.presets(for: code).first {
+            draft.apply(preset)
+            return
+        }
         let wasEspresso = draft.isEspresso
         draft.methodCode = code
         if draft.isEspresso && !wasEspresso {
@@ -353,6 +409,7 @@ struct ServerRecipeEditor: View {
             draft.hotWaterGrams = 250
         }
     }
+
 
     private func setTemperature(_ temperature: BrewTemperature) {
         let ratio = draft.ratio

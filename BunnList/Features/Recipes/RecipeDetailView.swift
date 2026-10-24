@@ -12,6 +12,7 @@ struct RecipeDetailView: View {
     @State private var editorDraft: DraftRef?
     @State private var confirmDelete = false
     @State private var errorMessage: String?
+    @State private var brewing = false
     let onChange: (RecipeChange) -> Void
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
@@ -27,6 +28,18 @@ struct RecipeDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 RecipeSummaryCard(draft: draft)
+
+                if draft.totalSeconds > 0 {
+                    Button { brewing = true } label: {
+                        Label("حضّر الآن", systemImage: "timer")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Color.black, in: Capsule())
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("brew-now")
+                }
 
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.red)
@@ -84,6 +97,15 @@ struct RecipeDetailView: View {
                     section("ملاحظات") { Text(recipe.notes) }
                 }
 
+                section("اضبط الطعم") {
+                    ForEach(BrewAdvisor.troubleshooting, id: \.self) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("إذا كانت \(item.taste)").font(.subheadline.weight(.semibold))
+                            Text(item.fix).font(.callout).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Text(recipe.isMine ? "حالة الوصفة: \(RecipeText.state(recipe.state))" : "بواسطة \(recipe.authorName)")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -102,6 +124,7 @@ struct RecipeDetailView: View {
             }
             .environmentObject(auth)
         }
+        .fullScreenCover(isPresented: $brewing) { BrewTimerView(recipe: recipe) }
         .confirmationDialog("حذف الوصفة؟", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("حذف نهائيًا", role: .destructive) { Task { await change(to: .deleted) } }
         } message: {

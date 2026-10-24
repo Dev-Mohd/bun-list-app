@@ -136,7 +136,9 @@ struct RecipesHubView: View {
     }
 
     private func startNew() {
-        editorDraft = DraftRef(draft: RecipeDraft(lot: lot))
+        var draft = RecipeDraft(lot: lot)
+        if let classic = BrewPreset.all.first { draft.apply(classic) }
+        editorDraft = DraftRef(draft: draft)
     }
 
     private func load() async {
