@@ -3,22 +3,15 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Suggest a brand-new coffee for review: optional photo of the bag + the basics.
-/// Submitted to the server as a pending suggestion. (Image upload is a later step.)
+/// Suggest a brand-new coffee for review: optional photo of the bag, the names in
+/// Arabic and as printed in English, origin, process, roast and flavors. A bag
+/// scan pre-fills everything. Submitted as a pending suggestion.
 struct SuggestCoffeeView: View {
     @EnvironmentObject private var auth: AuthModel
     @Environment(\.dismiss) private var dismiss
 
-    var prefillName: String = ""
-    var prefillRoaster: String = ""
-    var prefillOrigin: String = ""
-    var prefillNote: String = ""
-    var prefillPhoto: UIImage?
-
-    @State private var name = ""
-    @State private var roasterName = ""
-    @State private var origin = ""
-    @State private var note = ""
+    @State private var suggestion: CoffeeSuggestion
+    @State private var flavorText: String
     @State private var photo: UIImage?
     @State private var showCamera = false
     @State private var photoItem: PhotosPickerItem?
@@ -28,16 +21,16 @@ struct SuggestCoffeeView: View {
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
+    init(prefillName: String = "", scanned: RemoteBagExtraction? = nil, prefillPhoto: UIImage? = nil) {
+        let start = scanned.map(CoffeeSuggestion.init(scanned:)) ?? CoffeeSuggestion(name: prefillName)
+        _suggestion = State(initialValue: start)
+        _flavorText = State(initialValue: start.flavorNotes.joined(separator: "، "))
+        _photo = State(initialValue: prefillPhoto)
+    }
+
     var body: some View {
         NavigationStack {
             if submitted { successView } else { form }
-        }
-        .onAppear {
-            if name.isEmpty { name = prefillName }
-            if roasterName.isEmpty { roasterName = prefillRoaster }
-            if origin.isEmpty { origin = prefillOrigin }
-            if note.isEmpty { note = prefillNote }
-            if photo == nil { photo = prefillPhoto }
         }
     }
 
@@ -45,9 +38,8 @@ struct SuggestCoffeeView: View {
         Form {
             Section {
                 if let photo {
-                    Image(uiImage: photo).resizable().scaledToFill()
-                        .frame(height: 160).frame(maxWidth: .infinity).clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Image(uiImage: photo).resizable().scaledToFit()
+                        .frame(height: 180).frame(maxWidth: .infinity)
                         .listRowInsets(EdgeInsets())
                 }
                 Button { showCamera = true } label: { Label("صوّر الكيس", systemImage: "camera") }
@@ -60,14 +52,41 @@ struct SuggestCoffeeView: View {
                 Text("الصورة تساعد في المراجعة. (تُرفع للخادم في تحديث قادم.)")
             }
 
-            Section("البيانات") {
-                TextField("اسم القهوة", text: $name)
-                TextField("المحمصة", text: $roasterName)
-                TextField("المنشأ (اختياري)", text: $origin)
+            Section("اسم القهوة") {
+                TextField("بالعربي", text: $suggestion.name)
+                TextField("بالإنجليزي كما على الكيس", text: $suggestion.nameEn)
+                    .environment(\.layoutDirection, .leftToRight)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+            }
+
+            Section("المحمصة") {
+                TextField("بالعربي", text: $suggestion.roasterName)
+                TextField("بالإنجليزي كما على الكيس", text: $suggestion.roasterNameEn)
+                    .environment(\.layoutDirection, .leftToRight)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+            }
+
+            Section("التفاصيل") {
+                TextField("المنشأ (اختياري)", text: $suggestion.originName)
+                Picker("المعالجة", selection: $suggestion.process) {
+                    Text("غير محددة").tag(String?.none)
+                    ForEach(ReferenceCodes.processes, id: \.code) { entry in
+                        Text(entry.nameEn.map { "\(entry.nameAr) · \($0)" } ?? entry.nameAr).tag(Optional(entry.code))
+                    }
+                }
+                Picker("التحميص", selection: $suggestion.roastLevel) {
+                    Text("غير محدد").tag(RoastLevel?.none)
+                    ForEach(RoastLevel.allCases, id: \.self) { Text($0.nameAr).tag(Optional($0)) }
+                }
+                .pickerStyle(.segmented)
+                TextField("النكهات، افصل بفاصلة: شوكولاتة، كراميل", text: $flavorText, axis: .vertical)
+                    .lineLimit(1...3)
             }
 
             Section("ملاحظة (اختياري)") {
-                TextField("أي تفاصيل تساعد المراجعة…", text: $note, axis: .vertical).lineLimit(2...4)
+                TextField("أي تفاصيل تساعد المراجعة…", text: $suggestion.note, axis: .vertical).lineLimit(2...6)
             }
 
             if let errorMessage {
@@ -76,7 +95,7 @@ struct SuggestCoffeeView: View {
 
             Section {
                 Button("أرسل الاقتراح") { Task { await submit() } }
-                    .disabled(!canSubmit || isBusy)
+                    .disabled(!suggestion.isComplete || isBusy)
                     .accessibilityIdentifier("suggest-submit")
             }
         }
@@ -88,14 +107,16 @@ struct SuggestCoffeeView: View {
         .fullScreenCover(isPresented: $showCamera) {
             CameraCaptureView(onImage: { data in
                 showCamera = false
-                photo = UIImage(data: data)
+                if let image = UIImage(data: data) { Task { await setPhoto(image) } }
             }, onCancel: { showCamera = false })
             .ignoresSafeArea()
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task { @MainActor in
-                if let data = try? await item.loadTransferable(type: Data.self) { photo = UIImage(data: data) }
+                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                    await setPhoto(image)
+                }
                 photoItem = nil
             }
         }
@@ -111,38 +132,29 @@ struct SuggestCoffeeView: View {
         }
     }
 
-    private var canSubmit: Bool {
-        name.trimmingCharacters(in: .whitespaces).count >= 2 && roasterName.trimmingCharacters(in: .whitespaces).count >= 2
+    /// Crops the bag out of a new photo when possible.
+    private func setPhoto(_ image: UIImage) async {
+        photo = await BagCutout.cardImage(from: image) ?? image
     }
 
     private func submit() async {
-        guard auth.isSignedIn, let token = auth.currentAccessToken() else {
+        guard auth.isSignedIn else {
             errorMessage = "سجّل الدخول من «ملفي» لإرسال اقتراح."
             return
         }
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
-        let o = origin.trimmingCharacters(in: .whitespaces)
-        let n = note.trimmingCharacters(in: .whitespaces)
-        func send(_ t: String) async throws {
-            _ = try await client.submitCoffee(name: name.trimmingCharacters(in: .whitespaces),
-                                              roasterName: roasterName.trimmingCharacters(in: .whitespaces),
-                                              originName: o.isEmpty ? nil : o,
-                                              note: n.isEmpty ? nil : n, accessToken: t)
-        }
+        var toSend = suggestion
+        toSend.flavorNotes = CoffeeSuggestion.notes(from: flavorText)
         do {
-            try await send(token)
+            _ = try await auth.withToken { try await client.submitCoffee(toSend, accessToken: $0) }
             Haptics.tap()
             submitted = true
         } catch APIError.unauthorized {
-            if let fresh = await auth.refreshAccessToken(), (try? await send(fresh)) != nil {
-                submitted = true
-            } else {
-                errorMessage = "انتهت الجلسة. سجّل الدخول من جديد."
-            }
+            errorMessage = "انتهت الجلسة. سجّل الدخول من جديد."
         } catch APIError.unprocessable {
-            errorMessage = "تحقّق من البيانات (الاسم والمحمصة مطلوبان)."
+            errorMessage = "تحقّق من البيانات (الاسم والمحمصة بالعربي مطلوبان)."
         } catch {
             errorMessage = "تعذّر الإرسال. حاول مجددًا."
         }

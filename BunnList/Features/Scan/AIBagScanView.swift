@@ -55,8 +55,7 @@ struct AIBagScanView: View {
                 }
             }
             .sheet(item: $suggestion) { s in
-                SuggestCoffeeView(prefillName: s.name, prefillRoaster: s.roaster, prefillOrigin: s.origin,
-                                  prefillNote: s.note, prefillPhoto: s.photo)
+                SuggestCoffeeView(scanned: s.extraction, prefillPhoto: s.photo)
                     .environmentObject(auth)
             }
         }
@@ -122,11 +121,21 @@ struct AIBagScanView: View {
         return List {
             Section {
                 HStack(alignment: .top, spacing: 12) {
-                    Image(uiImage: image).resizable().scaledToFill()
-                        .frame(width: 72, height: 96).clipShape(RoundedRectangle(cornerRadius: 10))
+                    Image(uiImage: image).resizable().scaledToFit()
+                        .frame(width: 88, height: 88)
+                        .background(Color(white: 0.97), in: RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     VStack(alignment: .leading, spacing: 4) {
                         Text(e.displayName ?? "بدون اسم واضح").font(.headline)
-                        if let roaster = e.roaster { Text(roaster).font(.subheadline).foregroundStyle(.secondary) }
+                        if let latin = e.name, latin != e.displayName {
+                            Text(latin).font(.subheadline).environment(\.layoutDirection, .leftToRight)
+                        }
+                        if let roaster = e.displayRoaster {
+                            Text(roaster).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        if let latin = e.roaster, latin != e.displayRoaster {
+                            Text(latin).font(.caption).foregroundStyle(.secondary)
+                        }
                         Label(confidenceText(e.confidence), systemImage: "sparkles")
                             .font(.caption).foregroundStyle(Brand.olive)
                     }
@@ -143,7 +152,7 @@ struct AIBagScanView: View {
                     fact("المزرعة", e.farm)
                     fact("المنتج", e.producer)
                     fact("الصنف", e.varieties.isEmpty ? nil : e.varieties.joined(separator: "، "))
-                    fact("المعالجة", e.processLabel ?? e.process)
+                    fact("المعالجة", e.process.flatMap { ReferenceCodes.process($0)?.nameAr } ?? e.processLabel)
                     fact("التحميص", e.roastLevel?.nameAr)
                     fact("تاريخ التحميص", e.roastDate.map { date in
                         e.daysSinceRoast().map { "\(date) (قبل \($0.formatted()) يوم)" } ?? date
@@ -207,6 +216,11 @@ struct AIBagScanView: View {
             let result = try await auth.withToken { try await client.scanBag(jpeg: jpeg, accessToken: $0) }
             Haptics.tap()
             phase = .result(image, result)
+            // Lift the bag out of the photo for a clean card; keep the original if that fails.
+            if result.extraction.isCoffeeBag, let card = await BagCutout.cardImage(from: image),
+               case .result(_, let current) = phase, current == result {
+                phase = .result(card, result)
+            }
         } catch APIError.rateLimited {
             phase = .failed("وصلت حد المسح اليومي. جرّب بكرة.")
         } catch APIError.forbidden {
@@ -238,17 +252,6 @@ struct AIBagScanView: View {
 /// What the scan pre-fills into a coffee suggestion.
 private struct BagSuggestion: Identifiable {
     let id = UUID()
-    let name: String
-    let roaster: String
-    let origin: String
-    let note: String
+    let extraction: RemoteBagExtraction
     let photo: UIImage
-
-    init(extraction e: RemoteBagExtraction, photo: UIImage) {
-        name = e.displayName ?? ""
-        roaster = e.roaster ?? ""
-        origin = e.originCountryAr ?? e.originCountry ?? ""
-        note = e.suggestionNote
-        self.photo = photo
-    }
 }

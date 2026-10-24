@@ -9,6 +9,7 @@ public struct RemoteBagExtraction: Codable, Equatable, Sendable {
     public let name: String?
     public let nameAr: String?
     public let roaster: String?
+    public let roasterAr: String?
     public let originCountry: String?
     public let originCountryAr: String?
     public let originCountryCode: String?
@@ -26,8 +27,9 @@ public struct RemoteBagExtraction: Codable, Equatable, Sendable {
     public let recommendedBrewMethods: [String]
     public let confidence: String
 
-    /// The best display name: Arabic when printed, else the printed name.
+    /// The best display name: Arabic first, else the Latin name as printed.
     public var displayName: String? { nameAr ?? name }
+    public var displayRoaster: String? { roasterAr ?? roaster }
 
     /// Days since the printed roast date, if any.
     public func daysSinceRoast(now: Date = Date()) -> Int? {
@@ -49,9 +51,7 @@ public struct RemoteBagExtraction: Codable, Equatable, Sendable {
         if let farm { parts.append("المزرعة: \(farm)") }
         if let producer { parts.append("المنتج: \(producer)") }
         if !varieties.isEmpty { parts.append("الصنف: \(varieties.joined(separator: "، "))") }
-        if let process = processLabel ?? process { parts.append("المعالجة: \(process)") }
         if let altitudeMeters { parts.append("الارتفاع: \(altitudeMeters) م") }
-        if !flavorNotesAr.isEmpty { parts.append("النكهات: \(flavorNotesAr.joined(separator: "، "))") }
         if let roastDate { parts.append("تاريخ التحميص: \(roastDate)") }
         return parts.joined(separator: "\n")
     }
@@ -73,6 +73,77 @@ extension CatalogAPIClient {
         )
         try Self.checkContract(response)
         do { return try JSONDecoder().decode(RemoteBagScanResult.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+}
+
+/// A coffee suggestion for review (POST /api/v1/submissions). Arabic names are
+/// required; Latin names, process, roast level and flavors are optional.
+public struct CoffeeSuggestion: Equatable, Sendable {
+    public var name: String
+    public var nameEn: String
+    public var roasterName: String
+    public var roasterNameEn: String
+    public var originName: String
+    /// A `ReferenceCodes.processes` code.
+    public var process: String?
+    public var roastLevel: RoastLevel?
+    public var flavorNotes: [String]
+    public var note: String
+
+    public init(name: String = "", nameEn: String = "", roasterName: String = "", roasterNameEn: String = "",
+                originName: String = "", process: String? = nil, roastLevel: RoastLevel? = nil,
+                flavorNotes: [String] = [], note: String = "") {
+        self.name = name; self.nameEn = nameEn; self.roasterName = roasterName; self.roasterNameEn = roasterNameEn
+        self.originName = originName; self.process = process; self.roastLevel = roastLevel
+        self.flavorNotes = flavorNotes; self.note = note
+    }
+
+    /// Everything a bag scan read, in the matching fields.
+    public init(scanned e: RemoteBagExtraction) {
+        self.init(name: e.nameAr ?? e.name ?? "", nameEn: e.name ?? "",
+                  roasterName: e.roasterAr ?? e.roaster ?? "", roasterNameEn: e.roaster ?? "",
+                  originName: e.originCountryAr ?? e.originCountry ?? "",
+                  process: e.process.flatMap { ReferenceCodes.process($0)?.code },
+                  roastLevel: e.roastLevel, flavorNotes: e.flavorNotesAr, note: e.suggestionNote)
+    }
+
+    /// Splits "شوكولاتة، كراميل, توت" into separate notes.
+    public static func notes(from text: String) -> [String] {
+        text.split(whereSeparator: { $0 == "،" || $0 == "," || $0 == "\n" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    public var isComplete: Bool {
+        name.trimmingCharacters(in: .whitespaces).count >= 2 && roasterName.trimmingCharacters(in: .whitespaces).count >= 2
+    }
+
+    func payload() -> [String: Any] {
+        func t(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var body: [String: Any] = ["name": t(name), "roasterName": t(roasterName)]
+        if !t(nameEn).isEmpty { body["nameEn"] = t(nameEn) }
+        if !t(roasterNameEn).isEmpty { body["roasterNameEn"] = t(roasterNameEn) }
+        if !t(originName).isEmpty { body["originName"] = t(originName) }
+        if let process { body["process"] = process }
+        if let roastLevel { body["roastLevel"] = roastLevel.rawValue }
+        let notes = flavorNotes.map(t).filter { !$0.isEmpty }
+        if !notes.isEmpty { body["flavorNotes"] = Array(notes.prefix(12)) }
+        if !t(note).isEmpty { body["note"] = String(t(note).prefix(1000)) }
+        return body
+    }
+}
+
+extension CatalogAPIClient {
+    /// Sends a suggestion for review; returns its id.
+    public func submitCoffee(_ suggestion: CoffeeSuggestion, accessToken: String) async throws -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: suggestion.payload())) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .post, path: "/api/v1/submissions", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        struct Created: Decodable { let id: String }
+        do { return try JSONDecoder().decode(Created.self, from: response.body).id }
         catch { throw AuthClientError.malformedResponse }
     }
 }
