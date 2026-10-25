@@ -127,6 +127,9 @@ struct AdminSubmissionDetailView: View {
                 AdminPhoto(url: submission.photoUrl).frame(height: 220)
                     .listRowInsets(EdgeInsets())
                 LabeledContent("اقترحها", value: submission.authorName ?? "حساب محذوف")
+                if let publicNote = submission.publicNote, !publicNote.isEmpty {
+                    Label("للعموم: \(publicNote)", systemImage: "quote.bubble").font(.callout)
+                }
                 if let note = submission.note, !note.isEmpty {
                     Text(note).font(.callout).foregroundStyle(.secondary)
                 }

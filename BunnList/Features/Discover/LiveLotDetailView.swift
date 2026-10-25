@@ -154,28 +154,25 @@ struct LiveLotDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(lot.nameAr).font(.title2.bold())
                     Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
-                    if let discoverer = lot.discoveredBy {
-                        let label = Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")
+                    if lot.discoverer == nil, let discoverer = lot.discoveredBy {
+                        // Older servers: the name only.
+                        Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")
                             .font(.subheadline).foregroundStyle(Brand.gold)
-                            .accessibilityIdentifier("lot-discoverer")
-                        if let username = lot.discoveredByUsername {
-                            NavigationLink { PublicProfileView(username: username) } label: { label }
-                                .buttonStyle(.plain)
-                        } else {
-                            label
-                        }
-                    }
-                    if lot.reviewCount > 0 {
-                        Label("\(lot.averageRating.formatted(.number.precision(.fractionLength(1)))) · \(lot.reviewCount) تقييم",
-                              systemImage: "star.fill")
-                            .font(.subheadline).foregroundStyle(Brand.olive)
                     }
                 }
 
+                TasteFingerprintCard(notes: lot.flavorNotes, origin: lot.originNameAr, process: lot.processLabel)
+
+                RatingCard(average: lot.averageRating, count: lot.reviewCount, myRating: myReview?.rating,
+                           isSignedIn: auth.isSignedIn) { showReviewForm = true }
+
                 facts(lot)
 
-                if !lot.flavorNotes.isEmpty {
-                    section("النكهات") { chips(lot.flavorNotes) }
+                if lot.flavorNotes.count > 3 {
+                    section("كل النكهات") { chips(lot.flavorNotes) }
+                }
+                if let discoverer = lot.discoverer {
+                    DiscovererCard(discoverer: discoverer)
                 }
                 if let description = lot.descriptionAr, !description.isEmpty {
                     section("الوصف") { Text(description).font(.body).foregroundStyle(.secondary) }
@@ -185,6 +182,10 @@ struct LiveLotDetailView: View {
                     section("تجاربي") {
                         ServerExperiencesSection(slug: slug) { Task { await loadCollection() } }
                     }
+                }
+
+                if let community = lot.community, community.collectors + community.brewers > 0 {
+                    section("المجتمع") { LotCommunityCard(community: community) }
                 }
 
                 if !lot.brewStats.isEmpty {
@@ -201,8 +202,6 @@ struct LiveLotDetailView: View {
                     .accessibilityIdentifier("lot-recipes")
                 }
 
-                reviewSection(lot)
-
                 if !reviews.isEmpty {
                     section("تقييمات الناس") {
                         VStack(spacing: 14) {
@@ -213,6 +212,27 @@ struct LiveLotDetailView: View {
             }
             .padding()
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if auth.isSignedIn {
+                    Button { apply(wantsToTry: !flags.wantsToTry) } label: {
+                        Image(systemName: flags.wantsToTry ? "bookmark.fill" : "bookmark")
+                    }
+                    .accessibilityLabel(flags.wantsToTry ? "إزالة من ودّي أجرّب" : "ودّي أجرّبها")
+                    Button { apply(favorite: !flags.favorite) } label: {
+                        Image(systemName: flags.favorite ? "heart.fill" : "heart")
+                    }
+                    .accessibilityLabel(flags.favorite ? "إزالة من المفضلة" : "أضف للمفضلة")
+                }
+                ShareLink(item: ServerConfig.baseURL.appendingPathComponent("coffees").appendingPathComponent(lot.slug),
+                          subject: Text(lot.nameAr),
+                          message: Text("\(lot.nameAr) من \(lot.roasterNameAr) على بن لست")) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("مشاركة")
+            }
+        }
+        .tint(Brand.olive)
         .sheet(isPresented: $showRecipes) {
             RecipesHubView(lot: RemoteRecipeLot(slug: lot.slug, nameAr: lot.nameAr, roasterNameAr: lot.roasterNameAr),
                            startOn: .explore)
@@ -221,31 +241,6 @@ struct LiveLotDetailView: View {
         .sheet(isPresented: $showReviewForm) {
             ReviewFormView(slug: slug, brewMethods: lot.recommendedBrewMethods, existing: myReview, onSaved: applyResult)
                 .environmentObject(auth)
-        }
-    }
-
-    @ViewBuilder
-    private func reviewSection(_ lot: RemoteLotDetail) -> some View {
-        Divider().padding(.vertical, 4)
-        if auth.isSignedIn {
-            VStack(alignment: .leading, spacing: 8) {
-                if let mine = myReview {
-                    Label("تقييمك: \(mine.rating) من ٥ · \(LiveLotDetailView.brewLabel(mine.brewMethod))",
-                          systemImage: "checkmark.seal.fill")
-                        .font(.subheadline).foregroundStyle(Brand.olive)
-                }
-                Button {
-                    showReviewForm = true
-                } label: {
-                    Label(myReview == nil ? "قيّم هذا المحصول" : "عدّل تقييمك", systemImage: "star")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("review-cta")
-            }
-        } else {
-            Text("سجّل الدخول من تبويب «حسابي» لتقييم هذا المحصول.")
-                .font(.callout).foregroundStyle(.secondary)
         }
     }
 

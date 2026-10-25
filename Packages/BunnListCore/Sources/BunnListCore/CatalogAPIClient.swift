@@ -73,6 +73,28 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
     public let discoveredBy: String?
     /// Their @username, for opening their profile.
     public let discoveredByUsername: String?
+    /// Who discovered it, with their public note. Missing from older servers.
+    public let discoverer: RemoteDiscoverer?
+    /// How people use it. Missing from older servers.
+    public let community: RemoteLotCommunity?
+}
+
+public struct RemoteDiscoverer: Codable, Equatable, Sendable {
+    public let name: String
+    public let username: String?
+    public let avatarUrl: String?
+    public let note: String?
+}
+
+public struct RemoteLotCommunity: Codable, Equatable, Sendable {
+    public struct Method: Codable, Equatable, Sendable, Hashable {
+        public let method: String
+        public let count: Int
+    }
+
+    public let collectors: Int
+    public let brewers: Int
+    public let methods: [Method]
 }
 
 public struct CatalogAPIClient: Sendable {

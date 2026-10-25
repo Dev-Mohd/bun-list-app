@@ -90,6 +90,8 @@ public struct CoffeeSuggestion: Equatable, Sendable {
     public var roastLevel: RoastLevel?
     public var flavorNotes: [String]
     public var note: String
+    /// Shown with the coffee once it is published ("ملاحظة المكتشف").
+    public var publicNote = ""
 
     public init(name: String = "", nameEn: String = "", roasterName: String = "", roasterNameEn: String = "",
                 originName: String = "", process: String? = nil, roastLevel: RoastLevel? = nil,
@@ -130,6 +132,7 @@ public struct CoffeeSuggestion: Equatable, Sendable {
         let notes = flavorNotes.map(t).filter { !$0.isEmpty }
         if !notes.isEmpty { body["flavorNotes"] = Array(notes.prefix(12)) }
         if !t(note).isEmpty { body["note"] = String(t(note).prefix(1000)) }
+        if !t(publicNote).isEmpty { body["publicNote"] = String(t(publicNote).prefix(280)) }
         return body
     }
 }

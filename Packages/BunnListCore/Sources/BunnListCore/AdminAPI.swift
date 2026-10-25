@@ -42,6 +42,8 @@ public struct RemoteAdminSubmission: Codable, Equatable, Sendable, Identifiable 
     public let roastLevel: String?
     public let flavorNotes: [String]
     public let note: String?
+    /// Shown with the coffee once approved. Missing from older servers.
+    public let publicNote: String?
     public let photoUrl: String?
     public let authorName: String?
     public let approvedLotSlug: String?

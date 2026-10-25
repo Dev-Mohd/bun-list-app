@@ -92,7 +92,18 @@ struct SuggestCoffeeView: View {
                     .lineLimit(1...3)
             }
 
-            Section("ملاحظة (اختياري)") {
+            Section {
+                TextField("وش رأيك فيها؟ وين لقيتها؟", text: $suggestion.publicNote, axis: .vertical).lineLimit(2...5)
+                    .onChange(of: suggestion.publicNote) { _, text in
+                        if text.count > 280 { suggestion.publicNote = String(text.prefix(280)) }
+                    }
+            } header: {
+                Text("ملاحظة المكتشف (اختياري)")
+            } footer: {
+                Text("تظهر للجميع تحت اسمك في صفحة القهوة بعد نشرها.")
+            }
+
+            Section("ملاحظة للمراجعة (اختياري)") {
                 TextField("أي تفاصيل تساعد المراجعة…", text: $suggestion.note, axis: .vertical).lineLimit(2...6)
             }
 
