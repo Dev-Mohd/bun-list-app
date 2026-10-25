@@ -1,38 +1,29 @@
 import AuthenticationServices
 import GoogleSignIn
-import GoogleSignInSwift
 import SwiftUI
 import UIKit
 
-/// The Apple + Google quick sign-in buttons, shared by the welcome screen and the
-/// email sign-in sheet. Talks to `AuthModel` from the environment.
+/// The Apple + Google sign-in buttons, shared by the welcome screen and the email
+/// sign-in sheet. Both use the app's own button shape (`AuthButton`); Apple's
+/// request runs through ASAuthorizationController, Google's through GoogleSignIn.
 struct QuickSignInButtons: View {
     @EnvironmentObject private var auth: AuthModel
-    var height: CGFloat = 50
+    @State private var apple = AppleSignInCoordinator()
 
     var body: some View {
-        VStack(spacing: 10) {
-            SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.fullName, .email]
-            } onCompletion: { result in
-                handleApple(result)
+        VStack(spacing: 12) {
+            AuthButton(title: "المتابعة مع Apple", style: .filled) {
+                Image(systemName: "apple.logo").font(.system(size: 20, weight: .semibold))
+            } action: {
+                apple.start { token in Task { await auth.signInWithApple(identityToken: token) } }
             }
-            .signInWithAppleButtonStyle(.black)
-            .frame(height: height)
             .accessibilityIdentifier("signin-apple")
 
-            GoogleSignInButton(action: signInWithGoogle)
-                .frame(height: height)
-                .accessibilityIdentifier("signin-google")
+            AuthButton(title: "المتابعة مع Google") {
+                GoogleMark()
+            } action: { signInWithGoogle() }
+            .accessibilityIdentifier("signin-google")
         }
-    }
-
-    private func handleApple(_ result: Result<ASAuthorization, Error>) {
-        guard case let .success(authorization) = result,
-              let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let tokenData = credential.identityToken,
-              let token = String(data: tokenData, encoding: .utf8) else { return }
-        Task { await auth.signInWithApple(identityToken: token) }
     }
 
     private func signInWithGoogle() {
@@ -54,5 +45,38 @@ struct QuickSignInButtons: View {
             .flatMap(\.windows)
             .first(where: \.isKeyWindow)?
             .rootViewController
+    }
+}
+
+/// Runs Sign in with Apple and hands back the identity token.
+final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private var completion: ((String) -> Void)?
+
+    func start(_ completion: @escaping (String) -> Void) {
+        self.completion = completion
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        request.requestedScopes = [.fullName, .email]
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        controller.performRequests()
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let data = credential.identityToken, let token = String(data: data, encoding: .utf8) else { return }
+        completion?(token)
+        completion = nil
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        completion = nil // canceled or failed — nothing to show
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
     }
 }

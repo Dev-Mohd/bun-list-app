@@ -1,73 +1,115 @@
 import SwiftUI
 
-/// The landing screen shown on first launch (and after sign-out): explore as a guest,
-/// or sign in with Apple / Google / email. Dismisses itself once the user signs in
-/// (via `auth.isSignedIn`) or chooses to continue as a guest.
+/// The landing screen shown on first launch (and after sign-out): the mark draws
+/// itself, then sign in with Apple, Google or email, or look around as a guest.
+/// While a sign-in is under way the whole screen becomes the drawing mark.
 struct WelcomeView: View {
     @EnvironmentObject private var auth: AuthModel
     @Binding var continuedAsGuest: Bool
     @State private var showEmail = false
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             Spacer()
 
-            Image("BunnListSymbol")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 96)
-                .accessibilityHidden(true)
-            Text("بن لست")
-                .font(.system(size: 40, weight: .black))
-                .foregroundStyle(Brand.ink)
-            Text("اكتشف القهوة، بطاقة بطاقة")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 18) {
+                BrandMark(height: 120)
+                BrandWordmark(size: 38)
+                Text("اكتشف القهوة، بطاقة بطاقة")
+                    .font(.title3).foregroundStyle(.secondary)
+            }
 
             Spacer()
 
             VStack(spacing: 12) {
+                QuickSignInButtons()
+
+                AuthButton(title: "المتابعة بالإيميل", style: .outline) {
+                    Image(systemName: "envelope.fill").font(.system(size: 17, weight: .semibold))
+                } action: { showEmail = true }
+                .accessibilityIdentifier("welcome-email")
+
                 Button {
                     continuedAsGuest = true
                 } label: {
-                    Label("استكشف كضيف", systemImage: "eye")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
+                    Text("تصفّح كضيف")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Brand.olive)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(Brand.ink)
                 .accessibilityIdentifier("welcome-guest")
+                .padding(.top, 4)
 
-                HStack(spacing: 10) {
-                    line
-                    Text("أو").font(.footnote).foregroundStyle(.secondary)
-                    line
+                if let message = auth.errorMessage, !showEmail {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(.red)
                 }
-                .padding(.vertical, 4)
 
-                QuickSignInButtons(height: 50)
-
-                Button {
-                    showEmail = true
-                } label: {
-                    Label("كمّل بالإيميل", systemImage: "envelope")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .accessibilityIdentifier("welcome-email")
+                Text("بالمتابعة توافق على الشروط وسياسة الخصوصية.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 24)
-            .padding(.bottom, 24)
+            .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.background.ignoresSafeArea())
+        .overlay {
+            if auth.isBusy && !showEmail { BrandLoadingView(message: "نجهّز حسابك…") }
+        }
+        .animation(.easeInOut(duration: 0.25), value: auth.isBusy)
         .sheet(isPresented: $showEmail) { SignInView() }
     }
+}
 
-    private var line: some View {
-        Rectangle().fill(Color.secondary.opacity(0.3)).frame(height: 1)
+/// One full-width sign-in button: same height, corners and type for every provider.
+struct AuthButton<Icon: View>: View {
+    enum Style { case filled, outline }
+
+    let title: String
+    var style: Style = .outline
+    @ViewBuilder let icon: () -> Icon
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                icon().frame(width: 22, height: 22)
+                Text(title).font(.system(size: 17, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity, minHeight: 54)
+            .foregroundStyle(style == .filled ? Brand.background : Brand.ink)
+            .background(style == .filled ? Brand.ink : Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Brand.ink.opacity(style == .filled ? 0 : 0.15), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Google's four-color "G", drawn (no bundled artwork needed).
+struct GoogleMark: View {
+    var body: some View {
+        Canvas { context, size in
+            let s = min(size.width, size.height)
+            let line = s * 0.2
+            let rect = CGRect(x: line / 2, y: line / 2, width: s - line, height: s - line)
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let radius = rect.width / 2
+            func arc(_ from: Double, _ to: Double, _ color: Color) {
+                var path = Path()
+                path.addArc(center: center, radius: radius, startAngle: .degrees(from), endAngle: .degrees(to), clockwise: false)
+                context.stroke(path, with: .color(color), lineWidth: line)
+            }
+            arc(-40, 45, Color(red: 0.26, green: 0.52, blue: 0.96))   // blue, right
+            arc(45, 135, Color(red: 0.20, green: 0.66, blue: 0.33))   // green, bottom
+            arc(135, 200, Color(red: 0.98, green: 0.74, blue: 0.02))  // yellow, left
+            arc(200, 320, Color(red: 0.92, green: 0.26, blue: 0.21))  // red, top
+            var bar = Path()
+            bar.move(to: CGPoint(x: center.x, y: center.y))
+            bar.addLine(to: CGPoint(x: center.x + radius + line / 2, y: center.y))
+            context.stroke(bar, with: .color(Color(red: 0.26, green: 0.52, blue: 0.96)), lineWidth: line)
+        }
+        .environment(\.layoutDirection, .leftToRight)
     }
 }

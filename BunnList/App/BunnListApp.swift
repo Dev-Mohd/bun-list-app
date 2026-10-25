@@ -83,6 +83,13 @@ struct RootView: View {
                     .tabItem { Label("حسابي", systemImage: "person.crop.circle") }
                     .tag(AppTab.account)
             }
+            .overlay {
+                // Right after signing in: the drawing mark until the profile is here.
+                if !uiTesting && auth.isSignedIn && profile.me == nil && profile.isLoading {
+                    BrandLoadingView(message: "نجهّز حسابك…")
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: profile.me == nil)
             .task(id: auth.isSignedIn) { await profile.refresh(auth) }
             .fullScreenCover(isPresented: Binding(
                 get: { !uiTesting && auth.isSignedIn && profile.me.map { !$0.isOnboarded } == true },

@@ -6,11 +6,15 @@ import SwiftUI
 @MainActor
 final class ProfileStore: ObservableObject {
     @Published private(set) var me: RemoteMe?
+    /// True while fetching; the app shows the drawing mark until the first profile arrives.
+    @Published private(set) var isLoading = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     func refresh(_ auth: AuthModel) async {
         guard auth.isSignedIn else { me = nil; return }
+        isLoading = true
+        defer { isLoading = false }
         if let fresh = try? await auth.withToken({ try await client.fetchMe(accessToken: $0) }) {
             me = fresh
         }
