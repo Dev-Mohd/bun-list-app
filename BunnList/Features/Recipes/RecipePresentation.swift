@@ -208,8 +208,14 @@ struct RecipeListRow: View {
             if let lot = recipe.lot {
                 Label("\(lot.nameAr) — \(lot.roasterNameAr)", systemImage: "leaf").font(.caption).foregroundStyle(Brand.olive)
             }
-            if showsAuthor {
-                Label(recipe.authorName, systemImage: "person").font(.caption2).foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                if showsAuthor {
+                    Label(recipe.authorName, systemImage: "person").font(.caption2).foregroundStyle(.secondary)
+                }
+                if let likes = recipe.likeCount, likes > 0 {
+                    Label(likes.formatted(), systemImage: recipe.likedByMe == true ? "heart.fill" : "heart")
+                        .font(.caption2).foregroundStyle(recipe.likedByMe == true ? .red : .secondary)
+                }
             }
         }
         .padding(.vertical, 4)

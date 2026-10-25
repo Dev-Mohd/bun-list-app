@@ -13,6 +13,8 @@ struct RecipeDetailView: View {
     @State private var confirmDelete = false
     @State private var errorMessage: String?
     @State private var brewing = false
+    /// "أعجبني" on someone else's published recipe, updated from the server.
+    @State private var like: RemoteLikeState?
     @AppStorage("myGrinderID") private var myGrinderID = ""
     let onChange: (RecipeChange) -> Void
 
@@ -20,6 +22,7 @@ struct RecipeDetailView: View {
 
     init(recipe: RemoteRecipe, onChange: @escaping (RecipeChange) -> Void) {
         _recipe = State(initialValue: recipe)
+        _like = State(initialValue: recipe.likeCount.map { RemoteLikeState(count: $0, liked: recipe.likedByMe ?? false) })
         self.onChange = onChange
     }
 
@@ -159,6 +162,17 @@ struct RecipeDetailView: View {
         .navigationTitle(recipe.title.isEmpty ? "وصفة" : recipe.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if !recipe.isMine && recipe.state == .published && auth.isSignedIn {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { Task { await toggleLike() } } label: {
+                        Label("\((like?.count ?? 0).formatted())", systemImage: like?.liked == true ? "heart.fill" : "heart")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .tint(like?.liked == true ? .red : Brand.olive)
+                    .accessibilityLabel(like?.liked == true ? "إلغاء الإعجاب" : "أعجبتني")
+                    .accessibilityIdentifier("recipe-like")
+                }
+            }
             ToolbarItem(placement: .primaryAction) { actionsMenu }
         }
         .sheet(item: $editorDraft) { ref in
@@ -173,6 +187,18 @@ struct RecipeDetailView: View {
             Button("حذف نهائيًا", role: .destructive) { Task { await change(to: .deleted) } }
         } message: {
             Text("لا يمكن التراجع عن الحذف.")
+        }
+    }
+
+    private func toggleLike() async {
+        let wanted = !(like?.liked ?? false)
+        let before = like
+        like = RemoteLikeState(count: max(0, (like?.count ?? 0) + (wanted ? 1 : -1)), liked: wanted) // optimistic
+        Haptics.tap()
+        do {
+            like = try await auth.withToken { try await client.setLike(wanted, on: .recipe, id: recipe.id, accessToken: $0) }
+        } catch {
+            like = before
         }
     }
 

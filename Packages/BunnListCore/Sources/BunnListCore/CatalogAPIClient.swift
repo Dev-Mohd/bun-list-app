@@ -156,8 +156,9 @@ public struct CatalogAPIClient: Sendable {
     }
 
     /// GET /api/v1/catalog/lots/[slug]/reviews — public: the lot's published reviews.
-    public func fetchReviews(slug: String) async throws -> [RemoteReview] {
-        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)/reviews"))
+    /// A token adds which reviews you marked helpful.
+    public func fetchReviews(slug: String, accessToken: String? = nil) async throws -> [RemoteReview] {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)/reviews", bearer: accessToken))
         guard (200..<300).contains(response.status) else {
             throw AuthClientError.server(status: response.status)
         }
@@ -322,6 +323,11 @@ public struct RemoteReview: Codable, Equatable, Sendable, Identifiable {
     public let body: String?
     public let authorName: String
     public let createdAt: String
+    /// Missing from older servers.
+    public let helpfulCount: Int?
+    public let markedHelpful: Bool?
+    public let isMine: Bool?
+    public let authorUsername: String?
 }
 
 /// The caller's review of a lot.

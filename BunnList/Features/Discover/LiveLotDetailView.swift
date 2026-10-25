@@ -38,6 +38,8 @@ struct LiveLotDetailView: View {
     @State private var showReviewForm = false
     @State private var flags = RemoteCollectionFlags(owned: false, favorite: false, wantsToTry: false, tried: false)
     @State private var reviews: [RemoteReview] = []
+    /// "مفيد" changes made here, by review id.
+    @State private var helpful: [String: RemoteLikeState] = [:]
     @State private var showRecipes = false
 
     init(slug: String) {
@@ -75,7 +77,8 @@ struct LiveLotDetailView: View {
 
     private func loadReviews() async {
         let client = CatalogAPIClient(transport: URLSessionTransport())
-        reviews = (try? await client.fetchReviews(slug: slug)) ?? []
+        reviews = (try? await auth.withOptionalToken { try await client.fetchReviews(slug: slug, accessToken: $0) }) ?? []
+        helpful = [:]
     }
 
     private var collectionControls: some View {
@@ -206,7 +209,14 @@ struct LiveLotDetailView: View {
                 if !reviews.isEmpty {
                     section("تقييمات الناس") {
                         VStack(spacing: 14) {
-                            ForEach(reviews) { PublicReviewRow(review: $0) }
+                            ForEach(reviews) { review in
+                                PublicReviewRow(
+                                    review: review,
+                                    helpful: helpful[review.id]
+                                        ?? RemoteLikeState(count: review.helpfulCount ?? 0, liked: review.markedHelpful ?? false),
+                                    canMark: auth.isSignedIn && review.isMine != true && review.helpfulCount != nil
+                                ) { Task { await toggleHelpful(review) } }
+                            }
                         }
                     }
                 }
@@ -242,6 +252,19 @@ struct LiveLotDetailView: View {
         .sheet(isPresented: $showReviewForm) {
             ReviewFormView(slug: slug, brewMethods: lot.recommendedBrewMethods, existing: myReview, onSaved: applyResult)
                 .environmentObject(auth)
+        }
+    }
+
+    private func toggleHelpful(_ review: RemoteReview) async {
+        let current = helpful[review.id] ?? RemoteLikeState(count: review.helpfulCount ?? 0, liked: review.markedHelpful ?? false)
+        let wanted = !current.liked
+        helpful[review.id] = RemoteLikeState(count: max(0, current.count + (wanted ? 1 : -1)), liked: wanted)
+        Haptics.tap()
+        let client = CatalogAPIClient(transport: URLSessionTransport())
+        do {
+            helpful[review.id] = try await auth.withToken { try await client.setLike(wanted, on: .review, id: review.id, accessToken: $0) }
+        } catch {
+            helpful[review.id] = current
         }
     }
 
@@ -339,11 +362,21 @@ struct LiveLotDetailView: View {
 /// One published review in the "تقييمات الناس" list.
 private struct PublicReviewRow: View {
     let review: RemoteReview
+    let helpful: RemoteLikeState
+    let canMark: Bool
+    var onHelpful: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(review.authorName).font(.subheadline.weight(.semibold))
+                if let username = review.authorUsername, review.isMine != true {
+                    NavigationLink { PublicProfileView(username: username) } label: {
+                        Text(review.authorName).font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(review.authorName).font(.subheadline.weight(.semibold))
+                }
                 Spacer()
                 stars
             }
@@ -355,8 +388,26 @@ private struct PublicReviewRow: View {
             if let body = review.body, !body.isEmpty {
                 Text(body).font(.callout)
             }
-            if let date = Self.shortDate(review.createdAt) {
-                Text(date).font(.caption2).foregroundStyle(.secondary)
+            HStack {
+                if let date = Self.shortDate(review.createdAt) {
+                    Text(date).font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if canMark {
+                    Button(action: onHelpful) {
+                        Label(helpful.count > 0 ? "مفيد · \(helpful.count.formatted())" : "مفيد",
+                              systemImage: helpful.liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(helpful.liked ? Brand.olive.opacity(0.16) : Color.secondary.opacity(0.08), in: Capsule())
+                            .foregroundStyle(helpful.liked ? Brand.olive : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("review-helpful-\(review.id)")
+                } else if helpful.count > 0 {
+                    Label("\(helpful.count.formatted()) شافوه مفيد", systemImage: "hand.thumbsup")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

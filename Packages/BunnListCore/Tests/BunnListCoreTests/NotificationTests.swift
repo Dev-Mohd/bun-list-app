@@ -23,6 +23,7 @@ final class NotificationTests: XCTestCase {
         XCTAssertEqual(transport.requests[0].path, "/api/v1/me/devices")
         let settings = try await client.fetchNotificationSettings(accessToken: "a")
         XCTAssertFalse(settings.newFollower)
+        XCTAssertTrue(settings.recipeLiked) // older server: missing means on
         _ = try await client.saveNotificationSettings(RemoteNotificationSettings(newFollower: true), accessToken: "a")
         XCTAssertEqual(transport.requests[2].method, .patch)
     }

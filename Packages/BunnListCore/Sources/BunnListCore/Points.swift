@@ -37,11 +37,12 @@ public struct RemoteLeaderboard: Codable, Equatable, Sendable {
 
 /// What a leaderboard ranks by. The score comes back in `Entry.points` for every kind.
 public enum LeaderboardKind: String, CaseIterable, Sendable {
-    case discoverers, raters, points
+    case discoverers, helpful, raters, points
 
     public var titleAr: String {
         switch self {
         case .discoverers: return "أكثر مكتشف"
+        case .helpful: return "أفضل تعليق"
         case .raters: return "أكثر مقيّم"
         case .points: return "الأكثر نشاطًا"
         }
@@ -50,6 +51,7 @@ public enum LeaderboardKind: String, CaseIterable, Sendable {
     public var unitAr: String {
         switch self {
         case .discoverers: return "اكتشاف"
+        case .helpful: return "مفيد"
         case .raters: return "تقييم"
         case .points: return "نقطة"
         }

@@ -5,11 +5,42 @@ public struct RemoteNotificationSettings: Codable, Equatable, Sendable {
     public var newFollower: Bool
     public var submissionApproved: Bool
     public var submissionRejected: Bool
+    public var reviewHelpful: Bool
+    public var recipeLiked: Bool
 
-    public init(newFollower: Bool = true, submissionApproved: Bool = true, submissionRejected: Bool = true) {
+    public init(newFollower: Bool = true, submissionApproved: Bool = true, submissionRejected: Bool = true,
+                reviewHelpful: Bool = true, recipeLiked: Bool = true) {
         self.newFollower = newFollower
         self.submissionApproved = submissionApproved
         self.submissionRejected = submissionRejected
+        self.reviewHelpful = reviewHelpful
+        self.recipeLiked = recipeLiked
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case newFollower, submissionApproved, submissionRejected, reviewHelpful, recipeLiked
+    }
+
+    /// Kinds an older server doesn't send count as on.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func flag(_ key: CodingKeys) throws -> Bool { try c.decodeIfPresent(Bool.self, forKey: key) ?? true }
+        self.init(newFollower: try flag(.newFollower), submissionApproved: try flag(.submissionApproved),
+                  submissionRejected: try flag(.submissionRejected), reviewHelpful: try flag(.reviewHelpful),
+                  recipeLiked: try flag(.recipeLiked))
+    }
+}
+
+/// What can be liked: a review ("مفيد") or a recipe ("أعجبني").
+public enum LikeTarget: String, Sendable { case review, recipe }
+
+public struct RemoteLikeState: Codable, Equatable, Sendable {
+    public let count: Int
+    public let liked: Bool
+
+    public init(count: Int, liked: Bool) {
+        self.count = count
+        self.liked = liked
     }
 }
 
@@ -31,6 +62,14 @@ extension CatalogAPIClient {
         let body = try JSONSerialization.data(withJSONObject: ["token": token])
         let response = try await transport.send(HTTPRequest(method: .delete, path: "/api/v1/me/devices", body: body, bearer: accessToken))
         try Self.checkContract(response)
+    }
+
+    public func setLike(_ liked: Bool, on target: LikeTarget, id: String, accessToken: String) async throws -> RemoteLikeState {
+        let path = "/api/v1/likes/\(target.rawValue)/" + (id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)
+        let response = try await transport.send(HTTPRequest(method: liked ? .post : .delete, path: path, bearer: accessToken))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteLikeState.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
     }
 
     public func fetchNotificationSettings(accessToken: String) async throws -> RemoteNotificationSettings {

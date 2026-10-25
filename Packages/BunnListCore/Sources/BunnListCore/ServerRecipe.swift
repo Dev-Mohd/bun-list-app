@@ -65,6 +65,9 @@ public struct RemoteRecipe: Codable, Equatable, Hashable, Sendable, Identifiable
     public let state: RemoteExperience.State
     public let authorName: String
     public let isMine: Bool
+    /// In lists only; missing from older servers.
+    public let likeCount: Int?
+    public let likedByMe: Bool?
 }
 
 public struct RecipeDraft: Equatable, Sendable {
