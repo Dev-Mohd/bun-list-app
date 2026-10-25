@@ -22,9 +22,10 @@ final class AdminAPITests: XCTestCase {
         XCTAssertEqual(form.process, "WASHED")
         XCTAssertEqual(form.roastLevel, .medium)
         XCTAssertEqual(form.missingFields, [])
-        form.name = ""
+        form.name = "" // optional: written by the server
+        form.roasterName = ""
         form.originCode = nil
-        XCTAssertEqual(form.missingFields, ["الاسم بالإنجليزي", "المنشأ"])
+        XCTAssertEqual(form.missingFields, ["المنشأ"])
     }
 
     func testApproveAndRejectCallTheAdminEndpoints() async throws {

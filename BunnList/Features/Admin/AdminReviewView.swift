@@ -134,13 +134,13 @@ struct AdminSubmissionDetailView: View {
 
             Section("اسم القهوة") {
                 TextField("بالعربي", text: $form.nameAr)
-                TextField("بالإنجليزي", text: $form.name)
+                TextField("بالإنجليزي (يُكتب تلقائيًا لو تركته)", text: $form.name)
                     .environment(\.layoutDirection, .leftToRight)
                     .autocorrectionDisabled()
             }
             Section("المحمصة") {
                 TextField("بالعربي", text: $form.roasterNameAr)
-                TextField("بالإنجليزي", text: $form.roasterName)
+                TextField("بالإنجليزي (يُكتب تلقائيًا لو تركته)", text: $form.roasterName)
                     .environment(\.layoutDirection, .leftToRight)
                     .autocorrectionDisabled()
             }

@@ -41,7 +41,8 @@ public struct RemoteAdminSubmission: Codable, Equatable, Sendable, Identifiable 
     public let createdAt: String
 }
 
-/// What the admin confirms to publish a lot. Pre-filled from the suggestion.
+/// What the admin confirms to publish a lot. Pre-filled from the suggestion. The
+/// Latin names may stay empty: the server writes them.
 public struct ApprovalForm: Equatable, Sendable {
     public var nameAr: String
     public var name: String
@@ -80,9 +81,7 @@ public struct ApprovalForm: Equatable, Sendable {
     public var missingFields: [String] {
         var missing: [String] = []
         if nameAr.trimmingCharacters(in: .whitespaces).count < 2 { missing.append("الاسم بالعربي") }
-        if name.trimmingCharacters(in: .whitespaces).count < 2 { missing.append("الاسم بالإنجليزي") }
         if roasterNameAr.trimmingCharacters(in: .whitespaces).count < 2 { missing.append("المحمصة بالعربي") }
-        if roasterName.trimmingCharacters(in: .whitespaces).count < 2 { missing.append("المحمصة بالإنجليزي") }
         if originCode == nil { missing.append("المنشأ") }
         if process == nil { missing.append("المعالجة") }
         return missing
