@@ -77,6 +77,13 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
     public let discoverer: RemoteDiscoverer?
     /// How people use it. Missing from older servers.
     public let community: RemoteLotCommunity?
+    /// Labels such as "luxury"; missing from older servers.
+    public let tags: [RemoteLotTag]?
+}
+
+public struct RemoteLotTag: Codable, Equatable, Sendable, Hashable {
+    public let tag: String
+    public let note: String?
 }
 
 public struct RemoteDiscoverer: Codable, Equatable, Sendable {

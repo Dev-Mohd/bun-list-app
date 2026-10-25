@@ -10,11 +10,16 @@ struct AdminReviewView: View {
     @State private var status = "PENDING"
     @State private var items: [RemoteAdminSubmission]?
     @State private var errorMessage: String?
+    @State private var confirmImport = false
+    @State private var importMessage: String?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     var body: some View {
         List {
+            if let importMessage {
+                Section { Label(importMessage, systemImage: "tray.and.arrow.down.fill").foregroundStyle(Brand.olive) }
+            }
             Section {
                 Picker("الحالة", selection: $status) {
                     Text("بانتظار المراجعة").tag("PENDING")
@@ -47,6 +52,28 @@ struct AdminReviewView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: status) { await load() }
         .refreshable { await load() }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { confirmImport = true } label: { Image(systemName: "tray.and.arrow.down") }
+                    .accessibilityLabel("استيراد دفعة المحامص")
+            }
+        }
+        .confirmationDialog("استيراد دفعة المحامص؟", isPresented: $confirmImport, titleVisibility: .visible) {
+            Button("استيراد") { Task { await runImport() } }
+        } message: {
+            Text("تنضاف ١١٠ قهوة من ٢١ محمصة كاقتراحات بانتظار مراجعتك. ما ينشر شي قبل ما تقبله، واللي موجود قبل ما يتكرر.")
+        }
+    }
+
+    private func runImport() async {
+        do {
+            let result = try await auth.withToken { try await client.importBatch("roasteries-2026-05", accessToken: $0) }
+            importMessage = "انضاف \(result.created) • موجود قبل \(result.alreadyImported) • في الدليل \(result.alreadyInCatalog)"
+            status = "PENDING"
+            await load()
+        } catch {
+            importMessage = "تعذّر الاستيراد. حاول مرة ثانية."
+        }
     }
 
     private func load() async {
@@ -70,9 +97,32 @@ private struct AdminSubmissionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name).font(.headline)
                 Text(item.roasterName).font(.subheadline).foregroundStyle(.secondary)
-                Text("من: \(item.authorName ?? "حساب محذوف")").font(.caption2).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("من: \(item.authorName ?? "حساب محذوف")")
+                    if let confidence = item.sourceConfidence {
+                        ConfidenceBadge(value: confidence)
+                    }
+                    ForEach(item.tags ?? [], id: \.self) { tag in
+                        Text(LotTagText.nameAr(tag)).padding(.horizontal, 5).background(Brand.gold.opacity(0.2), in: Capsule())
+                    }
+                }
+                .font(.caption2).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// Extraction confidence: green from 85%, amber from 70%, red below.
+private struct ConfidenceBadge: View {
+    let value: Double
+
+    var body: some View {
+        let color: Color = value >= 0.85 ? .green : value >= 0.7 ? .orange : .red
+        Text("\(Int((value * 100).rounded()))٪")
+            .padding(.horizontal, 5)
+            .background(color.opacity(0.15), in: Capsule())
+            .foregroundStyle(color)
+            .accessibilityLabel("دقة الاستخراج \(Int((value * 100).rounded())) بالمية")
     }
 }
 
@@ -128,6 +178,17 @@ struct AdminSubmissionDetailView: View {
                 AdminPhoto(url: submission.photoUrl).frame(height: 220)
                     .listRowInsets(EdgeInsets())
                 LabeledContent("اقترحها", value: submission.authorName ?? "حساب محذوف")
+                if let source = submission.sourceUrl, let url = URL(string: source) {
+                    Link(destination: url) {
+                        Label("صفحة المصدر", systemImage: "safari")
+                    }
+                    if let confidence = submission.sourceConfidence {
+                        LabeledContent("دقة الاستخراج", value: "\(Int((confidence * 100).rounded()))٪")
+                    }
+                }
+                if let tags = submission.tags, !tags.isEmpty {
+                    LabeledContent("علامات", value: tags.map(LotTagText.nameAr).joined(separator: "، "))
+                }
                 if let publicNote = submission.publicNote, !publicNote.isEmpty {
                     Label("للعموم: \(publicNote)", systemImage: "quote.bubble").font(.callout)
                 }

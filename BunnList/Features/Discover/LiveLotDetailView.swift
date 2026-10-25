@@ -158,6 +158,19 @@ struct LiveLotDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(lot.nameAr).font(.title2.bold())
                     Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
+                    if let tags = lot.tags, !tags.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(tags, id: \.self) { tag in
+                                Label(LotTagText.nameAr(tag.tag),
+                                      systemImage: tag.tag == "luxury" ? "crown.fill" : tag.tag == "infused" ? "drop.fill" : "moon.zzz.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 10).padding(.vertical, 4)
+                                    .background(tag.tag == "luxury" ? Brand.gold.opacity(0.22) : Brand.olive.opacity(0.14), in: Capsule())
+                                    .foregroundStyle(tag.tag == "luxury" ? Brand.gold : Brand.olive)
+                                    .help(tag.note ?? "")
+                            }
+                        }
+                    }
                     if lot.discoverer == nil, let discoverer = lot.discoveredBy {
                         // Older servers: the name only.
                         Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")

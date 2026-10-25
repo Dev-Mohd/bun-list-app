@@ -61,6 +61,28 @@ public struct RemoteAdminSubmission: Codable, Equatable, Sendable, Identifiable 
     public let approvedLotSlug: String?
     public let reviewNote: String?
     public let createdAt: String
+    /// Batch imports: the source page, extraction confidence (0-1) and labels. Missing from older servers.
+    public let sourceUrl: String?
+    public let sourceConfidence: Double?
+    public let tags: [String]?
+}
+
+/// Labels on a lot: "luxury", "infused", "decaf".
+public enum LotTagText {
+    public static func nameAr(_ tag: String) -> String {
+        switch tag {
+        case "luxury": return "فاخرة"
+        case "infused": return "منقوعة"
+        case "decaf": return "منزوعة الكافيين"
+        default: return tag
+        }
+    }
+}
+
+public struct RemoteImportResult: Codable, Equatable, Sendable {
+    public let created: Int
+    public let alreadyImported: Int
+    public let alreadyInCatalog: Int
 }
 
 /// What the admin confirms to publish a lot. Pre-filled from the suggestion. The
@@ -158,6 +180,14 @@ extension CatalogAPIClient {
         try Self.checkContract(response)
         struct Approved: Decodable { let lotSlug: String }
         do { return try JSONDecoder().decode(Approved.self, from: response.body).lotSlug }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// Adds a bundled batch of coffees as pending suggestions (admins only). Safe to repeat.
+    public func importBatch(_ batch: String, accessToken: String) async throws -> RemoteImportResult {
+        let response = try await transport.send(HTTPRequest(method: .post, path: "/api/v1/admin/import/\(batch)", bearer: accessToken))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteImportResult.self, from: response.body) }
         catch { throw AuthClientError.malformedResponse }
     }
 
