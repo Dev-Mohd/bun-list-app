@@ -24,6 +24,9 @@ struct SettingsView: View {
                         Label("المظهر", systemImage: "circle.lefthalf.filled")
                     }
                     .accessibilityIdentifier("settings-appearance")
+                    NavigationLink { AppIconPicker() } label: {
+                        Label("أيقونة التطبيق", systemImage: "app.badge")
+                    }
                     Toggle(isOn: $hapticsEnabled) {
                         Label("الاهتزاز", systemImage: "hand.tap")
                     }

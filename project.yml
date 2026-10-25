@@ -63,6 +63,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.devmohd.bunnlist
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Seasonal / dark icons (AppIcon-*.appiconset) ship as alternate icons.
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: BunnList/Support/BunnList.entitlements
   BunnListTests:

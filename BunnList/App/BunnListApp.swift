@@ -8,6 +8,7 @@ struct BunnListApp: App {
     @StateObject private var auth = AuthModel.live()
     @StateObject private var profile = ProfileStore()
     @AppStorage("appearance") private var appearance = AppAppearance.system
+    @Environment(\.scenePhase) private var scenePhase
 
     init() { BrandAppearance.configure() }
 
@@ -23,6 +24,7 @@ struct BunnListApp: App {
                 // Set on the windows (not preferredColorScheme), which reliably returns to
                 // the phone's setting on "تلقائي" and covers sheets and UIKit bars too.
                 .onChange(of: appearance, initial: true) { _, value in BrandAppearance.apply(value) }
+                .onChange(of: scenePhase) { _, phase in if phase == .active { AppIconManager.apply() } }
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
         }
     }
