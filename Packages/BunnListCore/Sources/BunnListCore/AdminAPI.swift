@@ -14,6 +14,7 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     public let avatarUrl: String?
     /// Missing from older servers; treated as done so they never show first-run setup.
     public let onboarded: Bool?
+    public let hideFromLeaderboard: Bool?
 
     public var isOnboarded: Bool { onboarded ?? true }
 }

@@ -1,9 +1,11 @@
+import BunnListCore
 import SwiftUI
 
 /// App settings: preferences, session, about, and the danger zone. Reached from the
 /// gear button in the profile tab.
 struct SettingsView: View {
     @EnvironmentObject private var auth: AuthModel
+    @EnvironmentObject private var profile: ProfileStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
@@ -24,6 +26,16 @@ struct SettingsView: View {
                 }
 
                 if auth.isSignedIn {
+                    Section {
+                        Toggle(isOn: hideBinding) {
+                            Label("اخفني من المتصدرين", systemImage: "eye.slash")
+                        }
+                    } header: {
+                        Text("الخصوصية")
+                    } footer: {
+                        Text("تبقى نقاطك وسلسلتك لك، بس اسمك ما يطلع في قائمة المتصدرين.")
+                    }
+
                     Section("الحساب") {
                         Button("تسجيل الخروج") { auth.signOut() }
                     }
@@ -64,6 +76,21 @@ struct SettingsView: View {
                 Text("سيُحذف حسابك وبياناته على الخادم نهائيًا. لا يمكن التراجع.")
             }
         }
+    }
+
+    private var hideBinding: Binding<Bool> {
+        Binding(
+            get: { profile.me?.hideFromLeaderboard ?? false },
+            set: { hide in
+                Task {
+                    let client = CatalogAPIClient(transport: URLSessionTransport())
+                    _ = try? await auth.withToken {
+                        try await client.updateProfile(displayName: nil, bio: nil, hideFromLeaderboard: hide, accessToken: $0)
+                    }
+                    await profile.refresh(auth)
+                }
+            }
+        )
     }
 
     private var versionText: String {

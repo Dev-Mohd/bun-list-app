@@ -8,6 +8,7 @@ public struct RemoteProfile: Codable, Equatable, Sendable {
     public let bio: String?
     public let avatarUrl: String?
     public let onboarded: Bool
+    public let hideFromLeaderboard: Bool?
 }
 
 public enum ProfileRules {
@@ -17,8 +18,10 @@ public enum ProfileRules {
 
 extension CatalogAPIClient {
     /// Sets the display name and/or bio; nil leaves a field unchanged, "" clears the bio.
-    public func updateProfile(displayName: String?, bio: String?, accessToken: String) async throws -> RemoteProfile {
+    public func updateProfile(displayName: String?, bio: String?, hideFromLeaderboard: Bool? = nil,
+                              accessToken: String) async throws -> RemoteProfile {
         var body: [String: Any] = [:]
+        if let hideFromLeaderboard { body["hideFromLeaderboard"] = hideFromLeaderboard }
         if let displayName { body["displayName"] = displayName }
         if let bio { body["bio"] = bio }
         let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()

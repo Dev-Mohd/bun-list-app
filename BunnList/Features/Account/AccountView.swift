@@ -10,6 +10,7 @@ struct AccountView: View {
     @EnvironmentObject private var auth: AuthModel
     @EnvironmentObject private var profile: ProfileStore
     @State private var summary: RemoteProfileSummary?
+    @State private var points: RemotePoints?
     @State private var editingRecipe: ClientID?
     @State private var showSignIn = false
     @State private var showSettings = false
@@ -22,7 +23,7 @@ struct AccountView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    ProfileHeader(isSignedIn: auth.isSignedIn, me: me, summary: summary) { showProfileEditor = true }
+                    ProfileHeader(isSignedIn: auth.isSignedIn, me: me, summary: summary, points: points) { showProfileEditor = true }
                     if auth.isSignedIn {
                         shortcuts
                         collectionCard
@@ -238,12 +239,13 @@ struct AccountView: View {
     }
 
     private func load() async {
-        guard auth.isSignedIn else { summary = nil; profile.clear(); return }
+        guard auth.isSignedIn else { summary = nil; points = nil; profile.clear(); return }
         await profile.refresh(auth)
         let client = CatalogAPIClient(transport: URLSessionTransport())
         if let fresh = try? await auth.withToken({ try await client.fetchProfileSummary(accessToken: $0) }) {
             summary = fresh
         }
+        points = try? await auth.withToken { try await client.fetchPoints(accessToken: $0) }
     }
 }
 
@@ -275,6 +277,7 @@ private struct ProfileHeader: View {
     let isSignedIn: Bool
     let me: RemoteMe?
     let summary: RemoteProfileSummary?
+    let points: RemotePoints?
     var onEdit: () -> Void
 
     var body: some View {
@@ -299,6 +302,16 @@ private struct ProfileHeader: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Brand.olive)
                 .accessibilityIdentifier("edit-profile")
+
+                if let points {
+                    HStack(spacing: 14) {
+                        Label(points.total.formatted(), systemImage: "star.fill").foregroundStyle(Brand.gold)
+                        Label(points.streak.formatted(), systemImage: "flame.fill").foregroundStyle(.orange)
+                    }
+                    .font(.subheadline.bold().monospacedDigit())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(points.total) نقطة، سلسلة \(points.streak) أيام")
+                }
 
                 HStack(spacing: 0) {
                     count(summary?.collection.owned, "مجموعتي")
