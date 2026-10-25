@@ -5,7 +5,7 @@ import SwiftUI
 /// wishlist) as bag cards; tapping one opens the coffee.
 @MainActor
 struct FilteredCollectionView: View {
-    let filter: CollectionFilter
+    let filter: CollectionSlice
 
     @EnvironmentObject private var auth: AuthModel
     @State private var items: [RemoteCollectionItem]?

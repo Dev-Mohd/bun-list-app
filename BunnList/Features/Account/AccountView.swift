@@ -39,7 +39,7 @@ struct AccountView: View {
             .background(Brand.background.ignoresSafeArea())
             .navigationTitle("ملفي")
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
-            .navigationDestination(for: CollectionFilter.self) { FilteredCollectionView(filter: $0) }
+            .navigationDestination(for: CollectionSlice.self) { FilteredCollectionView(filter: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -77,10 +77,10 @@ struct AccountView: View {
     private var shortcuts: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                NavigationLink(value: CollectionFilter.favorite) {
+                NavigationLink(value: CollectionSlice.favorite) {
                     ShortcutTile(icon: "heart.fill", color: .red, title: "مفضّلتي", count: summary?.collection.favorite)
                 }
-                NavigationLink(value: CollectionFilter.tried) {
+                NavigationLink(value: CollectionSlice.tried) {
                     ShortcutTile(icon: "cup.and.saucer.fill", color: Brand.brown, title: "جرّبته", count: summary?.collection.tried)
                 }
                 Button { showRecipes = true } label: {
@@ -104,7 +104,7 @@ struct AccountView: View {
     }
 
     private var collectionCard: some View {
-        NavigationLink(value: CollectionFilter.owned) {
+        NavigationLink(value: CollectionSlice.owned) {
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text((summary?.collection.owned ?? 0).formatted())
@@ -163,7 +163,7 @@ struct AccountView: View {
     }
 
     private var wishlistCard: some View {
-        NavigationLink(value: CollectionFilter.wantsToTry) {
+        NavigationLink(value: CollectionSlice.wantsToTry) {
             HStack(spacing: 14) {
                 Image(systemName: "bookmark.fill").font(.title2).foregroundStyle(Brand.gold)
                 VStack(alignment: .leading, spacing: 3) {
@@ -248,7 +248,7 @@ struct AccountView: View {
 }
 
 /// Which slice of the collection a list shows.
-enum CollectionFilter: String, Hashable, CaseIterable {
+enum CollectionSlice: String, Hashable, CaseIterable {
     case owned, favorite, wantsToTry, tried
 
     var title: String {
