@@ -77,7 +77,7 @@ private struct CollectionCard: View {
                 if let url = item.imageUrl.flatMap(URL.init(string:)) {
                     AsyncImage(url: url) { $0.resizable().scaledToFit().padding(8) } placeholder: { ProgressView() }
                 } else {
-                    Image(systemName: "cup.and.saucer.fill").font(.largeTitle).foregroundStyle(Brand.olive.opacity(0.55))
+                    CoffeeArtCard(roaster: item.roasterNameAr, name: item.nameAr, origin: item.originNameAr, originCode: item.originCode)
                 }
             }
             .frame(height: 110)

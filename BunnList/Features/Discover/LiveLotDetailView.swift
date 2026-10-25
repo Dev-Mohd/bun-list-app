@@ -268,14 +268,16 @@ struct LiveLotDetailView: View {
     private func hero(_ lot: RemoteLotDetail) -> some View {
         Group {
             if let urlString = lot.imageUrl, let url = URL(string: urlString) {
-                AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.secondary.opacity(0.1) }
+                // The whole bag, never cropped, on the same light ground as the cut-outs.
+                ZStack {
+                    Color(white: 0.97)
+                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(12) } placeholder: { ProgressView() }
+                }
             } else {
-                Brand.olive.opacity(0.12).overlay(
-                    Image(systemName: "cup.and.saucer.fill").font(.largeTitle).foregroundStyle(Brand.olive)
-                )
+                CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr, originCode: lot.originCode)
             }
         }
-        .frame(height: 160)
+        .frame(height: 260)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }

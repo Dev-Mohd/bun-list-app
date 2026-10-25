@@ -131,7 +131,7 @@ struct CoffeeCard: View {
                 if let url = lot.imageUrl.flatMap(URL.init(string:)) {
                     AsyncImage(url: url) { $0.resizable().scaledToFit().padding(10) } placeholder: { ProgressView() }
                 } else {
-                    Image(systemName: "cup.and.saucer.fill").font(.largeTitle).foregroundStyle(Brand.olive.opacity(0.6))
+                    CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr, originCode: lot.originCode)
                 }
             }
             .frame(height: 140)

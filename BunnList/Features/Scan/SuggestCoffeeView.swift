@@ -145,8 +145,11 @@ struct SuggestCoffeeView: View {
     /// is dropped (it may show people or places), and we ask for a cleaner shot.
     private func setPhoto(_ image: UIImage) async {
         photoMessage = nil
-        if let cutout = await BagCutout.cardImage(from: image) {
-            photo = cutout
+        if let result = await BagCutout.process(image) {
+            photo = result.image
+            if !result.issues.isEmpty {
+                photoMessage = result.issues.map(\.messageAr).joined(separator: " ") + " تقدر تعيد التصوير أو تكمّل بهذي."
+            }
         } else {
             photo = nil
             photoMessage = "ما قدرنا نفصل الكيس عن الخلفية. صوّره على خلفية سادة بإضاءة جيدة، أو أرسل بدون صورة."

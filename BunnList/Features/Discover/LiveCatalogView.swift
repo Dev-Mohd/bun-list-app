@@ -122,10 +122,10 @@ struct LiveLotRow: View {
             .frame(width: 56, height: 56)
             .clipShape(RoundedRectangle(cornerRadius: 10))
         } else {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Brand.olive.opacity(0.12))
+            CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr,
+                          originCode: lot.originCode, compact: true)
                 .frame(width: 56, height: 56)
-                .overlay(Image(systemName: "cup.and.saucer.fill").foregroundStyle(Brand.olive))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 }
