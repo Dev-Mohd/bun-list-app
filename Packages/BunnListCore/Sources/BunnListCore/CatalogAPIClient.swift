@@ -19,14 +19,18 @@ public struct RemoteLot: Codable, Equatable, Sendable, Identifiable {
     public let averageRating: Double
     public let reviewCount: Int
     public let imageUrl: String?
+    /// Who discovered it (home feed only; nil elsewhere and for catalog additions).
+    public let discoveredBy: String?
 
     public init(id: String, slug: String, name: String, nameAr: String, roasterNameAr: String,
                 originNameAr: String?, originCode: String?, process: String, processLabel: String?,
-                flavorNotes: [String], roastLevel: String?, averageRating: Double, reviewCount: Int, imageUrl: String?) {
+                flavorNotes: [String], roastLevel: String?, averageRating: Double, reviewCount: Int, imageUrl: String?,
+                discoveredBy: String? = nil) {
         self.id = id; self.slug = slug; self.name = name; self.nameAr = nameAr
         self.roasterNameAr = roasterNameAr; self.originNameAr = originNameAr; self.originCode = originCode
         self.process = process; self.processLabel = processLabel; self.flavorNotes = flavorNotes
         self.roastLevel = roastLevel; self.averageRating = averageRating; self.reviewCount = reviewCount; self.imageUrl = imageUrl
+        self.discoveredBy = discoveredBy
     }
 }
 
@@ -92,6 +96,14 @@ public struct CatalogAPIClient: Sendable {
     }
 
     /// GET /api/v1/catalog/search?q=... — search published lots (name / roaster).
+    /// Newest community discoveries for the home screen (public).
+    public func fetchDiscoveries() async throws -> [RemoteLot] {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/discoveries"))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(Feed.self, from: response.body).lots }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
     public func searchLots(query: String) async throws -> [RemoteLot] {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/search?q=\(encoded)"))
