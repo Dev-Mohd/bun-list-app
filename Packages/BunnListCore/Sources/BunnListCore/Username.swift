@@ -53,6 +53,10 @@ public struct RemoteUsernameCheck: Codable, Equatable, Sendable {
     public let username: String
     public let available: Bool
     public let problem: UsernameProblem?
+
+    public init(username: String, available: Bool, problem: UsernameProblem?) {
+        self.username = username; self.available = available; self.problem = problem
+    }
 }
 
 extension CatalogAPIClient {
