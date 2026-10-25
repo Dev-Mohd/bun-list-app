@@ -109,6 +109,10 @@ final class AuthModel: ObservableObject {
     func changeEmail() { state = .signedOut }
 
     func signOut() {
+        // This phone stops getting the account's notifications.
+        if let accessToken = store.load()?.accessToken, let device = UserDefaults.standard.string(forKey: PushManager.tokenKey) {
+            Task { try? await CatalogAPIClient(transport: URLSessionTransport()).unregisterDevice(token: device, accessToken: accessToken) }
+        }
         store.clear()
         state = .signedOut
     }

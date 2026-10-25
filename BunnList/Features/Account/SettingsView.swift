@@ -27,6 +27,10 @@ struct SettingsView: View {
                     NavigationLink { AppIconPicker() } label: {
                         Label("أيقونة التطبيق", systemImage: "app.badge")
                     }
+                    NavigationLink { NotificationSettingsView() } label: {
+                        Label("الإشعارات", systemImage: "bell")
+                    }
+                    .accessibilityIdentifier("settings-notifications")
                     Toggle(isOn: $hapticsEnabled) {
                         Label("الاهتزاز", systemImage: "hand.tap")
                     }

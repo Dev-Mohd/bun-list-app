@@ -4,6 +4,7 @@ import SwiftUI
 
 @main
 struct BunnListApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel.live()
     @StateObject private var auth = AuthModel.live()
     @StateObject private var profile = ProfileStore()
@@ -24,7 +25,16 @@ struct BunnListApp: App {
                 // Set on the windows (not preferredColorScheme), which reliably returns to
                 // the phone's setting on "تلقائي" and covers sheets and UIKit bars too.
                 .onChange(of: appearance, initial: true) { _, value in BrandAppearance.apply(value) }
-                .onChange(of: scenePhase) { _, phase in if phase == .active { AppIconManager.apply() } }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        AppIconManager.apply()
+                        PushManager.shared.scheduleStreakReminder()
+                    }
+                }
+                .task { PushManager.shared.start(auth: auth) }
+                .onChange(of: auth.isSignedIn) { _, signedIn in
+                    if signedIn { Task { await PushManager.shared.uploadToken() } }
+                }
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
         }
     }
