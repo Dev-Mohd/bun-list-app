@@ -328,6 +328,8 @@ public struct RemoteCollectionItem: Codable, Equatable, Sendable, Identifiable {
     public let roasterNameAr: String
     public let originNameAr: String?
     public let originCode: String?
+    /// The bag picture, when the lot has one (older servers omit it).
+    public let imageUrl: String?
     public let owned: Bool
     public let favorite: Bool
     public let wantsToTry: Bool

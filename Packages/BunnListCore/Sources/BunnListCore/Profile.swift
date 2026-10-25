@@ -65,3 +65,48 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 }
+
+/// Everything the profile tab shows (/api/v1/me/summary).
+public struct RemoteProfileSummary: Codable, Equatable, Sendable {
+    public struct Counts: Codable, Equatable, Sendable {
+        public let owned: Int
+        public let favorite: Int
+        public let wantsToTry: Int
+        public let tried: Int
+    }
+
+    public struct TasteGroup: Codable, Equatable, Sendable, Hashable {
+        public let name: String
+        public let count: Int
+        public let average: Double
+    }
+
+    public struct Taste: Codable, Equatable, Sendable {
+        public let unlocked: Bool
+        public let progress: Int
+        public let required: Int
+        public let averageRating: Double?
+        public let topOrigins: [TasteGroup]
+        public let topProcesses: [TasteGroup]
+        public let topFlavors: [String]
+        public let favoriteMethod: String?
+    }
+
+    public let collection: Counts
+    public let recentBags: [String]
+    public let discoveries: Int
+    public let submissions: Int
+    public let recipes: Int
+    public let experiences: Int
+    public let ratings: Int
+    public let taste: Taste
+}
+
+extension CatalogAPIClient {
+    public func fetchProfileSummary(accessToken: String) async throws -> RemoteProfileSummary {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/me/summary", bearer: accessToken))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteProfileSummary.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+}

@@ -47,4 +47,14 @@ final class ProfileAPITests: XCTestCase {
         try await client.markOnboarded(accessToken: "a")
         XCTAssertEqual(transport.requests.last?.method, .post)
     }
+
+    func testSummaryDecodes() async throws {
+        let body = #"{"collection":{"owned":2,"favorite":1,"wantsToTry":3,"tried":4},"recentBags":["https://x/a.jpg"],"discoveries":1,"submissions":2,"recipes":3,"experiences":4,"ratings":6,"taste":{"unlocked":true,"progress":5,"required":5,"averageRating":4.2,"topOrigins":[{"name":"إثيوبيا","count":3,"average":4.7}],"topProcesses":[{"name":"WASHED","count":2,"average":4.5}],"topFlavors":["ياسمين"],"favoriteMethod":"V60"}}"#
+        let transport = FakeTransport { _ in HTTPResponse(status: 200, body: Data(body.utf8)) }
+        let summary = try await CatalogAPIClient(transport: transport).fetchProfileSummary(accessToken: "a")
+        XCTAssertEqual(summary.collection.wantsToTry, 3)
+        XCTAssertEqual(summary.taste.topOrigins.first?.name, "إثيوبيا")
+        XCTAssertEqual(summary.taste.favoriteMethod, "V60")
+        XCTAssertEqual(transport.requests.first?.path, "/api/v1/me/summary")
+    }
 }
