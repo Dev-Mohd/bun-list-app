@@ -35,6 +35,27 @@ public struct RemoteLeaderboard: Codable, Equatable, Sendable {
     public let me: Me?
 }
 
+/// What a leaderboard ranks by. The score comes back in `Entry.points` for every kind.
+public enum LeaderboardKind: String, CaseIterable, Sendable {
+    case discoverers, raters, points
+
+    public var titleAr: String {
+        switch self {
+        case .discoverers: return "أكثر مكتشف"
+        case .raters: return "أكثر مقيّم"
+        case .points: return "الأكثر نشاطًا"
+        }
+    }
+
+    public var unitAr: String {
+        switch self {
+        case .discoverers: return "اكتشاف"
+        case .raters: return "تقييم"
+        case .points: return "نقطة"
+        }
+    }
+}
+
 public enum PointRules {
     /// What each reward is called, and how many points it gives, for "كيف أجمع النقاط؟".
     public static let table: [(kind: String, titleAr: String, points: Int, noteAr: String)] = [
@@ -60,9 +81,10 @@ extension CatalogAPIClient {
     }
 
     /// `allTime` false = the last 7 days. The token, when given, adds the caller's own rank.
-    public func fetchLeaderboard(allTime: Bool, accessToken: String?) async throws -> RemoteLeaderboard {
-        let response = try await transport.send(HTTPRequest(
-            method: .get, path: "/api/v1/community/leaderboard?period=\(allTime ? "all" : "week")", bearer: accessToken))
+    public func fetchLeaderboard(allTime: Bool, kind: LeaderboardKind = .points, limit: Int = 50,
+                                 accessToken: String?) async throws -> RemoteLeaderboard {
+        let path = "/api/v1/community/leaderboard?period=\(allTime ? "all" : "week")&kind=\(kind.rawValue)&limit=\(limit)"
+        let response = try await transport.send(HTTPRequest(method: .get, path: path, bearer: accessToken))
         try Self.checkContract(response)
         do { return try JSONDecoder().decode(RemoteLeaderboard.self, from: response.body) }
         catch { throw AuthClientError.malformedResponse }

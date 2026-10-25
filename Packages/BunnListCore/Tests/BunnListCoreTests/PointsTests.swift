@@ -24,8 +24,10 @@ final class PointsTests: XCTestCase {
         XCTAssertEqual(PointRules.titleAr(points.recent[0].kind), "تقيّم قهوة")
         let board = try await client.fetchLeaderboard(allTime: true, accessToken: nil)
         XCTAssertEqual(board.me?.rank, 1)
-        XCTAssertEqual(transport.requests[1].path, "/api/v1/community/leaderboard?period=all")
+        XCTAssertEqual(transport.requests[1].path, "/api/v1/community/leaderboard?period=all&kind=points&limit=50")
         XCTAssertNil(transport.requests[1].bearer)
+        _ = try await client.fetchLeaderboard(allTime: true, kind: .discoverers, limit: 3, accessToken: nil)
+        XCTAssertEqual(transport.requests[2].path, "/api/v1/community/leaderboard?period=all&kind=discoverers&limit=3")
     }
 
     func testRulesTableMatchesTheServer() {

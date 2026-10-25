@@ -112,6 +112,15 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 
+    /// GET /api/v1/catalog/top — the best-rated coffees.
+    public func fetchTopRated() async throws -> [RemoteLot] {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/top"))
+        try Self.checkContract(response)
+        struct Wrapper: Decodable { let lots: [RemoteLot] }
+        do { return try JSONDecoder().decode(Wrapper.self, from: response.body).lots }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
     public func fetchFacets() async throws -> RemoteFacets {
         let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/facets"))
         try Self.checkContract(response)

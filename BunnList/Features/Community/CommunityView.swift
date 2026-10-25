@@ -11,6 +11,7 @@ struct CommunityView: View {
     @State private var points: RemotePoints?
     @State private var board: RemoteLeaderboard?
     @State private var allTime = false
+    @State private var kind = LeaderboardKind.points
     @State private var failed = false
     @State private var showRules = false
     @State private var showChallenges = false
@@ -44,7 +45,7 @@ struct CommunityView: View {
             }
             .background(Brand.background.ignoresSafeArea())
             .navigationTitle("المجتمع")
-            .task(id: allTime) { await load() }
+            .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
             .refreshable { await load() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
             .sheet(isPresented: $showRules) { PointRulesView() }
@@ -118,24 +119,30 @@ struct CommunityView: View {
                 Label("المتصدرين", systemImage: "trophy.fill").font(.title3.bold()).foregroundStyle(Brand.ink)
                 Spacer()
             }
-            Picker("الفترة", selection: $allTime) {
-                Text("هذا الأسبوع").tag(false)
-                Text("كل الأوقات").tag(true)
+            Picker("الترتيب حسب", selection: $kind) {
+                ForEach(LeaderboardKind.allCases, id: \.self) { Text($0.titleAr).tag($0) }
             }
             .pickerStyle(.segmented)
+            if kind == .points {
+                Picker("الفترة", selection: $allTime) {
+                    Text("هذا الأسبوع").tag(false)
+                    Text("كل الأوقات").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
 
             if let board {
                 if board.entries.isEmpty {
-                    ContentUnavailableView("ما أحد جمع نقاط \(allTime ? "بعد" : "هالأسبوع")", systemImage: "trophy",
+                    ContentUnavailableView(kind == .points ? "ما أحد جمع نقاط \(allTime ? "بعد" : "هالأسبوع")" : "القائمة فاضية للحين", systemImage: "trophy",
                                            description: Text("قيّم قهوة أو انشر وصفة وكن أول اسم في القائمة."))
                 } else {
                     VStack(spacing: 0) {
                         ForEach(board.entries, id: \.self) { entry in
                             if let username = entry.username, !entry.isMe {
-                                NavigationLink { PublicProfileView(username: username) } label: { LeaderboardRow(entry: entry) }
+                                NavigationLink { PublicProfileView(username: username) } label: { LeaderboardRow(entry: entry, kind: kind) }
                                     .buttonStyle(.plain)
                             } else {
-                                LeaderboardRow(entry: entry)
+                                LeaderboardRow(entry: entry, kind: kind)
                             }
                             if entry != board.entries.last { Divider().padding(.leading, 64) }
                         }
@@ -160,7 +167,7 @@ struct CommunityView: View {
             points = nil
         }
         do {
-            board = try await client.fetchLeaderboard(allTime: allTime, accessToken: token)
+            board = try await client.fetchLeaderboard(allTime: kind != .points || allTime, kind: kind, accessToken: token)
         } catch {
             failed = true
         }
@@ -169,6 +176,7 @@ struct CommunityView: View {
 
 private struct LeaderboardRow: View {
     let entry: RemoteLeaderboard.Entry
+    var kind = LeaderboardKind.points
 
     var body: some View {
         HStack(spacing: 12) {
@@ -182,7 +190,8 @@ private struct LeaderboardRow: View {
                 }
             }
             Spacer()
-            Label(entry.points.formatted(), systemImage: "star.fill")
+            Label(kind == .points ? entry.points.formatted() : "\(entry.points.formatted()) \(kind.unitAr)",
+                  systemImage: kind == .discoverers ? "sparkles" : kind == .raters ? "star.bubble.fill" : "star.fill")
                 .font(.subheadline.bold().monospacedDigit()).foregroundStyle(Brand.gold)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)

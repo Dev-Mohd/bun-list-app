@@ -18,6 +18,9 @@ struct DiscoverView: View {
     @EnvironmentObject private var profile: ProfileStore
     @State private var phase: Phase = .loading
     @State private var discoveries: [RemoteLot] = []
+    @State private var topRated: [RemoteLot] = []
+    @State private var leaderKind = LeaderboardKind.discoverers
+    @State private var leaders: [RemoteLeaderboard.Entry]?
     @State private var showSearch = false
     @State private var showSample = false
     @State private var showRecipes = false
@@ -100,6 +103,37 @@ struct DiscoverView: View {
                     }
                 }
 
+                leadersSection
+
+                if !topRated.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("الأعلى تقييمًا", systemImage: "trophy.fill")
+                            .font(.title3.bold())
+                            .padding(.horizontal)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 12) {
+                                ForEach(Array(topRated.enumerated()), id: \.offset) { index, lot in
+                                    NavigationLink(value: lot.slug) {
+                                        LotGridCard(lot: lot)
+                                            .frame(width: 150)
+                                            .overlay(alignment: .topLeading) {
+                                                Text("#\(index + 1)")
+                                                    .font(.caption.bold().monospacedDigit())
+                                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                                    .background(Brand.gold, in: Capsule())
+                                                    .foregroundStyle(Brand.ink)
+                                                    .padding(6)
+                                            }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityIdentifier("top-\(lot.slug)")
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                }
+
                 allCoffees
             }
             .padding(.vertical)
@@ -114,6 +148,66 @@ struct DiscoverView: View {
             QuickAction(icon: "dial.medium.fill", title: "محوّل الطحن") { showConverter = true }
         }
         .padding(.horizontal)
+    }
+
+    /// Top three of one ranking, with a switch between rankings and a link to the full list.
+    private var leadersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("قائمة المتصدرين", systemImage: "trophy").font(.title3.bold())
+                Spacer()
+                Button { tab = .community } label: {
+                    Label("عرض الكل", systemImage: "chevron.left")
+                        .labelStyle(.titleAndIcon)
+                        .font(.subheadline)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Brand.gold.opacity(0.15), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(LeaderboardKind.allCases, id: \.self) { kind in
+                        Button { leaderKind = kind } label: {
+                            Text(kind.titleAr)
+                                .font(.subheadline.weight(leaderKind == kind ? .semibold : .regular))
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .foregroundStyle(leaderKind == kind ? .white : Brand.ink)
+                                .background(leaderKind == kind ? Brand.ink : Color(.secondarySystemGroupedBackground), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+
+            if let leaders {
+                if leaders.isEmpty {
+                    Text("ما أحد في هالقائمة بعد. كن الأول!")
+                        .font(.callout).foregroundStyle(.secondary).padding(.horizontal)
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(Array(leaders.prefix(3).enumerated()), id: \.offset) { _, entry in
+                            if let username = entry.username, !entry.isMe {
+                                NavigationLink { PublicProfileView(username: username) } label: { LeaderCard(entry: entry, kind: leaderKind) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                LeaderCard(entry: entry, kind: leaderKind)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            } else {
+                HStack { Spacer(); ProgressView(); Spacer() }.frame(height: 150)
+            }
+        }
+        .task(id: leaderKind) {
+            leaders = nil
+            leaders = (try? await client.fetchLeaderboard(allTime: true, kind: leaderKind, limit: 3, accessToken: nil))?.entries ?? []
+        }
     }
 
     private var factCard: some View {
@@ -176,9 +270,11 @@ struct DiscoverView: View {
     private func load() async {
         async let feed = try? client.fetchLots()
         async let fresh = try? client.fetchDiscoveries()
-        let (lots, newest) = await (feed, fresh)
+        async let best = try? client.fetchTopRated()
+        let (lots, newest, top) = await (feed, fresh, best)
         phase = lots.map(Phase.loaded) ?? .failed
         discoveries = newest ?? []
+        topRated = top ?? []
     }
 }
 
@@ -198,6 +294,32 @@ private struct QuickAction: View {
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// One of the top three on the home leaderboard.
+private struct LeaderCard: View {
+    let entry: RemoteLeaderboard.Entry
+    let kind: LeaderboardKind
+
+    private var medal: String {
+        switch entry.rank { case 1: return "🥇"; case 2: return "🥈"; default: return "🥉" }
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(medal).font(.title2)
+            AvatarView(url: entry.avatarUrl, name: entry.name, size: 64)
+            Text(entry.name).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+            Text("\(entry.points.formatted()) \(kind.unitAr)")
+                .font(.caption.monospacedDigit()).foregroundStyle(entry.rank == 1 ? Brand.gold : .secondary)
+        }
+        .padding(.vertical, 14).padding(.horizontal, 6)
+        .frame(maxWidth: .infinity)
+        .background(entry.rank == 1 ? Brand.gold.opacity(0.14) : Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(entry.rank == 1 ? Brand.gold.opacity(0.5) : .clear))
+        .accessibilityElement(children: .combine)
     }
 }
 
