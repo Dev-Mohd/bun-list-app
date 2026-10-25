@@ -68,10 +68,35 @@ extension View {
 
 // MARK: App-wide look
 
+/// Light, dark, or following the phone ("تلقائي"). Stored under "appearance".
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: Self { self }
+
+    var nameAr: String {
+        switch self {
+        case .system: return "تلقائي"
+        case .light: return "فاتح"
+        case .dark: return "داكن"
+        }
+    }
+}
+
 /// The brand applied to UIKit-backed chrome every screen shares: navigation bars
 /// (cream, ink titles), the tab bar (olive selection), segmented controls,
 /// switches, and the default tint for alerts and system buttons.
 enum BrandAppearance {
+    static func apply(_ appearance: AppAppearance) {
+        let style: UIUserInterfaceStyle = switch appearance {
+        case .system: .unspecified
+        case .light: .light
+        case .dark: .dark
+        }
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in scene.windows { window.overrideUserInterfaceStyle = style }
+        }
+    }
+
     static func configure() {
         let background = UIColor(named: "Background") ?? .systemBackground
         let ink = UIColor(named: "Ink") ?? .label

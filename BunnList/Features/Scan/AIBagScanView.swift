@@ -102,7 +102,7 @@ struct AIBagScanView: View {
                             Label("سجّل الدخول عشان تمسح", systemImage: "person.crop.circle")
                                 .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
                         }
-                        .buttonStyle(.borderedProminent).tint(Brand.ink).clipShape(Capsule())
+                        .buttonStyle(.borderedProminent).tint(Brand.ink).foregroundStyle(Brand.background).clipShape(Capsule())
                         .accessibilityIdentifier("scan-sign-in")
                     }
                     Text("الصورة تُرسل للقراءة فقط ولا تُحفظ.").font(.caption2).foregroundStyle(.secondary)
@@ -131,7 +131,7 @@ struct AIBagScanView: View {
                 Label("صوّر الكيس", systemImage: "camera.fill")
                     .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
             }
-            .buttonStyle(.borderedProminent).tint(Brand.ink).clipShape(Capsule())
+            .buttonStyle(.borderedProminent).tint(Brand.ink).foregroundStyle(Brand.background).clipShape(Capsule())
             .accessibilityIdentifier("ai-scan-camera")
         case .permissionDenied:
             VStack(spacing: 6) {

@@ -35,8 +35,8 @@ struct RecipeDetailView: View {
                         Label("حضّر الآن", systemImage: "timer")
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 52)
-                            .background(Color.black, in: Capsule())
-                            .foregroundStyle(.white)
+                            .background(Brand.ink, in: Capsule())
+                            .foregroundStyle(Brand.background)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("brew-now")
@@ -111,7 +111,7 @@ struct RecipeDetailView: View {
                                 Text((index + 1).formatted())
                                     .font(.subheadline.bold()).foregroundStyle(.white)
                                     .frame(width: 32, height: 32)
-                                    .background(Color.black, in: Circle())
+                                    .background(Brand.ink, in: Circle())
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 6) {
                                         Text(RecipeText.duration(starts[index])).font(.subheadline.monospaced()).foregroundStyle(.secondary)

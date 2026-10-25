@@ -134,6 +134,7 @@ struct RecipeSummaryCard: View {
         }
         .padding(18)
         .background(Color.black, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.08)))
         .accessibilityElement(children: .combine)
     }
 
@@ -175,9 +176,9 @@ struct ChoiceChip: View {
             .font(.subheadline.weight(.medium))
             .padding(.horizontal, 16).padding(.vertical, 10)
             .frame(minHeight: 44)
-            .background(isSelected ? Color.black : Color.secondary.opacity(0.08), in: Capsule())
+            .background(isSelected ? Brand.ink : Color.secondary.opacity(0.08), in: Capsule())
             .overlay(Capsule().stroke(Color.secondary.opacity(isSelected ? 0 : 0.3)))
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(isSelected ? Brand.background : Color.primary)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])

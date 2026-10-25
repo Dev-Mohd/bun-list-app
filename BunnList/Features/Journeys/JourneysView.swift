@@ -67,7 +67,7 @@ struct JourneysView: View {
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 Label("سجّل دخول", systemImage: "person.badge.plus")
                     .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
-                    .background(Brand.ink, in: Capsule()).foregroundStyle(.white)
+                    .background(Brand.ink, in: Capsule()).foregroundStyle(Brand.background)
             }
             .padding(16)
             .frame(maxWidth: .infinity)

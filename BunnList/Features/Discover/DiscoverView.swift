@@ -124,7 +124,7 @@ struct DiscoverView: View {
                                                     .font(.caption.bold().monospacedDigit())
                                                     .padding(.horizontal, 8).padding(.vertical, 3)
                                                     .background(Brand.gold, in: Capsule())
-                                                    .foregroundStyle(Brand.ink)
+                                                    .foregroundStyle(.black)
                                                     .padding(6)
                                             }
                                     }
@@ -177,7 +177,7 @@ struct DiscoverView: View {
                             Text(kind.titleAr)
                                 .font(.subheadline.weight(leaderKind == kind ? .semibold : .regular))
                                 .padding(.horizontal, 14).padding(.vertical, 8)
-                                .foregroundStyle(leaderKind == kind ? .white : Brand.ink)
+                                .foregroundStyle(leaderKind == kind ? Brand.background : Brand.ink)
                                 .background(leaderKind == kind ? Brand.ink : Color(.secondarySystemGroupedBackground), in: Capsule())
                         }
                         .buttonStyle(.plain)

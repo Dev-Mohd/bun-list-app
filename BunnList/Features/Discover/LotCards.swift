@@ -107,6 +107,7 @@ struct RatingCard: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Brand.ink)
+                .foregroundStyle(Brand.background)
                 .clipShape(Capsule())
                 .accessibilityIdentifier("review-cta")
             } else {

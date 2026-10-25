@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var profile: ProfileStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
+    @AppStorage("appearance") private var appearance = AppAppearance.system
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
     @State private var confirmDelete = false
 
@@ -15,6 +16,12 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("التفضيلات") {
+                    Picker(selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { Text($0.nameAr).tag($0) }
+                    } label: {
+                        Label("المظهر", systemImage: "circle.lefthalf.filled")
+                    }
+                    .accessibilityIdentifier("settings-appearance")
                     Toggle(isOn: $hapticsEnabled) {
                         Label("الاهتزاز", systemImage: "hand.tap")
                     }

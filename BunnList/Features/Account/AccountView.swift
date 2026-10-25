@@ -169,14 +169,14 @@ struct AccountView: View {
             HStack(spacing: 14) {
                 Image(systemName: "bookmark.fill").font(.title2).foregroundStyle(Brand.gold)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("قائمة الأمنيات").font(.headline).foregroundStyle(.white)
+                    Text("قائمة الأمنيات").font(.headline).foregroundStyle(Brand.background)
                     Text((summary?.collection.wantsToTry ?? 0) > 0
                          ? "\((summary?.collection.wantsToTry ?? 0).formatted()) قهوة ودّك تجربها"
                          : "أضف القهوة اللي ودّك تجربها بعدين")
-                        .font(.caption).foregroundStyle(.white.opacity(0.75))
+                        .font(.caption).foregroundStyle(Brand.background.opacity(0.75))
                 }
                 Spacer()
-                Image(systemName: "chevron.left").foregroundStyle(.white.opacity(0.6))
+                Image(systemName: "chevron.left").foregroundStyle(Brand.background.opacity(0.6))
             }
             .padding(18)
             .background(Brand.ink, in: RoundedRectangle(cornerRadius: 20))

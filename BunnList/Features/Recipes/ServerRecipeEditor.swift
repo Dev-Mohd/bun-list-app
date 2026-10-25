@@ -220,6 +220,7 @@ struct ServerRecipeEditor: View {
             }
             Slider(value: ratioBinding, in: ratioRange, step: 0.1)
                 .tint(Brand.ink)
+                .foregroundStyle(Brand.background)
                 .accessibilityLabel("النسبة")
                 .accessibilityValue(RecipeText.ratio(draft.ratio))
             HStack {
@@ -516,13 +517,13 @@ struct ServerRecipeEditor: View {
             }
             Button { Task { await save() } } label: {
                 HStack {
-                    if isBusy { ProgressView().tint(.white) } else { Image(systemName: "checkmark.circle.fill") }
+                    if isBusy { ProgressView().tint(Brand.background) } else { Image(systemName: "checkmark.circle.fill") }
                     Text(publish && canTogglePublish ? "حفظ ونشر" : "حفظ")
                 }
                 .font(.headline)
                 .frame(maxWidth: .infinity, minHeight: 52)
-                .background(blockingProblem == nil ? Color.black : Color.secondary.opacity(0.4), in: Capsule())
-                .foregroundStyle(.white)
+                .background(blockingProblem == nil ? Brand.ink : Color.secondary.opacity(0.4), in: Capsule())
+                .foregroundStyle(Brand.background)
             }
             .buttonStyle(.plain)
             .disabled(blockingProblem != nil || isBusy)
@@ -728,9 +729,9 @@ private struct StepRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(number.formatted())
-                .font(.headline).foregroundStyle(.white)
+                .font(.headline).foregroundStyle(Brand.background)
                 .frame(width: 40, height: 40)
-                .background(Color.black, in: Circle())
+                .background(Brand.ink, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(RecipeText.duration(startAt)).font(.subheadline.monospaced()).foregroundStyle(.secondary)

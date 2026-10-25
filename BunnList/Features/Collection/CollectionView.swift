@@ -46,7 +46,7 @@ struct CollectionView: View {
                     } description: {
                         Text("سجّل الدخول وابدأ تجمع القهوات اللي جرّبتها والقهوات اللي ودّك تجرّبها.")
                     } actions: {
-                        Button("سجّل الدخول") { showSignIn = true }.buttonStyle(.borderedProminent).tint(Brand.ink)
+                        Button("سجّل الدخول") { showSignIn = true }.buttonStyle(.borderedProminent).tint(Brand.ink).foregroundStyle(Brand.background)
                     }
                 } else if items != nil {
                     content
@@ -81,7 +81,7 @@ struct CollectionView: View {
                                 Text("\(option.rawValue) \(count.formatted())")
                                     .font(.subheadline.weight(shelf == option ? .semibold : .regular))
                                     .padding(.horizontal, 14).padding(.vertical, 8)
-                                    .foregroundStyle(shelf == option ? .white : Brand.ink)
+                                    .foregroundStyle(shelf == option ? Brand.background : Brand.ink)
                                     .background(shelf == option ? Brand.ink : Color(.secondarySystemGroupedBackground), in: Capsule())
                             }
                             .buttonStyle(.plain)
@@ -98,7 +98,7 @@ struct CollectionView: View {
                         Text(query.isEmpty ? "امسح كيس أو دوّر قهوة وعلّمها بـ «لديّ» أو «مفضّل»." : "جرّب كلمة ثانية.")
                     } actions: {
                         if query.isEmpty {
-                            Button("امسح كيس") { tab = .scan }.buttonStyle(.borderedProminent).tint(Brand.ink)
+                            Button("امسح كيس") { tab = .scan }.buttonStyle(.borderedProminent).tint(Brand.ink).foregroundStyle(Brand.background)
                         }
                     }
                     .padding(.top, 30)

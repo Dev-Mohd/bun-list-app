@@ -63,6 +63,7 @@ struct BrowseFilterSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Brand.ink)
+                .foregroundStyle(Brand.background)
                 .clipShape(Capsule())
                 .padding()
                 .background(.bar)
@@ -147,7 +148,7 @@ struct BrowseFilterSheet: View {
             Text(title)
                 .font(.subheadline.weight(on ? .semibold : .regular))
                 .padding(.horizontal, 14).padding(.vertical, 9)
-                .foregroundStyle(on ? .white : Brand.ink)
+                .foregroundStyle(on ? Brand.background : Brand.ink)
                 .background(on ? Brand.ink : Color(.secondarySystemGroupedBackground), in: Capsule())
                 .overlay(Capsule().stroke(Color.secondary.opacity(on ? 0 : 0.3)))
         }
