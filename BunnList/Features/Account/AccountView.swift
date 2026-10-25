@@ -206,7 +206,7 @@ struct AccountView: View {
             Text("سجّل دخولك").font(.title3.bold())
             Text("احفظ مجموعتك على كل أجهزتك، وسوّ وصفاتك، واقترح قهوة ويطلع اسمك كمكتشف لها.")
                 .font(.callout).foregroundStyle(.secondary)
-            QuickSignInButtons(height: 48)
+            QuickSignInButtons()
             Button("كمّل بالإيميل") { showSignIn = true }
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("account-signin")
