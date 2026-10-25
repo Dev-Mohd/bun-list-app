@@ -36,13 +36,13 @@ struct BrandMark: View {
 
     @ViewBuilder
     private func piece(_ index: Int) -> some View {
-        let image = Image("LogoPart\(index + 1)").resizable().scaledToFit()
+        let image = Image("LogoPart\(index + 1)")
         Group {
             // The two dark shapes follow the ink color so they show in dark mode.
             if index == 0 || index == 2 {
-                image.renderingMode(.template).foregroundStyle(Brand.ink)
+                image.renderingMode(.template).resizable().scaledToFit().foregroundStyle(Brand.ink)
             } else {
-                image
+                image.resizable().scaledToFit()
             }
         }
         .mask(alignment: .leading) {
