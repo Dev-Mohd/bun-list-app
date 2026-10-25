@@ -49,9 +49,9 @@ struct RootView: View {
         } else {
             TabView(selection: $tab) {
                 DiscoverView(tab: $tab)
-                    .tabItem { Label("اكتشف", systemImage: "magnifyingglass") }
+                    .tabItem { Label("اكتشف", systemImage: "sparkles") }
                     .tag(AppTab.discover)
-                CollectionView()
+                CollectionView(tab: $tab)
                     .tabItem { Label("مجموعتي", systemImage: "square.stack.3d.up") }
                     .tag(AppTab.collection)
                 ScanView()

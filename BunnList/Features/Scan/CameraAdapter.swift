@@ -41,7 +41,7 @@ struct CameraEnvironment {
     var entryState: ScanEntryState { .resolve(hardware: hardware(), authorization: authorization()) }
 }
 
-/// System camera capture. The JPEG stays in memory for the demo extractor; it is not stored or uploaded in C01.
+/// System camera capture. The JPEG stays in memory and goes to the bag scan; it is never stored.
 struct CameraCaptureView: UIViewControllerRepresentable {
     let onImage: (Data) -> Void
     let onCancel: () -> Void

@@ -1,172 +1,157 @@
 import BunnListCore
 import SwiftUI
 
-enum CollectionFilter: String, CaseIterable, Identifiable {
-    case all = "الكل"
-    case owned = "لديّ"
-    case tried = "جربته"
-    case favorite = "مفضل"
-    case wantsToTry = "ودي أجرب"
+/// "مجموعتي": the coffees saved to the account, as bag cards, narrowed by
+/// لديّ / جرّبته / مفضّل / ودّي أجرّب and by name. Needs an account.
+struct CollectionView: View {
+    private enum Shelf: String, CaseIterable, Identifiable {
+        case all = "الكل", owned = "لديّ", tried = "جرّبته", favorite = "مفضّل", wantsToTry = "ودّي أجرّب"
+        var id: Self { self }
 
-    var id: Self { self }
-
-    func includes(_ entry: CollectionEntry) -> Bool {
-        switch self {
-        case .all: return entry.isActive
-        case .owned: return entry.isOwned
-        case .tried: return entry.isTried
-        case .favorite: return entry.isFavorite
-        case .wantsToTry: return entry.wantsToTry
+        func includes(_ item: RemoteCollectionItem) -> Bool {
+            switch self {
+            case .all: return true
+            case .owned: return item.owned
+            case .tried: return item.tried
+            case .favorite: return item.favorite
+            case .wantsToTry: return item.wantsToTry
+            }
         }
     }
-}
 
-struct CollectionView: View {
-    @EnvironmentObject private var model: AppModel
+    @Binding var tab: AppTab
     @EnvironmentObject private var auth: AuthModel
-    @State private var filter: CollectionFilter = .all
+    @State private var shelf = Shelf.all
     @State private var query = ""
-    @State private var serverItems: [RemoteCollectionItem] = []
+    @State private var items: [RemoteCollectionItem]?
+    @State private var failed = false
+    @State private var showSignIn = false
+
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    private var visible: [RemoteCollectionItem] {
+        let tokens = TextNormalizer.tokens(query)
+        return (items ?? []).filter(shelf.includes).filter { item in
+            let text = TextNormalizer.normalize("\(item.nameAr) \(item.roasterNameAr) \(item.originNameAr ?? "")")
+            return tokens.allSatisfy { text.contains($0) }
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let catalog = model.catalog {
-                    content(catalog)
+                if !auth.isSignedIn {
+                    ContentUnavailableView {
+                        Label("مجموعتك تنحفظ في حسابك", systemImage: "square.stack.3d.up")
+                    } description: {
+                        Text("سجّل الدخول وابدأ تجمع القهوات اللي جرّبتها والقهوات اللي ودّك تجرّبها.")
+                    } actions: {
+                        Button("سجّل الدخول") { showSignIn = true }.buttonStyle(.borderedProminent).tint(Brand.ink)
+                    }
+                } else if items != nil {
+                    content
+                } else if failed {
+                    ContentUnavailableView {
+                        Label("تعذّر تحميل مجموعتك", systemImage: "wifi.exclamationmark")
+                    } actions: {
+                        Button("إعادة المحاولة") { Task { await load() } }.buttonStyle(.borderedProminent)
+                    }
                 } else {
                     ProgressView()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Brand.background.ignoresSafeArea())
             .navigationTitle("مجموعتي")
             .searchable(text: $query, prompt: "ابحث في مجموعتك")
-            .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
-            .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
-            .refreshable { await loadServerCollection() }
-            .task { await loadServerCollection() }
-            .onChange(of: auth.isSignedIn) { _, _ in Task { await loadServerCollection() } }
+            .refreshable { await load() }
+            .task(id: auth.isSignedIn) { await load() }
+            .sheet(isPresented: $showSignIn) { SignInView() }
         }
     }
 
-    private func content(_ catalog: Catalog) -> some View {
-        let entries = visibleEntries(catalog)
-        return List {
-            if auth.isSignedIn {
-                Section("محفوظة في حسابك") {
-                    if serverItems.isEmpty {
-                        Text("لم تحفظ محاصيل من «محاصيل مباشرة» بعد. علّم قهوة بـ «لديّ» أو «مفضّل».")
-                            .font(.callout).foregroundStyle(.secondary)
-                    } else {
-                        ForEach(serverItems) { item in
-                            NavigationLink(value: item.slug) { ServerCollectionRow(item: item) }
+    private var content: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Shelf.allCases) { option in
+                            let count = (items ?? []).filter(option.includes).count
+                            Button { shelf = option } label: {
+                                Text("\(option.rawValue) \(count.formatted())")
+                                    .font(.subheadline.weight(shelf == option ? .semibold : .regular))
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .foregroundStyle(shelf == option ? .white : Brand.ink)
+                                    .background(shelf == option ? Brand.ink : Color(.secondarySystemGroupedBackground), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("collection-shelf-\(option.rawValue)")
                         }
                     }
+                    .padding(.horizontal)
                 }
-            }
-            Section {
-                ViewThatFits(in: .horizontal) {
-                    filterPicker.pickerStyle(.segmented)
-                    filterPicker.pickerStyle(.menu)
-                }
-            } header: {
-                Text("على هذا الجهاز (تجريبي)")
-            } footer: {
-                Text("محفوظة على هذا الجهاز كزائر. حذف التطبيق يحذفها.")
-            }
-            if entries.isEmpty {
-                ContentUnavailableView {
-                    Label(query.isEmpty ? "لا شيء هنا بعد" : "لا نتائج", systemImage: "square.stack.3d.up")
-                } description: {
-                    Text(query.isEmpty ? "أضف محاصيل من «اكتشف» أو «مسح»." : "جرّب كلمة أخرى.")
-                }
-            } else {
-                Section("حسب تاريخ الإضافة") {
-                    ForEach(entries) { entry in
-                        if let lot = catalog.lot(entry.lotID) {
-                            NavigationLink(value: lot.productID) { CollectionRow(entry: entry, lot: lot, catalog: catalog) }
+
+                if visible.isEmpty {
+                    ContentUnavailableView {
+                        Label(query.isEmpty ? "ما فيه شي هنا للحين" : "ما لقينا شي", systemImage: "cup.and.saucer")
+                    } description: {
+                        Text(query.isEmpty ? "امسح كيس أو دوّر قهوة وعلّمها بـ «لديّ» أو «مفضّل»." : "جرّب كلمة ثانية.")
+                    } actions: {
+                        if query.isEmpty {
+                            Button("امسح كيس") { tab = .scan }.buttonStyle(.borderedProminent).tint(Brand.ink)
                         }
                     }
+                    .padding(.top, 30)
+                } else {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
+                        ForEach(visible) { item in
+                            NavigationLink { LiveLotDetailView(slug: item.slug) } label: { CollectionCard(item: item) }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
                 }
             }
+            .padding(.vertical)
         }
     }
 
-    private var filterPicker: some View {
-        Picker("عرض", selection: $filter) {
-            ForEach(CollectionFilter.allCases) { Text($0.rawValue).tag($0) }
-        }
-        .accessibilityIdentifier("collection-filter")
-    }
-
-    private func visibleEntries(_ catalog: Catalog) -> [CollectionEntry] {
-        let tokens = TextNormalizer.tokens(query)
-        return model.book.activeEntries(owner: model.owner)
-            .filter(filter.includes)
-            .filter { entry in
-                guard !tokens.isEmpty, let lot = catalog.lot(entry.lotID), let product = catalog.product(lot.productID) else {
-                    return tokens.isEmpty
-                }
-                let text = TextNormalizer.normalize([product.nameAr, product.nameEn ?? "", LotText.season(lot),
-                                                     LotText.roaster(product, in: catalog)].joined(separator: " "))
-                return tokens.allSatisfy { text.contains($0) }
-            }
-            .sorted { ($0.firstCollectedAt ?? $0.createdAt) > ($1.firstCollectedAt ?? $1.createdAt) }
-    }
-
-    private func loadServerCollection() async {
-        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; return }
-        let client = CatalogAPIClient(transport: URLSessionTransport())
+    private func load() async {
+        guard auth.isSignedIn else { items = nil; return }
+        failed = false
         do {
-            serverItems = try await client.fetchCollection(accessToken: token)
-        } catch APIError.unauthorized {
-            if let fresh = await auth.refreshAccessToken() {
-                serverItems = (try? await client.fetchCollection(accessToken: fresh)) ?? serverItems
-            }
+            items = try await auth.withToken { try await client.fetchCollection(accessToken: $0) }
         } catch {
-            // keep what we have; not fatal
+            if items == nil { failed = true }
         }
     }
 }
 
-private struct ServerCollectionRow: View {
+private struct CollectionCard: View {
     let item: RemoteCollectionItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(item.nameAr).font(.headline).foregroundStyle(Brand.ink)
-            Text(item.roasterNameAr).font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                if item.owned { Label("لديّ", systemImage: "checkmark.circle") }
-                if item.tried { Label("جربته", systemImage: "cup.and.saucer") }
-                if item.favorite { Label("مفضل", systemImage: "heart") }
-                if item.wantsToTry { Label("ودي أجرب", systemImage: "bookmark") }
-            }
-            .font(.caption).foregroundStyle(Brand.olive)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct CollectionRow: View {
-    let entry: CollectionEntry
-    let lot: CoffeeLot
-    let catalog: Catalog
-
-    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(catalog.product(lot.productID)?.nameAr ?? "محصول").font(.headline).foregroundStyle(Brand.ink)
-            Text("\(LotText.season(lot)) · \(catalog.product(lot.productID).map { LotText.roaster($0, in: catalog) } ?? "")")
-                .font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                if entry.isOwned { Label("لديّ", systemImage: "checkmark.circle") }
-                if entry.isTried { Label("جربته", systemImage: "cup.and.saucer") }
-                if entry.isFavorite { Label("مفضل", systemImage: "heart") }
-                if entry.wantsToTry { Label("ودي أجرب", systemImage: "bookmark") }
+            ZStack {
+                Color(white: 0.97)
+                if let url = item.imageUrl.flatMap(URL.init(string:)) {
+                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(8) } placeholder: { ProgressView() }
+                } else {
+                    CoffeeArtCard(roaster: item.roasterNameAr, name: item.nameAr, origin: item.originNameAr, originCode: item.originCode)
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            Text(item.nameAr).font(.subheadline.bold()).lineLimit(1)
+            Text(item.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            HStack(spacing: 8) {
+                if item.owned { Image(systemName: "checkmark.circle.fill") }
+                if item.tried { Image(systemName: "cup.and.saucer.fill") }
+                if item.favorite { Image(systemName: "heart.fill") }
+                if item.wantsToTry { Image(systemName: "bookmark.fill") }
             }
             .font(.caption).foregroundStyle(Brand.olive)
-            Text("أضيف \((entry.firstCollectedAt ?? entry.createdAt).formatted(date: .abbreviated, time: .omitted))")
-                .font(.caption2).foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
     }
 }

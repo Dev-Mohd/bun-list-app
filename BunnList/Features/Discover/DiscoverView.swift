@@ -4,8 +4,7 @@ import SwiftUI
 /// Discover - the home screen: a greeting, quick actions (new recipe, scan, my
 /// collection, grind converter), a daily "هل تعلم؟" fact, the newest community
 /// discoveries with their discoverers, then every published coffee. The search bar
-/// opens the full search screen (SearchView). Demo data stays behind
-/// the labeled "الدليل التجريبي" entry and is never a fallback.
+/// opens the full search screen (SearchView). The demo catalog shows only in UI tests.
 struct DiscoverView: View {
     @Binding var tab: AppTab
 
@@ -34,11 +33,14 @@ struct DiscoverView: View {
             .background(Brand.background.ignoresSafeArea())
             .navigationTitle("اكتشف")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showSample = true } label: {
-                        Label("الدليل التجريبي", systemImage: "flask")
+                // The on-device demo catalog is for UI tests only.
+                if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showSample = true } label: {
+                            Label("الدليل التجريبي", systemImage: "flask")
+                        }
+                        .accessibilityIdentifier("open-sample-catalog")
                     }
-                    .accessibilityIdentifier("open-sample-catalog")
                 }
             }
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }

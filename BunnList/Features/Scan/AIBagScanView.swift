@@ -5,9 +5,13 @@ import UIKit
 
 /// AI bag scan: photograph (or pick) a coffee bag, the server has Claude read the
 /// label, and we show what it found with matching coffees. If there is no match,
-/// the reading pre-fills a coffee suggestion. The photo is not stored.
+/// the reading pre-fills a coffee suggestion. The photo is not stored. This is the
+/// scan tab; without the bag at hand, people can search by name or suggest a coffee.
 @MainActor
 struct AIBagScanView: View {
+    /// As the scan tab (no close button) rather than a sheet.
+    var embedded = false
+
     private enum Phase {
         case start
         case reading(UIImage)
@@ -23,6 +27,11 @@ struct AIBagScanView: View {
     @State private var suggestion: BagSuggestion?
     /// The bag lifted out of the photo, when the device could find it.
     @State private var cutout: UIImage?
+    @State private var entryState: ScanEntryState = .noCamera
+    @State private var showNameSearch = false
+    @State private var showSuggestByHand = false
+    @State private var showSignIn = false
+    private let camera = CameraEnvironment.current()
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -36,9 +45,18 @@ struct AIBagScanView: View {
                 case let .failed(message): failedView(message)
                 }
             }
-            .navigationTitle("امسح الكيس")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
+            .navigationTitle(embedded ? "مسح" : "امسح الكيس")
+            .navigationBarTitleDisplayMode(embedded ? .large : .inline)
+            .background(Brand.background.ignoresSafeArea())
+            .toolbar {
+                if !embedded {
+                    ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } }
+                }
+            }
+            .onAppear { entryState = camera.entryState }
+            .sheet(isPresented: $showNameSearch) { AddCoffeeSearchView().environmentObject(auth) }
+            .sheet(isPresented: $showSuggestByHand) { SuggestCoffeeView().environmentObject(auth) }
+            .sheet(isPresented: $showSignIn) { SignInView() }
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraCaptureView(onImage: { data in
@@ -66,35 +84,100 @@ struct AIBagScanView: View {
     // MARK: Phases
 
     private var startView: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Image(systemName: "sparkles.rectangle.stack")
-                .font(.system(size: 64)).foregroundStyle(Brand.olive)
-            Text("صوّر واجهة الكيس").font(.title2.bold())
-            Text("يقرأ الذكاء الاصطناعي الاسم والمحمصة والمنشأ والمعالجة والنكهات وتاريخ التحميص، ويدوّر لك القهوة في الدليل.")
-                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            if auth.isSignedIn {
-                Button { showCamera = true } label: {
-                    Label("صوّر الكيس", systemImage: "camera.fill")
-                        .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+        ScrollView {
+            VStack(spacing: 18) {
+                VStack(spacing: 14) {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 56, weight: .light)).foregroundStyle(Brand.olive)
+                        .frame(width: 110, height: 110)
+                        .background(Brand.olive.opacity(0.1), in: Circle())
+                    Text("صوّر واجهة الكيس").font(.title2.bold()).foregroundStyle(Brand.ink)
+                    Text("نقرأ الاسم والمحمصة والمنشأ والمعالجة والنكهات، ونطلع لك القهوة من الدليل.")
+                        .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    if auth.isSignedIn {
+                        captureButtons
+                    } else {
+                        Button { showSignIn = true } label: {
+                            Label("سجّل الدخول عشان تمسح", systemImage: "person.crop.circle")
+                                .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .buttonStyle(.borderedProminent).tint(Brand.ink).clipShape(Capsule())
+                        .accessibilityIdentifier("scan-sign-in")
+                    }
+                    Text("الصورة تُرسل للقراءة فقط ولا تُحفظ.").font(.caption2).foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderedProminent).tint(.black)
-                .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
-                .accessibilityIdentifier("ai-scan-camera")
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label("اختر صورة من الألبوم", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                .padding(22)
+                .frame(maxWidth: .infinity)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 26))
+
+                VStack(spacing: 10) {
+                    Text("ما معك الكيس؟").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                    otherWay("ابحث بالاسم وأضفها لمجموعتك", icon: "magnifyingglass", id: "scan-search-name") { showNameSearch = true }
+                    otherWay("اقترح قهوة مو موجودة", icon: "plus.circle", id: "scan-suggest") {
+                        if auth.isSignedIn { showSuggestByHand = true } else { showSignIn = true }
+                    }
                 }
-                .buttonStyle(.bordered)
-            } else {
-                Text("سجّل الدخول من «ملفي» لاستخدام المسح الذكي.")
-                    .font(.callout).foregroundStyle(.orange)
             }
-            Text("الصورة تُرسل للقراءة فقط ولا تُحفظ.")
-                .font(.caption2).foregroundStyle(.secondary)
-            Spacer()
+            .padding()
         }
-        .padding(24)
+    }
+
+    @ViewBuilder
+    private var captureButtons: some View {
+        switch entryState {
+        case .needsPermission, .ready:
+            Button { capture() } label: {
+                Label("صوّر الكيس", systemImage: "camera.fill")
+                    .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+            }
+            .buttonStyle(.borderedProminent).tint(Brand.ink).clipShape(Capsule())
+            .accessibilityIdentifier("ai-scan-camera")
+        case .permissionDenied:
+            VStack(spacing: 6) {
+                Label("ما سمحت للتطبيق بالكاميرا", systemImage: "camera.badge.ellipsis").font(.subheadline)
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    Link("افتح الإعدادات", destination: url).font(.subheadline.bold())
+                }
+            }
+            .accessibilityIdentifier("scan-permission-denied")
+        case .noCamera:
+            Label("ما فيه كاميرا متاحة، اختر صورة من الألبوم.", systemImage: "camera.badge.ellipsis")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .accessibilityIdentifier("scan-no-camera")
+        }
+        PhotosPicker(selection: $photoItem, matching: .images) {
+            Label("اختر صورة من الألبوم", systemImage: "photo.on.rectangle")
+                .frame(maxWidth: .infinity, minHeight: 46)
+        }
+        .buttonStyle(.bordered).tint(Brand.olive).clipShape(Capsule())
+        .accessibilityIdentifier("scan-pick-photo")
+    }
+
+    private func otherWay(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).font(.title3).foregroundStyle(Brand.olive).frame(width: 30)
+                Text(title).font(.subheadline.weight(.medium)).foregroundStyle(Brand.ink)
+                Spacer()
+                Image(systemName: "chevron.left").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+    }
+
+    private func capture() {
+        if entryState == .needsPermission {
+            Task {
+                let granted = await camera.requestAccess()
+                entryState = camera.entryState
+                if granted { showCamera = true }
+            }
+        } else {
+            showCamera = true
+        }
     }
 
     private func readingView(_ image: UIImage) -> some View {
