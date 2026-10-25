@@ -9,6 +9,13 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     public let discoveries: Int
     /// The account's public handle, without "@"; nil until chosen.
     public let username: String?
+    public let displayName: String?
+    public let bio: String?
+    public let avatarUrl: String?
+    /// Missing from older servers; treated as done so they never show first-run setup.
+    public let onboarded: Bool?
+
+    public var isOnboarded: Bool { onboarded ?? true }
 }
 
 public struct RemoteMySubmission: Codable, Equatable, Sendable, Identifiable {

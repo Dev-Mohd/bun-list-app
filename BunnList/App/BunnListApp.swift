@@ -6,12 +6,14 @@ import SwiftUI
 struct BunnListApp: App {
     @StateObject private var model = AppModel.live()
     @StateObject private var auth = AuthModel.live()
+    @StateObject private var profile = ProfileStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(model)
                 .environmentObject(auth)
+                .environmentObject(profile)
                 .environment(\.layoutDirection, .rightToLeft)
                 .tint(Brand.olive)
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
@@ -26,6 +28,7 @@ enum AppTab: Hashable {
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var auth: AuthModel
+    @EnvironmentObject private var profile: ProfileStore
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
     @State private var tab: AppTab = .discover
 
@@ -60,6 +63,15 @@ struct RootView: View {
                 AccountView()
                     .tabItem { Label("حسابي", systemImage: "person.crop.circle") }
                     .tag(AppTab.account)
+            }
+            .task(id: auth.isSignedIn) { await profile.refresh(auth) }
+            .fullScreenCover(isPresented: Binding(
+                get: { !uiTesting && auth.isSignedIn && profile.me.map { !$0.isOnboarded } == true },
+                set: { _ in }
+            )) {
+                OnboardingFlow { }
+                    .environmentObject(auth)
+                    .environmentObject(profile)
             }
             .alert("تنبيه", isPresented: Binding(get: { model.errorMessage != nil },
                                                  set: { if !$0 { model.errorMessage = nil } })) {

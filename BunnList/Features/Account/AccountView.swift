@@ -13,9 +13,12 @@ struct AccountView: View {
     @State private var showSettings = false
     @State private var showRecipes = false
     @State private var serverItems: [RemoteCollectionItem] = []
-    @State private var me: RemoteMe?
-    @State private var username: String?
+    @EnvironmentObject private var profile: ProfileStore
     @State private var showUsernameEditor = false
+    @State private var showProfileEditor = false
+
+    private var me: RemoteMe? { profile.me }
+    private var username: String? { profile.me?.username }
 
     private var counts: (owned: Int, tried: Int, favorite: Int, wants: Int) {
         if auth.isSignedIn {
@@ -32,7 +35,7 @@ struct AccountView: View {
         NavigationStack {
             List {
                 Section {
-                    ProfileHeader(isSignedIn: auth.isSignedIn, username: username)
+                    ProfileHeader(isSignedIn: auth.isSignedIn, me: me) { showProfileEditor = true }
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
@@ -109,7 +112,14 @@ struct AccountView: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showUsernameEditor) {
-                UsernameEditor(current: username) { username = $0 }.environmentObject(auth)
+                UsernameEditor(current: username) { _ in Task { await profile.refresh(auth) } }.environmentObject(auth)
+            }
+            .sheet(isPresented: $showProfileEditor) {
+                NavigationStack {
+                    ProfileSetupView(mode: .edit) { }
+                }
+                .environmentObject(auth)
+                .environmentObject(profile)
             }
             .sheet(isPresented: $showRecipes) { RecipesHubView(startOn: auth.isSignedIn ? .mine : .explore) }
             .task { await loadServerCollection() }
@@ -162,9 +172,8 @@ struct AccountView: View {
     }
 
     private func loadServerCollection() async {
-        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; me = nil; username = nil; return }
-        me = try? await auth.withToken { try await CatalogAPIClient(transport: URLSessionTransport()).fetchMe(accessToken: $0) }
-        if let me { username = me.username }
+        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; profile.clear(); return }
+        await profile.refresh(auth)
         let client = CatalogAPIClient(transport: URLSessionTransport())
         do {
             serverItems = try await client.fetchCollection(accessToken: token)
@@ -178,31 +187,44 @@ struct AccountView: View {
     }
 }
 
-/// The profile header card: avatar + a status line.
+/// The profile header card: picture, name, @username, bio and an edit button when
+/// signed in; a guest line otherwise.
 private struct ProfileHeader: View {
     let isSignedIn: Bool
-    var username: String?
+    let me: RemoteMe?
+    var onEdit: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            Circle()
-                .fill(Brand.olive.opacity(0.15))
-                .frame(width: 64, height: 64)
-                .overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(Brand.olive))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(isSignedIn ? (username.map { "@\($0)" } ?? "حسابك") : "زائر")
-                    .font(.title2.bold()).foregroundStyle(Brand.ink)
+        VStack(spacing: 10) {
+            AvatarView(url: me?.avatarUrl, name: me?.displayName, size: 88)
+            if isSignedIn {
+                Text(me?.displayName ?? "حسابك").font(.title2.bold()).foregroundStyle(Brand.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
-                Label(isSignedIn ? "مسجّل الدخول" : "استكشاف بدون حساب",
-                      systemImage: isSignedIn ? "checkmark.seal.fill" : "person.crop.circle.badge.questionmark")
-                    .font(.subheadline)
-                    .foregroundStyle(isSignedIn ? Brand.olive : .secondary)
+                if let username = me?.username {
+                    Text("@\(username)").font(.subheadline).foregroundStyle(.secondary)
+                        .environment(\.layoutDirection, .leftToRight)
+                }
+                if let bio = me?.bio, !bio.isEmpty {
+                    Text(bio).font(.callout).multilineTextAlignment(.center).foregroundStyle(.primary.opacity(0.8))
+                }
+                Button(action: onEdit) {
+                    Label("عدّل ملفك", systemImage: "pencil")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(Brand.olive.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Brand.olive)
+                .accessibilityIdentifier("edit-profile")
+            } else {
+                Text("زائر").font(.title2.bold()).foregroundStyle(Brand.ink)
+                Label("استكشاف بدون حساب", systemImage: "person.crop.circle.badge.questionmark")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
-            Spacer(minLength: 0)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Brand.gold.opacity(0.14), in: RoundedRectangle(cornerRadius: 18))
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Brand.gold.opacity(0.14), in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
     }
