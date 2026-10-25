@@ -35,5 +35,10 @@ final class SocialTests: XCTestCase {
 
         let people = try await client.fetchFollowList(.followers, username: "mohd")
         XCTAssertEqual(people.first?.username, "badr")
+        XCTAssertNil(profile.activityHidden)
+
+        try await client.setVisibility(.following, to: .me, accessToken: "a")
+        let body = try JSONSerialization.jsonObject(with: transport.requests.last!.body!) as? [String: String]
+        XCTAssertEqual(body, ["followingVisibility": "me"])
     }
 }

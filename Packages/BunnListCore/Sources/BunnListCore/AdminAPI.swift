@@ -15,8 +15,20 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     /// Missing from older servers; treated as done so they never show first-run setup.
     public let onboarded: Bool?
     public let hideFromLeaderboard: Bool?
+    /// Missing from older servers (then everyone).
+    public let followersVisibility: Visibility?
+    public let followingVisibility: Visibility?
+    public let activityVisibility: Visibility?
 
     public var isOnboarded: Bool { onboarded ?? true }
+
+    public func visibility(of part: PrivacyPart) -> Visibility {
+        switch part {
+        case .followers: return followersVisibility ?? .everyone
+        case .following: return followingVisibility ?? .everyone
+        case .activity: return activityVisibility ?? .everyone
+        }
+    }
 }
 
 public struct RemoteMySubmission: Codable, Equatable, Sendable, Identifiable {

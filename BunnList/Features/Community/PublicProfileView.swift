@@ -94,7 +94,10 @@ struct PublicProfileView: View {
                     }
                 }
 
-                if p.discoveries.isEmpty && p.recipes.isEmpty {
+                if p.activityHidden == true {
+                    Label("اكتشافاته ووصفاته خاصة", systemImage: "lock.fill")
+                        .font(.callout).foregroundStyle(.secondary).padding(.top, 20)
+                } else if p.discoveries.isEmpty && p.recipes.isEmpty {
                     Text("ما نشر شي بعد.").font(.callout).foregroundStyle(.secondary).padding(.top, 20)
                 }
             }
@@ -126,13 +129,15 @@ struct PublicProfileView: View {
             }
 
             HStack(spacing: 0) {
-                Button { list = .followers } label: { count(p.followers, "متابِعون") }.buttonStyle(.plain)
+                Button { list = .followers } label: { count(p.followers, "متابِعون") }
+                    .buttonStyle(.plain).disabled(p.followers == nil)
                 divider
-                Button { list = .following } label: { count(p.following, "يتابع") }.buttonStyle(.plain)
+                Button { list = .following } label: { count(p.following, "يتابع") }
+                    .buttonStyle(.plain).disabled(p.following == nil)
                 divider
                 count(p.points, "نقطة")
                 divider
-                count(p.discoveries.count, "اكتشافات")
+                count(p.activityHidden == true ? nil : p.discoveries.count, "اكتشافات")
             }
             .padding(.top, 6)
         }
@@ -154,9 +159,13 @@ struct PublicProfileView: View {
         Rectangle().fill(Color.secondary.opacity(0.2)).frame(width: 1, height: 28)
     }
 
-    private func count(_ value: Int, _ label: String) -> some View {
+    /// nil shows a lock: the owner keeps the number private.
+    private func count(_ value: Int?, _ label: String) -> some View {
         VStack(spacing: 2) {
-            Text(value.formatted()).font(.headline.monospacedDigit()).foregroundStyle(Brand.ink)
+            Group {
+                if let value { Text(value.formatted()) } else { Image(systemName: "lock.fill").accessibilityLabel("خاص") }
+            }
+            .font(.headline.monospacedDigit()).foregroundStyle(Brand.ink)
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -199,8 +208,10 @@ struct FollowListView: View {
     var showsDone = false
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var auth: AuthModel
     @State private var people: [RemotePerson]?
     @State private var failed = false
+    @State private var isPrivate = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -224,6 +235,9 @@ struct FollowListView: View {
                         }
                     }
                 }
+            } else if isPrivate {
+                ContentUnavailableView("القائمة خاصة", systemImage: "lock.fill",
+                                       description: Text("صاحب الحساب مخفيها."))
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
@@ -237,7 +251,13 @@ struct FollowListView: View {
             if showsDone { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }
         }
         .task {
-            do { people = try await client.fetchFollowList(list, username: username) } catch { failed = true }
+            do {
+                people = try await auth.withOptionalToken { try await client.fetchFollowList(list, username: username, accessToken: $0) }
+            } catch APIError.forbidden {
+                isPrivate = true
+            } catch {
+                failed = true
+            }
         }
     }
 }

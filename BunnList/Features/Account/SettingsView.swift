@@ -11,6 +11,8 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance = AppAppearance.system
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
     @State private var confirmDelete = false
+    /// Shown right away while the change saves.
+    @State private var pendingVisibility: [PrivacyPart: Visibility] = [:]
 
     var body: some View {
         NavigationStack {
@@ -34,13 +36,21 @@ struct SettingsView: View {
 
                 if auth.isSignedIn {
                     Section {
+                        ForEach(PrivacyPart.allCases, id: \.self) { part in
+                            Picker(selection: visibilityBinding(part)) {
+                                ForEach(Visibility.allCases, id: \.self) { Text($0.nameAr).tag($0) }
+                            } label: {
+                                Label(part.titleAr, systemImage: icon(for: part))
+                            }
+                            .accessibilityIdentifier("privacy-\(part.rawValue)")
+                        }
                         Toggle(isOn: hideBinding) {
                             Label("اخفني من المتصدرين", systemImage: "eye.slash")
                         }
                     } header: {
                         Text("الخصوصية")
                     } footer: {
-                        Text("تبقى نقاطك وسلسلتك لك، بس اسمك ما يطلع في قائمة المتصدرين.")
+                        Text("«متابعيني» يعني اللي يتابعونك بس. اسمك على القهوات اللي اكتشفتها يبقى ظاهر في صفحة القهوة. وإذا أخفيت نفسك من المتصدرين، تبقى نقاطك وسلسلتك لك.")
                     }
 
                     Section("الحساب") {
@@ -84,6 +94,29 @@ struct SettingsView: View {
                 Text("سيُحذف حسابك وبياناته على الخادم نهائيًا. لا يمكن التراجع.")
             }
         }
+    }
+
+    private func icon(for part: PrivacyPart) -> String {
+        switch part {
+        case .followers: return "person.2"
+        case .following: return "person.2.fill"
+        case .activity: return "sparkles"
+        }
+    }
+
+    private func visibilityBinding(_ part: PrivacyPart) -> Binding<Visibility> {
+        Binding(
+            get: { pendingVisibility[part] ?? profile.me?.visibility(of: part) ?? .everyone },
+            set: { value in
+                pendingVisibility[part] = value
+                Task {
+                    let client = CatalogAPIClient(transport: URLSessionTransport())
+                    _ = try? await auth.withToken { try await client.setVisibility(part, to: value, accessToken: $0) }
+                    await profile.refresh(auth)
+                    pendingVisibility[part] = nil
+                }
+            }
+        )
     }
 
     private var hideBinding: Binding<Bool> {
