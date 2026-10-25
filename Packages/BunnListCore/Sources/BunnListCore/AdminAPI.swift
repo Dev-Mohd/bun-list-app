@@ -16,13 +16,13 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     public let onboarded: Bool?
     public let hideFromLeaderboard: Bool?
     /// Missing from older servers (then everyone).
-    public let followersVisibility: Visibility?
-    public let followingVisibility: Visibility?
-    public let activityVisibility: Visibility?
+    public let followersVisibility: ProfileVisibility?
+    public let followingVisibility: ProfileVisibility?
+    public let activityVisibility: ProfileVisibility?
 
     public var isOnboarded: Bool { onboarded ?? true }
 
-    public func visibility(of part: PrivacyPart) -> Visibility {
+    public func visibility(of part: PrivacyPart) -> ProfileVisibility {
         switch part {
         case .followers: return followersVisibility ?? .everyone
         case .following: return followingVisibility ?? .everyone

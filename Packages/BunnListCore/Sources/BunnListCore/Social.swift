@@ -40,7 +40,7 @@ public enum FollowList: String, Sendable, Identifiable {
 }
 
 /// Who may see a part of your public profile.
-public enum Visibility: String, Codable, CaseIterable, Sendable {
+public enum ProfileVisibility: String, Codable, CaseIterable, Sendable {
     case everyone, followers, me
 
     public var nameAr: String {
@@ -79,7 +79,7 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 
-    public func setVisibility(_ part: PrivacyPart, to visibility: Visibility, accessToken: String) async throws {
+    public func setVisibility(_ part: PrivacyPart, to visibility: ProfileVisibility, accessToken: String) async throws {
         let data = (try? JSONSerialization.data(withJSONObject: [part.field: visibility.rawValue])) ?? Data()
         let response = try await transport.send(
             HTTPRequest(method: .patch, path: "/api/v1/me/profile", body: data, bearer: accessToken))

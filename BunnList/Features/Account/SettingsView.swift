@@ -12,7 +12,7 @@ struct SettingsView: View {
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
     @State private var confirmDelete = false
     /// Shown right away while the change saves.
-    @State private var pendingVisibility: [PrivacyPart: Visibility] = [:]
+    @State private var pendingVisibility: [PrivacyPart: ProfileVisibility] = [:]
 
     var body: some View {
         NavigationStack {
@@ -45,7 +45,7 @@ struct SettingsView: View {
                     Section {
                         ForEach(PrivacyPart.allCases, id: \.self) { part in
                             Picker(selection: visibilityBinding(part)) {
-                                ForEach(Visibility.allCases, id: \.self) { Text($0.nameAr).tag($0) }
+                                ForEach(ProfileVisibility.allCases, id: \.self) { Text($0.nameAr).tag($0) }
                             } label: {
                                 Label(part.titleAr, systemImage: icon(for: part))
                             }
@@ -111,7 +111,7 @@ struct SettingsView: View {
         }
     }
 
-    private func visibilityBinding(_ part: PrivacyPart) -> Binding<Visibility> {
+    private func visibilityBinding(_ part: PrivacyPart) -> Binding<ProfileVisibility> {
         Binding(
             get: { pendingVisibility[part] ?? profile.me?.visibility(of: part) ?? .everyone },
             set: { value in
