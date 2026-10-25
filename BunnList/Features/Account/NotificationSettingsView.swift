@@ -57,6 +57,12 @@ struct NotificationSettingsView: View {
                 Section { Text("سجّل الدخول عشان تختار إشعارات حسابك.").foregroundStyle(.secondary) }
             }
 
+            if auth.isSignedIn {
+                Section("ملخصات") {
+                    toggle("الملخص الأسبوعي", "كل جمعة العصر: نقاطك ونشاطك في الأسبوع", icon: "chart.bar.fill", \.weeklySummary)
+                }
+            }
+
             Section {
                 Toggle(isOn: $streakReminder) {
                     Label {
