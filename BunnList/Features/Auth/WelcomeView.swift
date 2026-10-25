@@ -13,10 +13,10 @@ struct WelcomeView: View {
             Spacer()
 
             VStack(spacing: 18) {
-                BrandMark(height: 120)
-                BrandWordmark(size: 38)
-                Text("اكتشف القهوة، بطاقة بطاقة")
-                    .font(.title3).foregroundStyle(.secondary)
+                BrandMark(height: 130)
+                BrandWordmark(size: 32)
+                Text("كل كيس قهوة.. له حكاية")
+                    .font(.title3.weight(.medium)).foregroundStyle(Brand.olive)
             }
 
             Spacer()
@@ -34,7 +34,7 @@ struct WelcomeView: View {
                 } label: {
                     Text("تصفّح كضيف")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Brand.olive)
+                        .foregroundStyle(Brand.gold)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .accessibilityIdentifier("welcome-guest")
@@ -52,7 +52,7 @@ struct WelcomeView: View {
             .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Brand.background.ignoresSafeArea())
+        .background(BrandBackdrop())
         .overlay {
             if auth.isBusy && !showEmail { BrandLoadingView(message: "نجهّز حسابك…") }
         }
@@ -77,11 +77,11 @@ struct AuthButton<Icon: View>: View {
                 Text(title).font(.system(size: 17, weight: .semibold))
             }
             .frame(maxWidth: .infinity, minHeight: 54)
-            .foregroundStyle(style == .filled ? Brand.background : Brand.ink)
-            .background(style == .filled ? Brand.ink : Color(.secondarySystemGroupedBackground),
+            .foregroundStyle(style == .filled ? Brand.background : Brand.olive)
+            .background(style == .filled ? Brand.ink : Brand.background,
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Brand.ink.opacity(style == .filled ? 0 : 0.15), lineWidth: 1))
+                .stroke(style == .filled ? .clear : Brand.olive.opacity(0.55), lineWidth: 1.5))
         }
         .buttonStyle(.plain)
     }

@@ -68,21 +68,29 @@ struct BrandMark: View {
     }
 }
 
-/// The name under the mark: Arabic, then "BunnList".
+/// The name under the mark: "BunnList" in the brand's ink.
 struct BrandWordmark: View {
     var size: CGFloat = 34
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text("بن لست").font(.system(size: size, weight: .black)).foregroundStyle(Brand.ink)
-            Text("BunnList")
-                .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
-                .tracking(size * 0.08)
-                .foregroundStyle(Brand.ink.opacity(0.6))
-                .environment(\.layoutDirection, .leftToRight)
+        Text("BunnList")
+            .font(.system(size: size, weight: .heavy, design: .rounded))
+            .tracking(size * 0.04)
+            .foregroundStyle(Brand.ink)
+            .environment(\.layoutDirection, .leftToRight)
+            .accessibilityLabel("بن لست")
+    }
+}
+
+/// The cream ground with a soft olive and gold glow, for the welcome and wait screens.
+struct BrandBackdrop: View {
+    var body: some View {
+        ZStack {
+            Brand.background
+            RadialGradient(colors: [Brand.olive.opacity(0.22), .clear], center: .topLeading, startRadius: 10, endRadius: 420)
+            RadialGradient(colors: [Brand.gold.opacity(0.20), .clear], center: .bottomTrailing, startRadius: 10, endRadius: 460)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("بن لست")
+        .ignoresSafeArea()
     }
 }
 
@@ -93,13 +101,13 @@ struct BrandLoadingView: View {
     var body: some View {
         VStack(spacing: 18) {
             BrandMark(height: 110, looping: true)
-            BrandWordmark(size: 28)
+            BrandWordmark(size: 26)
             if let message {
                 Text(message).font(.subheadline).foregroundStyle(.secondary).padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Brand.background.ignoresSafeArea())
+        .background(BrandBackdrop())
         .transition(.opacity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(message ?? "جارٍ التحميل")
