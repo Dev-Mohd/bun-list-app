@@ -3,8 +3,8 @@ import SwiftUI
 
 /// Discover - the home screen: a greeting, quick actions (new recipe, scan, my
 /// collection, grind converter), a daily "هل تعلم؟" fact, the newest community
-/// discoveries with their discoverers, then every published coffee. Search runs on
-/// the server and replaces the home sections while active. Demo data stays behind
+/// discoveries with their discoverers, then every published coffee. The search bar
+/// opens the full search screen (SearchView). Demo data stays behind
 /// the labeled "الدليل التجريبي" entry and is never a fallback.
 struct DiscoverView: View {
     @Binding var tab: AppTab
@@ -18,9 +18,7 @@ struct DiscoverView: View {
     @EnvironmentObject private var profile: ProfileStore
     @State private var phase: Phase = .loading
     @State private var discoveries: [RemoteLot] = []
-    @State private var query = ""
-    @State private var searchResults: [RemoteLot]?
-    @State private var isSearching = false
+    @State private var showSearch = false
     @State private var showSample = false
     @State private var showRecipes = false
     @State private var showConverter = false
@@ -29,21 +27,9 @@ struct DiscoverView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if searchResults != nil || isSearching {
-                    searchList
-                } else {
-                    home
-                }
-            }
+            home
             .background(Brand.background.ignoresSafeArea())
             .navigationTitle("اكتشف")
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic),
-                        prompt: "ابحث بالاسم أو المحمصة")
-            .onSubmit(of: .search) { Task { await search() } }
-            .onChange(of: query) { _, newValue in
-                if newValue.trimmingCharacters(in: .whitespaces).isEmpty { searchResults = nil }
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSample = true } label: {
@@ -55,6 +41,7 @@ struct DiscoverView: View {
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
             .navigationDestination(isPresented: $showSample) { SampleCatalogView() }
+            .navigationDestination(isPresented: $showSearch) { SearchView(tab: $tab) }
             .sheet(isPresented: $showRecipes) { RecipesHubView() }
             .sheet(isPresented: $showConverter) { GrindConverterView() }
             .task { if case .loading = phase { await load() } }
@@ -73,6 +60,23 @@ struct DiscoverView: View {
                     Text("وش نشرب اليوم؟").font(.subheadline).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal)
+
+                Button { showSearch = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                        Text("ابحث عن قهوة، محمصة، أصل…")
+                        Spacer()
+                        Image(systemName: "line.3.horizontal.decrease")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .frame(height: 46)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+                .accessibilityIdentifier("open-search")
 
                 quickActions
 
@@ -169,41 +173,12 @@ struct DiscoverView: View {
         }
     }
 
-    // MARK: Search
-
-    private var searchList: some View {
-        List {
-            if isSearching {
-                Section { HStack { Spacer(); ProgressView(); Spacer() } }
-            } else if let results = searchResults {
-                if results.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                } else {
-                    Section("النتائج") {
-                        ForEach(results) { lot in
-                            NavigationLink(value: lot.slug) { LiveLotRow(lot: lot) }
-                                .accessibilityIdentifier("live-lot-\(lot.slug)")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private func load() async {
         async let feed = try? client.fetchLots()
         async let fresh = try? client.fetchDiscoveries()
         let (lots, newest) = await (feed, fresh)
         phase = lots.map(Phase.loaded) ?? .failed
         discoveries = newest ?? []
-    }
-
-    private func search() async {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard q.count >= 2 else { return }
-        isSearching = true
-        defer { isSearching = false }
-        searchResults = (try? await client.searchLots(query: q)) ?? []
     }
 }
 

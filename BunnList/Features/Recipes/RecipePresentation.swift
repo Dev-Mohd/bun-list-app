@@ -12,6 +12,12 @@ extension AuthModel {
             return try await call(fresh)
         }
     }
+
+    /// Like `withToken`, but signed-out callers go without one.
+    func withOptionalToken<T>(_ call: (String?) async throws -> T) async throws -> T {
+        guard isSignedIn else { return try await call(nil) }
+        return try await withToken { try await call($0) }
+    }
 }
 
 /// Arabic labels and number formatting shared by the recipe screens.
