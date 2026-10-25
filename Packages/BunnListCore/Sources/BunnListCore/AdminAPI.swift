@@ -7,6 +7,8 @@ import Foundation
 public struct RemoteMe: Codable, Equatable, Sendable {
     public let isAdmin: Bool
     public let discoveries: Int
+    /// The account's public handle, without "@"; nil until chosen.
+    public let username: String?
 }
 
 public struct RemoteMySubmission: Codable, Equatable, Sendable, Identifiable {

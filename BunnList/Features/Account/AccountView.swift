@@ -14,6 +14,8 @@ struct AccountView: View {
     @State private var showRecipes = false
     @State private var serverItems: [RemoteCollectionItem] = []
     @State private var me: RemoteMe?
+    @State private var username: String?
+    @State private var showUsernameEditor = false
 
     private var counts: (owned: Int, tried: Int, favorite: Int, wants: Int) {
         if auth.isSignedIn {
@@ -30,7 +32,7 @@ struct AccountView: View {
         NavigationStack {
             List {
                 Section {
-                    ProfileHeader(isSignedIn: auth.isSignedIn)
+                    ProfileHeader(isSignedIn: auth.isSignedIn, username: username)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
@@ -106,6 +108,9 @@ struct AccountView: View {
                 }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showUsernameEditor) {
+                UsernameEditor(current: username) { username = $0 }.environmentObject(auth)
+            }
             .sheet(isPresented: $showRecipes) { RecipesHubView(startOn: auth.isSignedIn ? .mine : .explore) }
             .task { await loadServerCollection() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await loadServerCollection() } }
@@ -125,10 +130,20 @@ struct AccountView: View {
     @ViewBuilder
     private var accountStatusSection: some View {
         switch auth.state {
-        case .signedIn(let accountID):
+        case .signedIn:
             Section("الحساب") {
                 Label("مسجّل الدخول", systemImage: "checkmark.seal.fill").foregroundStyle(Brand.olive)
-                LabeledContent("المعرّف", value: String(accountID.prefix(12)) + "…")
+                Button { showUsernameEditor = true } label: {
+                    if let username {
+                        LabeledContent("اسم المستخدم") {
+                            Text("@\(username)").environment(\.layoutDirection, .leftToRight)
+                        }
+                    } else {
+                        Label("اختر اسم مستخدم", systemImage: "at.badge.plus").foregroundStyle(Brand.olive)
+                    }
+                }
+                .tint(.primary)
+                .accessibilityIdentifier("account-username")
                 Button("تسجيل الخروج") { auth.signOut() }
                 Button("حذف الحساب", role: .destructive) { confirmDelete = true }
                     .accessibilityIdentifier("account-delete")
@@ -147,8 +162,9 @@ struct AccountView: View {
     }
 
     private func loadServerCollection() async {
-        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; me = nil; return }
+        guard auth.isSignedIn, let token = auth.currentAccessToken() else { serverItems = []; me = nil; username = nil; return }
         me = try? await auth.withToken { try await CatalogAPIClient(transport: URLSessionTransport()).fetchMe(accessToken: $0) }
+        if let me { username = me.username }
         let client = CatalogAPIClient(transport: URLSessionTransport())
         do {
             serverItems = try await client.fetchCollection(accessToken: token)
@@ -165,6 +181,7 @@ struct AccountView: View {
 /// The profile header card: avatar + a status line.
 private struct ProfileHeader: View {
     let isSignedIn: Bool
+    var username: String?
 
     var body: some View {
         HStack(spacing: 14) {
@@ -173,7 +190,9 @@ private struct ProfileHeader: View {
                 .frame(width: 64, height: 64)
                 .overlay(Image(systemName: "person.fill").font(.title).foregroundStyle(Brand.olive))
             VStack(alignment: .leading, spacing: 4) {
-                Text(isSignedIn ? "حسابك" : "زائر").font(.title2.bold()).foregroundStyle(Brand.ink)
+                Text(isSignedIn ? (username.map { "@\($0)" } ?? "حسابك") : "زائر")
+                    .font(.title2.bold()).foregroundStyle(Brand.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                 Label(isSignedIn ? "مسجّل الدخول" : "استكشاف بدون حساب",
                       systemImage: isSignedIn ? "checkmark.seal.fill" : "person.crop.circle.badge.questionmark")
                     .font(.subheadline)
