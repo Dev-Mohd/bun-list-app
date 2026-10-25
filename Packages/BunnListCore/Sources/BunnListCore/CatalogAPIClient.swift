@@ -71,6 +71,8 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
     public let brewStats: [RemoteBrewStat]
     /// The account whose suggestion became this lot, while that account exists.
     public let discoveredBy: String?
+    /// Their @username, for opening their profile.
+    public let discoveredByUsername: String?
 }
 
 public struct CatalogAPIClient: Sendable {

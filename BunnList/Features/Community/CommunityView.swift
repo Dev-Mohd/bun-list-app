@@ -131,7 +131,12 @@ struct CommunityView: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(board.entries, id: \.self) { entry in
-                            LeaderboardRow(entry: entry)
+                            if let username = entry.username, !entry.isMe {
+                                NavigationLink { PublicProfileView(username: username) } label: { LeaderboardRow(entry: entry) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                LeaderboardRow(entry: entry)
+                            }
                             if entry != board.entries.last { Divider().padding(.leading, 64) }
                         }
                     }

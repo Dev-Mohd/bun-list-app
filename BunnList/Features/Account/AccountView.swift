@@ -323,6 +323,19 @@ private struct ProfileHeader: View {
                     count(summary?.experiences, "تجارب")
                 }
                 .padding(.top, 6)
+
+                if let username = me?.username, let summary, summary.followers != nil {
+                    HStack(spacing: 18) {
+                        followLink(summary.followers ?? 0, "متابِع", username: username, list: .followers)
+                        followLink(summary.following ?? 0, "يتابع", username: username, list: .following)
+                        NavigationLink { PublicProfileView(username: username) } label: {
+                            Label("ملفي العام", systemImage: "person.crop.circle")
+                        }
+                    }
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Brand.olive)
+                    .buttonStyle(.plain)
+                }
             } else {
                 Text("زائر").font(.title2.bold()).foregroundStyle(Brand.ink)
                 Label("استكشاف بدون حساب", systemImage: "person.crop.circle.badge.questionmark")
@@ -337,6 +350,12 @@ private struct ProfileHeader: View {
 
     private var divider: some View {
         Rectangle().fill(Color.secondary.opacity(0.2)).frame(width: 1, height: 28)
+    }
+
+    private func followLink(_ value: Int, _ label: String, username: String, list: FollowList) -> some View {
+        NavigationLink { FollowListView(username: username, list: list) } label: {
+            Text("\(value.formatted()) \(label)").monospacedDigit()
+        }
     }
 
     private func count(_ value: Int?, _ label: String) -> some View {

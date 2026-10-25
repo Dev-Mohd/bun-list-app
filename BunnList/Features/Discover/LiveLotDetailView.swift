@@ -155,9 +155,15 @@ struct LiveLotDetailView: View {
                     Text(lot.nameAr).font(.title2.bold())
                     Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
                     if let discoverer = lot.discoveredBy {
-                        Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")
+                        let label = Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")
                             .font(.subheadline).foregroundStyle(Brand.gold)
                             .accessibilityIdentifier("lot-discoverer")
+                        if let username = lot.discoveredByUsername {
+                            NavigationLink { PublicProfileView(username: username) } label: { label }
+                                .buttonStyle(.plain)
+                        } else {
+                            label
+                        }
                     }
                     if lot.reviewCount > 0 {
                         Label("\(lot.averageRating.formatted(.number.precision(.fractionLength(1)))) · \(lot.reviewCount) تقييم",

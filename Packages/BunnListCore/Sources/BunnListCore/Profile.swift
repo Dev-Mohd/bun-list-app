@@ -102,6 +102,9 @@ public struct RemoteProfileSummary: Codable, Equatable, Sendable {
     public let recipes: Int
     public let experiences: Int
     public let ratings: Int
+    /// Missing from older servers.
+    public let followers: Int?
+    public let following: Int?
     public let taste: Taste
 }
 
