@@ -34,7 +34,10 @@ public struct RemotePerson: Codable, Equatable, Sendable, Hashable, Identifiable
     public let avatarUrl: String?
 }
 
-public enum FollowList: String, Sendable { case followers, following }
+public enum FollowList: String, Sendable, Identifiable {
+    case followers, following
+    public var id: String { rawValue }
+}
 
 /// Who may see a part of your public profile.
 public enum Visibility: String, Codable, CaseIterable, Sendable {

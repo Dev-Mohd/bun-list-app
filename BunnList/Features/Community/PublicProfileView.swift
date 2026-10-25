@@ -196,10 +196,6 @@ struct PublicProfileView: View {
     }
 }
 
-extension FollowList: Identifiable {
-    public var id: String { rawValue }
-}
-
 /// Followers or following of one account; each row opens that person's profile.
 struct FollowListView: View {
     let username: String
