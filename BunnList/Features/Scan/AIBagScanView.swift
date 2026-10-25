@@ -45,6 +45,7 @@ struct AIBagScanView: View {
                 case let .failed(message): failedView(message)
                 }
             }
+            .brandScreen()
             .navigationTitle(embedded ? "مسح" : "امسح الكيس")
             .navigationBarTitleDisplayMode(embedded ? .large : .inline)
             .background(Brand.background.ignoresSafeArea())

@@ -44,6 +44,7 @@ struct CommunityView: View {
                 .padding(.vertical)
             }
             .background(Brand.background.ignoresSafeArea())
+            .brandScreen()
             .navigationTitle("المجتمع")
             .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
             .refreshable { await load() }
@@ -234,6 +235,7 @@ struct PointRulesView: View {
                     Text("السلسلة تزيد يوم كل ما سويت نشاط واحد على الأقل (بتوقيت السعودية). لو حذفت شي، تنسحب نقاطه. ما تبي تطلع في المتصدرين؟ من الإعدادات.")
                 }
             }
+            .brandScreen()
             .navigationTitle("كيف أجمع النقاط؟")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }

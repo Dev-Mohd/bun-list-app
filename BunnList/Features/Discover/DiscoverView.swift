@@ -31,6 +31,7 @@ struct DiscoverView: View {
         NavigationStack {
             home
             .background(Brand.background.ignoresSafeArea())
+            .brandScreen()
             .navigationTitle("اكتشف")
             .toolbar {
                 // The on-device demo catalog is for UI tests only.
@@ -396,6 +397,7 @@ struct GrindConverterView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            .brandScreen()
             .navigationTitle("محوّل الطحن")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }

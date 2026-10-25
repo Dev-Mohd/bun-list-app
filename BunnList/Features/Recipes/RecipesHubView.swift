@@ -87,7 +87,7 @@ struct RecipesHubView: View {
                     Text("كل باريستا له توقيعه — اكتب أول وصفة لك.")
                 } actions: {
                     Button("أنشئ وصفتك الأولى") { startNew() }
-                        .buttonStyle(.borderedProminent).tint(.black)
+                        .buttonStyle(.borderedProminent).tint(Brand.ink)
                 }
             } else {
                 List(mine) { recipe in

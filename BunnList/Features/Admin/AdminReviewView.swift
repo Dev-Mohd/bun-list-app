@@ -42,6 +42,7 @@ struct AdminReviewView: View {
                 HStack { Spacer(); ProgressView(); Spacer() }
             }
         }
+        .brandScreen()
         .navigationTitle("مراجعة الاقتراحات")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: status) { await load() }
@@ -193,6 +194,7 @@ struct AdminSubmissionDetailView: View {
                 Section("سبب الرفض") { Text(reason) }
             }
         }
+        .brandScreen()
         .navigationTitle(submission.name)
         .navigationBarTitleDisplayMode(.inline)
         .disabled(isBusy)

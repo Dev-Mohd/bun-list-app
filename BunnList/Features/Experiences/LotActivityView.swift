@@ -50,6 +50,7 @@ struct LotActivityView: View {
                 Text("وصفاتي لهذا المحصول")
             }
         }
+        .brandScreen()
         .navigationTitle("التجارب والوصفات")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $addingExperience) { ExperienceEditor(lotID: lotID) }

@@ -17,6 +17,7 @@ struct SampleCatalogView: View {
                 ProgressView()
             }
         }
+        .brandScreen()
         .navigationTitle("الدليل التجريبي")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "الاسم أو المحمصة أو المنشأ أو النكهة")

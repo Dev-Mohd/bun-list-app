@@ -59,6 +59,7 @@ struct ReviewFormView: View {
                     Section { Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout) }
                 }
             }
+            .brandScreen()
             .navigationTitle(existing == nil ? "إضافة تقييم" : "تعديل تقييمك")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

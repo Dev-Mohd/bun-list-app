@@ -62,6 +62,7 @@ struct LiveLotDetailView: View {
                 detail(lot)
             }
         }
+        .brandScreen()
         .navigationTitle("المحصول")
         .navigationBarTitleDisplayMode(.inline)
         .task {

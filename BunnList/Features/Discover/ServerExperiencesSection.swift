@@ -258,6 +258,7 @@ private struct ServerExperienceEditor: View {
                     Section { Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout) }
                 }
             }
+            .brandScreen()
             .navigationTitle(draft.existingState == nil ? "تجربة تحضير" : "تعديل التجربة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

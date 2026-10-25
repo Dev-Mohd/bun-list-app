@@ -8,6 +8,8 @@ struct BunnListApp: App {
     @StateObject private var auth = AuthModel.live()
     @StateObject private var profile = ProfileStore()
 
+    init() { BrandAppearance.configure() }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -16,6 +18,7 @@ struct BunnListApp: App {
                 .environmentObject(profile)
                 .environment(\.layoutDirection, .rightToLeft)
                 .tint(Brand.olive)
+                .fontDesign(.rounded)
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }
         }
     }

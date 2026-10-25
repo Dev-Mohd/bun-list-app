@@ -35,6 +35,7 @@ struct ExperienceEditor: View {
                     }
                 }
             }
+            .brandScreen()
             .navigationTitle("تجربة تحضير")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

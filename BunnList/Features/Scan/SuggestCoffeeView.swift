@@ -117,6 +117,7 @@ struct SuggestCoffeeView: View {
                     .accessibilityIdentifier("suggest-submit")
             }
         }
+        .brandScreen()
         .navigationTitle("اقترح قهوة")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } } }

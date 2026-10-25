@@ -40,6 +40,7 @@ struct MyCollectionView: View {
                 }
             }
         }
+        .brandScreen()
         .navigationTitle("مجموعتي")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

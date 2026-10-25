@@ -64,6 +64,7 @@ struct LiveCatalogView: View {
                     }
                 }
             }
+            .brandScreen()
             .navigationTitle("محاصيل مباشرة")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }

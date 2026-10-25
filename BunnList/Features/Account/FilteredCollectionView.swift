@@ -37,6 +37,7 @@ struct FilteredCollectionView: View {
             }
         }
         .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
         .navigationTitle(filter.title)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

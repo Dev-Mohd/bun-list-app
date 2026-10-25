@@ -41,6 +41,7 @@ struct AddCoffeeSearchView: View {
                     }
                 }
             }
+            .brandScreen()
             .navigationTitle("أضف قهوة")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "ابحث بالاسم أو المحمصة")

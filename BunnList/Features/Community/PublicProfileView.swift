@@ -35,6 +35,7 @@ struct PublicProfileView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
         .navigationTitle("@\(username)")
         .navigationBarTitleDisplayMode(.inline)
         .task { if profile == nil { await load() } }
@@ -229,6 +230,7 @@ struct FollowListView: View {
                 ProgressView()
             }
         }
+        .brandScreen()
         .navigationTitle(list == .followers ? "المتابِعون" : "يتابع")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -39,6 +39,7 @@ struct JourneysView: View {
                 }
                 .padding()
             }
+            .brandScreen()
             .navigationTitle("رحلتك")
             .task { await load() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }

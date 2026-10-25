@@ -31,6 +31,7 @@ struct MySubmissionsView: View {
                 HStack { Spacer(); ProgressView(); Spacer() }
             }
         }
+        .brandScreen()
         .navigationTitle("اقتراحاتي")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }

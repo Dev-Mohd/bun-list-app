@@ -45,6 +45,7 @@ struct ProductDetailView: View {
                     Text("كل موسم محصول مستقل. اختر «الموسم غير معروف» إذا لم يذكر الكيس الموسم؛ لن نخمّنه.")
                 }
             }
+            .brandScreen()
             .navigationTitle(product.nameAr)
             .navigationBarTitleDisplayMode(.inline)
             .bagDecisionDialog($pendingBag)
@@ -180,6 +181,7 @@ struct SeasonAssignmentSheet: View {
                     .labelsHidden()
                 }
             }
+            .brandScreen()
             .navigationTitle("حدّد موسم سجلي")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

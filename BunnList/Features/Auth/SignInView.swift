@@ -28,6 +28,7 @@ struct SignInView: View {
                     }
                 }
             }
+            .brandScreen()
             .navigationTitle("تسجيل الدخول")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } } }

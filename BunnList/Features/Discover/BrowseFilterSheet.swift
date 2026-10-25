@@ -68,6 +68,7 @@ struct BrowseFilterSheet: View {
                 .background(.bar)
                 .accessibilityIdentifier("filters-apply")
             }
+            .brandScreen()
             .navigationTitle("فلترة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -110,6 +111,7 @@ struct BrowseFilterSheet: View {
                     }
                 }
             }
+            .brandScreen()
             .navigationTitle("النكهات")
         } label: {
             rowLabel("النكهات", summary: draft.flavors.isEmpty ? "الكل" : draft.flavors.map(\.nameAr).sorted().joined(separator: "، "))
@@ -184,6 +186,7 @@ private struct FacetPicker: View {
                 }
             }
         }
+        .brandScreen()
         .navigationTitle(title)
         .searchable(text: $query, prompt: "ابحث")
     }

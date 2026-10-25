@@ -38,6 +38,7 @@ struct AccountView: View {
                 .padding(.vertical)
             }
             .background(Brand.background.ignoresSafeArea())
+            .brandScreen()
             .navigationTitle("ملفي")
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(for: CollectionSlice.self) { FilteredCollectionView(filter: $0) }

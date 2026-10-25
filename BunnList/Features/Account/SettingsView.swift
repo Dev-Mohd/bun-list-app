@@ -66,6 +66,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .brandScreen()
             .navigationTitle("الإعدادات")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }

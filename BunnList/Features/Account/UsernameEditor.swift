@@ -51,6 +51,7 @@ struct UsernameEditor: View {
                     Section { Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
                 }
             }
+            .brandScreen()
             .navigationTitle(current == nil ? "اختر اسم مستخدم" : "تغيير اسم المستخدم")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

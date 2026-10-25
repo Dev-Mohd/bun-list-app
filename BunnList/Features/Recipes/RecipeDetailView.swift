@@ -155,6 +155,7 @@ struct RecipeDetailView: View {
             .padding()
         }
         .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
         .navigationTitle(recipe.title.isEmpty ? "وصفة" : recipe.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -65,3 +65,64 @@ struct CardBackground: ViewModifier {
 extension View {
     func card() -> some View { modifier(CardBackground()) }
 }
+
+// MARK: App-wide look
+
+/// The brand applied to UIKit-backed chrome every screen shares: navigation bars
+/// (cream, ink titles), the tab bar (olive selection), segmented controls,
+/// switches, and the default tint for alerts and system buttons.
+enum BrandAppearance {
+    static func configure() {
+        let background = UIColor(named: "Background") ?? .systemBackground
+        let ink = UIColor(named: "Ink") ?? .label
+        let olive = UIColor(named: "Olive") ?? .systemGreen
+
+        func rounded(_ style: UIFont.TextStyle, _ weight: UIFont.Weight) -> UIFont {
+            let base = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: style).pointSize, weight: weight)
+            return base.fontDescriptor.withDesign(.rounded).map { UIFont(descriptor: $0, size: base.pointSize) } ?? base
+        }
+
+        let nav = UINavigationBarAppearance()
+        nav.configureWithOpaqueBackground()
+        nav.backgroundColor = background
+        nav.shadowColor = .clear
+        nav.titleTextAttributes = [.foregroundColor: ink, .font: rounded(.headline, .bold)]
+        nav.largeTitleTextAttributes = [.foregroundColor: ink, .font: rounded(.largeTitle, .heavy)]
+        UINavigationBar.appearance().standardAppearance = nav
+        UINavigationBar.appearance().compactAppearance = nav
+        UINavigationBar.appearance().scrollEdgeAppearance = nav
+        UINavigationBar.appearance().tintColor = olive
+
+        let tab = UITabBarAppearance()
+        tab.configureWithOpaqueBackground()
+        tab.backgroundColor = background
+        for item in [tab.stackedLayoutAppearance, tab.inlineLayoutAppearance, tab.compactInlineLayoutAppearance] {
+            item.selected.iconColor = olive
+            item.selected.titleTextAttributes = [.foregroundColor: olive]
+            item.normal.iconColor = .secondaryLabel
+            item.normal.titleTextAttributes = [.foregroundColor: UIColor.secondaryLabel]
+        }
+        UITabBar.appearance().standardAppearance = tab
+        UITabBar.appearance().scrollEdgeAppearance = tab
+
+        UISegmentedControl.appearance().selectedSegmentTintColor = olive
+        UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: ink], for: .normal)
+        UISwitch.appearance().onTintColor = olive
+        UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = olive
+    }
+}
+
+/// A screen on the brand's cream ground. Lists and forms drop their gray system
+/// background so their white rows sit on cream like the rest of the app.
+struct BrandScreen: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background(Brand.background.ignoresSafeArea())
+    }
+}
+
+extension View {
+    func brandScreen() -> some View { modifier(BrandScreen()) }
+}

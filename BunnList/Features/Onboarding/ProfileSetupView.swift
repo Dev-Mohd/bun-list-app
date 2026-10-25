@@ -136,6 +136,7 @@ struct ProfileSetupView: View {
             .padding(.horizontal).padding(.vertical, 10)
             .background(.bar)
         }
+        .brandScreen()
         .navigationTitle(mode == .firstRun ? "" : "عدّل ملفك")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

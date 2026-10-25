@@ -68,6 +68,7 @@ struct ServerRecipeEditor: View {
             }
             .background(Brand.background.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) { saveBar }
+            .brandScreen()
             .navigationTitle(isNew ? "إنشاء وصفة" : "تعديل الوصفة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -218,7 +219,7 @@ struct ServerRecipeEditor: View {
                     .font(.headline.monospaced())
             }
             Slider(value: ratioBinding, in: ratioRange, step: 0.1)
-                .tint(.black)
+                .tint(Brand.ink)
                 .accessibilityLabel("النسبة")
                 .accessibilityValue(RecipeText.ratio(draft.ratio))
             HStack {
@@ -402,7 +403,7 @@ struct ServerRecipeEditor: View {
         let target = draft.hotWaterGrams ?? 0
         return card("الخطوات", trailing: draft.totalSeconds > 0 ? RecipeText.duration(draft.totalSeconds) : nil) {
             if !draft.isEspresso && target > 0 {
-                ProgressView(value: min(cumulative.last ?? 0, target), total: target).tint(.black)
+                ProgressView(value: min(cumulative.last ?? 0, target), total: target).tint(Brand.ink)
                 HStack {
                     Text("الماء التراكمي").font(.caption).foregroundStyle(.secondary)
                     Spacer()
@@ -554,6 +555,7 @@ struct ServerRecipeEditor: View {
                     .buttonStyle(.plain)
                 }
             }
+            .brandScreen()
             .navigationTitle("اختر قهوة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { showCoffeePicker = false } } }
@@ -827,6 +829,7 @@ private struct StepEditor: View {
                     Button("حذف الخطوة", role: .destructive) { onDone(nil); dismiss() }
                 }
             }
+            .brandScreen()
             .navigationTitle("الخطوة \(number.formatted())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

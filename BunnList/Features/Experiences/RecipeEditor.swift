@@ -71,6 +71,7 @@ struct RecipeEditor: View {
                     } header: { Text("لا يمكن النشر بعد") }
                 }
             }
+            .brandScreen()
             .navigationTitle(existing == nil ? "وصفة جديدة" : "تعديل وصفة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
