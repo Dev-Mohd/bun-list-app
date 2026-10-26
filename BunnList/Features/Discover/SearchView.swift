@@ -201,26 +201,21 @@ extension FlavorFamily {
     var color: Color { Color(red: rgb.red, green: rgb.green, blue: rgb.blue) }
 }
 
-/// A coffee in the search grid: the bag (or its drawn card), name, roaster, rating.
+/// A coffee in the search grid: the bag on its flavor's wash (or its drawn card),
+/// name, roaster, then flag, process and first notes, and the rating.
 struct LotGridCard: View {
     let lot: RemoteLot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack {
-                Color(white: 0.97)
-                if let url = lot.imageUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(8) } placeholder: { ProgressView() }
-                } else {
-                    CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr, originCode: lot.originCode)
-                }
-            }
+            LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
+                         origin: lot.originNameAr, originCode: lot.originCode)
             .aspectRatio(1, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             Text(lot.nameAr).font(.subheadline.bold()).lineLimit(1)
             Text(lot.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             HStack(spacing: 4) {
-                if let origin = lot.originNameAr { Text(origin).lineLimit(1) }
+                Text(lot.cardLine.isEmpty ? (lot.originNameAr ?? "") : lot.cardLine).lineLimit(1)
                 Spacer(minLength: 0)
                 if lot.reviewCount > 0 {
                     Label(lot.averageRating.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")

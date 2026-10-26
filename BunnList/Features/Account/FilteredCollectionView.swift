@@ -73,14 +73,8 @@ private struct CollectionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack {
-                Brand.gold.opacity(0.12)
-                if let url = item.imageUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(8) } placeholder: { ProgressView() }
-                } else {
-                    CoffeeArtCard(roaster: item.roasterNameAr, name: item.nameAr, origin: item.originNameAr, originCode: item.originCode)
-                }
-            }
+            LotPhotoWell(imageUrl: item.imageUrl, notes: [], roaster: item.roasterNameAr, name: item.nameAr,
+                         origin: item.originNameAr, originCode: item.originCode)
             .frame(height: 110)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             Text(item.nameAr).font(.subheadline.bold()).lineLimit(1)

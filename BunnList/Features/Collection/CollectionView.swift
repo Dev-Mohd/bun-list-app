@@ -132,14 +132,8 @@ private struct CollectionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack {
-                Color(white: 0.97)
-                if let url = item.imageUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(8) } placeholder: { ProgressView() }
-                } else {
-                    CoffeeArtCard(roaster: item.roasterNameAr, name: item.nameAr, origin: item.originNameAr, originCode: item.originCode)
-                }
-            }
+            LotPhotoWell(imageUrl: item.imageUrl, notes: [], roaster: item.roasterNameAr, name: item.nameAr,
+                         origin: item.originNameAr, originCode: item.originCode)
             .aspectRatio(1, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             Text(item.nameAr).font(.subheadline.bold()).lineLimit(1)

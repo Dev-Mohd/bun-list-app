@@ -332,14 +332,8 @@ private struct DiscoveryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack {
-                Color(white: 0.97)
-                if let url = lot.imageUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(8) } placeholder: { ProgressView() }
-                } else {
-                    CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr, originCode: lot.originCode)
-                }
-            }
+            LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
+                         origin: lot.originNameAr, originCode: lot.originCode)
             .frame(width: 150, height: 150)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             Text(lot.nameAr).font(.subheadline.bold()).lineLimit(1)
@@ -347,8 +341,8 @@ private struct DiscoveryCard: View {
             if let by = lot.discoveredBy {
                 Label("اكتشفها \(by)", systemImage: "star.circle.fill")
                     .font(.caption2).foregroundStyle(Brand.gold).lineLimit(1)
-            } else if let origin = lot.originNameAr {
-                Label(origin, systemImage: "globe").font(.caption2).foregroundStyle(Brand.olive).lineLimit(1)
+            } else if !lot.cardLine.isEmpty {
+                Text(lot.cardLine).font(.caption2).foregroundStyle(Brand.olive).lineLimit(1)
             }
         }
         .frame(width: 150)

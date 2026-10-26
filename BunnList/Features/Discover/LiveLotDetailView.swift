@@ -310,18 +310,10 @@ struct LiveLotDetailView: View {
     }
 
     private func hero(_ lot: RemoteLotDetail) -> some View {
-        Group {
-            if let urlString = lot.imageUrl, let url = URL(string: urlString) {
-                // The whole bag, never cropped, on the same light ground as the cut-outs.
-                ZStack {
-                    Color(white: 0.97)
-                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(12) } placeholder: { ProgressView() }
-                }
-            } else {
-                CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr, originCode: lot.originCode)
-            }
-        }
-        .frame(height: 260)
+        // The whole bag, never cropped, on its main flavor's wash.
+        LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
+                     origin: lot.originNameAr, originCode: lot.originCode, padding: 10)
+        .frame(height: 300)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
