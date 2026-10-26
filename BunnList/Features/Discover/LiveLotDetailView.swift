@@ -41,6 +41,7 @@ struct LiveLotDetailView: View {
     /// "مفيد" changes made here, by review id.
     @State private var helpful: [String: RemoteLikeState] = [:]
     @State private var showRecipes = false
+    @State private var showShareCard = false
 
     init(slug: String) {
         self.slug = slug
@@ -253,15 +254,15 @@ struct LiveLotDetailView: View {
                     }
                     .accessibilityLabel(flags.favorite ? "إزالة من المفضلة" : "أضف للمفضلة")
                 }
-                ShareLink(item: ServerConfig.baseURL.appendingPathComponent("coffees").appendingPathComponent(lot.slug),
-                          subject: Text(lot.nameAr),
-                          message: Text("\(lot.nameAr) من \(lot.roasterNameAr) على بن لست")) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .accessibilityLabel("مشاركة")
+                Button { showShareCard = true } label: { Image(systemName: "square.and.arrow.up") }
+                    .accessibilityLabel("مشاركة")
+                    .accessibilityIdentifier("lot-share")
             }
         }
         .tint(Brand.olive)
+        .sheet(isPresented: $showShareCard) {
+            ShareCardSheet(lot: lot, myRating: myReview?.rating).environmentObject(auth)
+        }
         .sheet(isPresented: $showRecipes) {
             RecipesHubView(lot: RemoteRecipeLot(slug: lot.slug, nameAr: lot.nameAr, roasterNameAr: lot.roasterNameAr),
                            startOn: .explore)
