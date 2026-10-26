@@ -83,6 +83,8 @@ public struct RemoteImportResult: Codable, Equatable, Sendable {
     public let created: Int
     public let alreadyImported: Int
     public let alreadyInCatalog: Int
+    /// Product photos uploaded; missing from older servers.
+    public let photos: Int?
 }
 
 /// What the admin confirms to publish a lot. Pre-filled from the suggestion. The

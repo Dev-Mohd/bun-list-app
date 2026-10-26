@@ -61,7 +61,7 @@ struct AdminReviewView: View {
         .confirmationDialog("استيراد دفعة المحامص؟", isPresented: $confirmImport, titleVisibility: .visible) {
             Button("استيراد") { Task { await runImport() } }
         } message: {
-            Text("تنضاف ١١٠ قهوة من ٢١ محمصة كاقتراحات بانتظار مراجعتك. ما ينشر شي قبل ما تقبله، واللي موجود قبل ما يتكرر.")
+            Text("تنضاف ١١٧ قهوة من ٢١ محمصة (مع صور أكياس بلاك نايت) كاقتراحات بانتظار مراجعتك. ما ينشر شي قبل ما تقبله، واللي موجود قبل ما يتكرر.")
         }
     }
 
@@ -69,6 +69,7 @@ struct AdminReviewView: View {
         do {
             let result = try await auth.withToken { try await client.importBatch("roasteries-2026-05", accessToken: $0) }
             importMessage = "انضاف \(result.created) • موجود قبل \(result.alreadyImported) • في الدليل \(result.alreadyInCatalog)"
+                + (result.photos.map { " • صور \($0)" } ?? "")
             status = "PENDING"
             await load()
         } catch {
