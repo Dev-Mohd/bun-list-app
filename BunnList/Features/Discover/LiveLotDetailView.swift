@@ -180,6 +180,11 @@ struct LiveLotDetailView: View {
 
                 TasteFingerprintCard(notes: lot.flavorNotes, origin: lot.originNameAr, process: lot.processNameAr)
 
+                if auth.isSignedIn {
+                    TasteMatchCard(slug: lot.slug)
+                        .id(myReview?.rating) // reloads after rating it
+                }
+
                 RatingCard(average: lot.averageRating, count: lot.reviewCount, myRating: myReview?.rating,
                            isSignedIn: auth.isSignedIn) { showReviewForm = true }
 

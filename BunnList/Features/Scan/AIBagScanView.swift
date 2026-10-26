@@ -253,6 +253,16 @@ struct AIBagScanView: View {
                     }
                 }
 
+                if let best = result.matches.first {
+                    Section {
+                        TasteMatchCard(slug: best.slug, compact: true)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                            .listRowBackground(Color.clear)
+                    } header: {
+                        Text("لك أنت")
+                    }
+                }
+
                 Section(result.matches.isEmpty ? "ما لقيناها في الدليل" : "هل هي وحدة من هذي؟") {
                     ForEach(result.matches) { lot in
                         NavigationLink(value: lot.slug) { LiveLotRow(lot: lot) }

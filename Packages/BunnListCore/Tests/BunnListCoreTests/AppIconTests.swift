@@ -42,3 +42,13 @@ final class ProcessTextTests: XCTestCase {
         XCTAssertNil(ProcessText.name(label: "", code: "OTHER"))
     }
 }
+
+final class TasteMatchTests: XCTestCase {
+    func testDecodeAndVerdict() throws {
+        let json = #"{"score":87,"ratedCount":6,"needed":0,"reasons":[{"positive":true,"text":"تحب الخوخ والمشمش"}],"myRating":null}"#
+        let m = try JSONDecoder().decode(RemoteTasteMatch.self, from: Data(json.utf8))
+        XCTAssertEqual(m.verdictAr, "على ذوقك تمامًا")
+        let pending = try JSONDecoder().decode(RemoteTasteMatch.self, from: Data(#"{"score":null,"ratedCount":1,"needed":2,"reasons":[],"myRating":null}"#.utf8))
+        XCTAssertNil(pending.verdictAr)
+    }
+}
