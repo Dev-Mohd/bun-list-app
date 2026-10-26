@@ -8,19 +8,23 @@ public struct RemoteNotificationSettings: Codable, Equatable, Sendable {
     public var reviewHelpful: Bool
     public var recipeLiked: Bool
     public var weeklySummary: Bool
+    /// News from the BunnList team.
+    public var announcements: Bool
 
     public init(newFollower: Bool = true, submissionApproved: Bool = true, submissionRejected: Bool = true,
-                reviewHelpful: Bool = true, recipeLiked: Bool = true, weeklySummary: Bool = true) {
+                reviewHelpful: Bool = true, recipeLiked: Bool = true, weeklySummary: Bool = true,
+                announcements: Bool = true) {
         self.newFollower = newFollower
         self.submissionApproved = submissionApproved
         self.submissionRejected = submissionRejected
         self.reviewHelpful = reviewHelpful
         self.recipeLiked = recipeLiked
         self.weeklySummary = weeklySummary
+        self.announcements = announcements
     }
 
     private enum CodingKeys: String, CodingKey {
-        case newFollower, submissionApproved, submissionRejected, reviewHelpful, recipeLiked, weeklySummary
+        case newFollower, submissionApproved, submissionRejected, reviewHelpful, recipeLiked, weeklySummary, announcements
     }
 
     /// Kinds an older server doesn't send count as on.
@@ -29,7 +33,8 @@ public struct RemoteNotificationSettings: Codable, Equatable, Sendable {
         func flag(_ key: CodingKeys) throws -> Bool { try c.decodeIfPresent(Bool.self, forKey: key) ?? true }
         self.init(newFollower: try flag(.newFollower), submissionApproved: try flag(.submissionApproved),
                   submissionRejected: try flag(.submissionRejected), reviewHelpful: try flag(.reviewHelpful),
-                  recipeLiked: try flag(.recipeLiked), weeklySummary: try flag(.weeklySummary))
+                  recipeLiked: try flag(.recipeLiked), weeklySummary: try flag(.weeklySummary),
+                  announcements: try flag(.announcements))
     }
 }
 

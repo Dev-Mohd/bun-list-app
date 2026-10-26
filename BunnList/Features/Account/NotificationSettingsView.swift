@@ -60,6 +60,7 @@ struct NotificationSettingsView: View {
             if auth.isSignedIn {
                 Section("ملخصات") {
                     toggle("الملخص الأسبوعي", "كل جمعة العصر: نقاطك ونشاطك في الأسبوع", icon: "chart.bar.fill", \.weeklySummary)
+                    toggle("أخبار التطبيق", "قهوات ومحامص جديدة ومزايا من فريق التطبيق", icon: "megaphone.fill", \.announcements)
                 }
             }
 

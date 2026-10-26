@@ -141,6 +141,12 @@ struct AdminConsoleView: View {
             NavigationLink { AdminReportsView() } label: {
                 row("البلاغات", detail: "التقييمات والوصفات والحسابات", icon: "flag.fill", count: overview?.openReports)
             }
+            NavigationLink { AdminUsersView() } label: {
+                row("المستخدمين", detail: "البحث، الإيقاف، صلاحية الأدمن", icon: "person.2.fill", count: nil)
+            }
+            NavigationLink { AdminBroadcastView() } label: {
+                row("إرسال إشعار", detail: "للكل أو للنشطين، مع تجربة على جوالك", icon: "megaphone.fill", count: nil)
+            }
         }
         .buttonStyle(.plain)
     }
