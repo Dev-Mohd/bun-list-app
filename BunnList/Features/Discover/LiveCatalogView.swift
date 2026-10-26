@@ -94,7 +94,7 @@ struct LiveLotRow: View {
                 Text(lot.roasterNameAr).font(.subheadline).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
                     if let origin = lot.originNameAr { Label(origin, systemImage: "globe").labelStyle(.titleAndIcon) }
-                    if let process = lot.processLabel { Text("· \(process)") }
+                    if let process = lot.processNameAr { Text("· \(process)") }
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 if lot.reviewCount > 0 {

@@ -178,7 +178,7 @@ struct LiveLotDetailView: View {
                     }
                 }
 
-                TasteFingerprintCard(notes: lot.flavorNotes, origin: lot.originNameAr, process: lot.processLabel)
+                TasteFingerprintCard(notes: lot.flavorNotes, origin: lot.originNameAr, process: lot.processNameAr)
 
                 RatingCard(average: lot.averageRating, count: lot.reviewCount, myRating: myReview?.rating,
                            isSignedIn: auth.isSignedIn) { showReviewForm = true }
@@ -324,7 +324,7 @@ struct LiveLotDetailView: View {
         VStack(spacing: 8) {
             if let origin = lot.originNameAr { factRow("المنشأ", origin) }
             if let region = lot.regionAr, !region.isEmpty { factRow("المنطقة", region) }
-            if let process = lot.processLabel, !process.isEmpty { factRow("المعالجة", process) }
+            if let process = lot.processNameAr { factRow("المعالجة", process) }
             if let variety = lot.variety, !variety.isEmpty { factRow("الصنف", variety) }
         }
     }

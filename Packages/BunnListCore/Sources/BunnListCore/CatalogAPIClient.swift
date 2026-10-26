@@ -412,3 +412,20 @@ public struct RemoteExperience: Codable, Equatable, Sendable, Identifiable {
         return f.date(from: brewedAt) ?? ISO8601DateFormatter().date(from: brewedAt)
     }
 }
+
+extension RemoteLot {
+    /// The process in Arabic: the lot's own label, else the name of its code ("OTHER" shows nothing).
+    public var processNameAr: String? { ProcessText.name(label: processLabel, code: process) }
+}
+
+extension RemoteLotDetail {
+    public var processNameAr: String? { ProcessText.name(label: processLabel, code: process) }
+}
+
+enum ProcessText {
+    static func name(label: String?, code: String) -> String? {
+        if let label = label?.trimmingCharacters(in: .whitespaces), !label.isEmpty { return label }
+        guard code != "OTHER" else { return nil }
+        return ReferenceCodes.process(code)?.nameAr
+    }
+}

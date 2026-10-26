@@ -34,3 +34,11 @@ final class BlendOriginTests: XCTestCase {
         XCTAssertEqual(Set(ReferenceCodes.countries.map(\.code)).count, ReferenceCodes.countries.count)
     }
 }
+
+final class ProcessTextTests: XCTestCase {
+    func testFallsBackToCode() {
+        XCTAssertEqual(ProcessText.name(label: nil, code: "ANAEROBIC"), "لاهوائية")
+        XCTAssertEqual(ProcessText.name(label: " مجففة طبيعيًا ", code: "NATURAL"), "مجففة طبيعيًا")
+        XCTAssertNil(ProcessText.name(label: "", code: "OTHER"))
+    }
+}
