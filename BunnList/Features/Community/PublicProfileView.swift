@@ -14,6 +14,7 @@ struct PublicProfileView: View {
     @State private var isBusy = false
     @State private var list: FollowList?
     @State private var showSignIn = false
+    @State private var reporting: ReportRef?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -38,6 +39,19 @@ struct PublicProfileView: View {
         .brandScreen()
         .navigationTitle("@\(username)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if auth.isSignedIn, let p = profile, !p.isMe {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(role: .destructive) { reporting = ReportRef(target: .profile, targetID: p.username) } label: {
+                            Label("بلّغ عن الحساب", systemImage: "flag")
+                        }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                    .accessibilityLabel("خيارات الحساب")
+                }
+            }
+        }
+        .sheet(item: $reporting) { ReportSheet(ref: $0) }
         .task { if profile == nil { await load() } }
         .refreshable { await load() }
         .sheet(item: $list) { which in

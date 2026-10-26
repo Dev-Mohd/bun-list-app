@@ -98,8 +98,8 @@ struct AccountView: View {
                 }
                 .accessibilityIdentifier("open-my-submissions")
                 if me?.isAdmin == true {
-                    NavigationLink { AdminReviewView() } label: {
-                        ShortcutTile(icon: "checkmark.shield.fill", color: Brand.ink, title: "المراجعة", count: nil)
+                    NavigationLink { AdminConsoleView() } label: {
+                        ShortcutTile(icon: "gauge.with.dots.needle.67percent", color: Brand.ink, title: "لوحة التحكم", count: nil)
                     }
                     .accessibilityIdentifier("open-admin-review")
                 }

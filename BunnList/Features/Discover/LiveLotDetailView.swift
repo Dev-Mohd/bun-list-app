@@ -36,6 +36,7 @@ struct LiveLotDetailView: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var myReview: RemoteMyReview?
     @State private var showReviewForm = false
+    @State private var reporting: ReportRef?
     @State private var flags = RemoteCollectionFlags(owned: false, favorite: false, wantsToTry: false, tried: false)
     @State private var reviews: [RemoteReview] = []
     /// "مفيد" changes made here, by review id.
@@ -195,7 +196,8 @@ struct LiveLotDetailView: View {
                     section("كل النكهات") { chips(lot.flavorNotes) }
                 }
                 if let discoverer = lot.discoverer {
-                    DiscovererCard(discoverer: discoverer)
+                    DiscovererCard(discoverer: discoverer, onReport: auth.isSignedIn && discoverer.note?.isEmpty == false
+                        ? { reporting = ReportRef(target: .note, targetID: lot.id) } : nil)
                 }
                 if let description = lot.descriptionAr, !description.isEmpty {
                     section("الوصف") { Text(description).font(.body).foregroundStyle(.secondary) }
@@ -233,7 +235,9 @@ struct LiveLotDetailView: View {
                                     review: review,
                                     helpful: helpful[review.id]
                                         ?? RemoteLikeState(count: review.helpfulCount ?? 0, liked: review.markedHelpful ?? false),
-                                    canMark: auth.isSignedIn && review.isMine != true && review.helpfulCount != nil
+                                    canMark: auth.isSignedIn && review.isMine != true && review.helpfulCount != nil,
+                                    onReport: auth.isSignedIn && review.isMine != true
+                                        ? { reporting = ReportRef(target: .review, targetID: review.id) } : nil
                                 ) { Task { await toggleHelpful(review) } }
                             }
                         }
@@ -260,6 +264,7 @@ struct LiveLotDetailView: View {
             }
         }
         .tint(Brand.olive)
+        .sheet(item: $reporting) { ReportSheet(ref: $0) }
         .sheet(isPresented: $showShareCard) {
             ShareCardSheet(lot: lot, myRating: myReview?.rating).environmentObject(auth)
         }
@@ -375,6 +380,7 @@ private struct PublicReviewRow: View {
     let review: RemoteReview
     let helpful: RemoteLikeState
     let canMark: Bool
+    var onReport: (() -> Void)?
     var onHelpful: () -> Void
 
     var body: some View {
@@ -390,6 +396,14 @@ private struct PublicReviewRow: View {
                 }
                 Spacer()
                 stars
+                if let onReport {
+                    Menu {
+                        Button(role: .destructive, action: onReport) { Label("بلّغ عن التقييم", systemImage: "flag") }
+                    } label: {
+                        Image(systemName: "ellipsis").foregroundStyle(.secondary).frame(width: 28, height: 28)
+                    }
+                    .accessibilityLabel("خيارات التقييم")
+                }
             }
             HStack(spacing: 8) {
                 Text(LiveLotDetailView.brewLabel(review.brewMethod))

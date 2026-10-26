@@ -123,6 +123,7 @@ struct RatingCard: View {
 /// Who discovered the coffee, linking to their profile, with their public note.
 struct DiscovererCard: View {
     let discoverer: RemoteDiscoverer
+    var onReport: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -140,6 +141,11 @@ struct DiscovererCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
                     .background(Brand.gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                    .contextMenu {
+                        if let onReport {
+                            Button(role: .destructive, action: onReport) { Label("بلّغ عن الملاحظة", systemImage: "flag") }
+                        }
+                    }
             }
         }
         .padding(16)

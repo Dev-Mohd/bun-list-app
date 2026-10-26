@@ -11,6 +11,7 @@ struct RecipeDetailView: View {
     @State private var recipe: RemoteRecipe
     @State private var editorDraft: DraftRef?
     @State private var confirmDelete = false
+    @State private var reporting: ReportRef?
     @State private var errorMessage: String?
     @State private var brewing = false
     /// "أعجبني" on someone else's published recipe, updated from the server.
@@ -175,6 +176,7 @@ struct RecipeDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) { actionsMenu }
         }
+        .sheet(item: $reporting) { ReportSheet(ref: $0) }
         .sheet(item: $editorDraft) { ref in
             ServerRecipeEditor(draft: ref.draft) { saved in
                 recipe = saved
@@ -222,7 +224,17 @@ struct RecipeDetailView: View {
             }
             .accessibilityLabel("خيارات الوصفة")
         } else if auth.isSignedIn {
-            Button { onChange(.copy(recipe)) } label: { Label("انسخ لوصفاتي", systemImage: "doc.on.doc") }
+            Menu {
+                Button { onChange(.copy(recipe)) } label: { Label("انسخ لوصفاتي", systemImage: "doc.on.doc") }
+                if recipe.state == .published {
+                    Button(role: .destructive) { reporting = ReportRef(target: .recipe, targetID: recipe.id) } label: {
+                        Label("بلّغ عن الوصفة", systemImage: "flag")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("خيارات الوصفة")
         }
     }
 
