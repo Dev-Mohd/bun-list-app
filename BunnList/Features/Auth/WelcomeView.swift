@@ -15,8 +15,14 @@ struct WelcomeView: View {
             VStack(spacing: 18) {
                 BrandMark(height: 130)
                 BrandWordmark(size: 32)
-                Text("كل كيس قهوة.. له حكاية")
-                    .font(.title3.weight(.medium)).foregroundStyle(Brand.olive)
+                VStack(spacing: 4) {
+                    Text("اكتشف، قيّم، واختر أفضل محاصيل القهوة")
+                        .font(.title3.weight(.semibold)).foregroundStyle(Brand.olive)
+                        .multilineTextAlignment(.center)
+                    Text("Rate Coffee. Brew Smarter.")
+                        .font(.footnote.weight(.medium)).foregroundStyle(.secondary)
+                        .environment(\.layoutDirection, .leftToRight)
+                }
             }
 
             Spacer()

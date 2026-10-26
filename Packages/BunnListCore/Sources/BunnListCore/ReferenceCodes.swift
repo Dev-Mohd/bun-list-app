@@ -31,6 +31,26 @@ public enum ReferenceCodes {
         .init("CR", "كوستاريكا", "Costa Rica"),
         .init("PE", "بيرو", "Peru"),
         .init("ID", "إندونيسيا", "Indonesia", aliases: ["اندونيسيا"]),
+        .init("UG", "أوغندا", "Uganda", aliases: ["اوغندا"]),
+        .init("TZ", "تنزانيا", "Tanzania"),
+        .init("ZM", "زامبيا", "Zambia"),
+        .init("MW", "مالاوي", "Malawi"),
+        .init("CD", "الكونغو", "DR Congo", aliases: ["كونغو"]),
+        .init("SA", "السعودية", "Saudi Arabia", aliases: ["المملكة العربية السعودية", "سعودي", "سعودية"]),
+        .init("IN", "الهند", "India", aliases: ["هند"]),
+        .init("NP", "نيبال", "Nepal"),
+        .init("CN", "الصين", "China"),
+        .init("VN", "فيتنام", "Vietnam"),
+        .init("TH", "تايلاند", "Thailand"),
+        .init("PG", "بابوا غينيا الجديدة", "Papua New Guinea"),
+        .init("MX", "المكسيك", "Mexico"),
+        .init("NI", "نيكاراغوا", "Nicaragua", aliases: ["نيكاراجوا"]),
+        .init("EC", "الإكوادور", "Ecuador", aliases: ["الاكوادور", "إكوادور"]),
+        .init("BO", "بوليفيا", "Bolivia"),
+        .init("JM", "جامايكا", "Jamaica"),
+        // Not a country: coffees blended from several origins ("مزيج"). XB is in
+        // the ISO user-assigned range, so it never clashes with a real code.
+        .init("XB", "مزيج", "Blend", aliases: ["خلطة", "بلند", "مزيج", "blend"]),
     ]
 
     public static let processes: [ReferenceEntry] = [

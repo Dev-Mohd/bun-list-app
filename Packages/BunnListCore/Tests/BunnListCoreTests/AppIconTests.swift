@@ -24,3 +24,13 @@ final class AppIconTests: XCTestCase {
         XCTAssertEqual(AppIconChoice.classic.previewName, "IconPreview-Classic")
     }
 }
+
+final class BlendOriginTests: XCTestCase {
+    func testBlendAndNewOriginsMatch() {
+        XCTAssertEqual(ApprovalForm.country(matching: "مزيج")?.code, "XB")
+        XCTAssertEqual(ApprovalForm.country(matching: "Blend")?.code, "XB")
+        XCTAssertEqual(ApprovalForm.country(matching: "أوغندا")?.code, "UG")
+        XCTAssertEqual(ApprovalForm.country(matching: "السعودية")?.code, "SA")
+        XCTAssertEqual(Set(ReferenceCodes.countries.map(\.code)).count, ReferenceCodes.countries.count)
+    }
+}
