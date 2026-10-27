@@ -1,62 +1,18 @@
 import BunnListCore
 import SwiftUI
 
-// The home's sections: «كمّل من وين وقفت», trending (coffees, roasters,
-// recipes), quick browse and the community pulse. DiscoverView arranges them.
+// Sections fed by /api/v1/home: trending (coffees, roasters, recipes) and the
+// community pulse for «المجتمع», «كمّل من وين وقفت» for «حضّر»; and the search
+// preset other screens open search with.
 
 /// What a search opened from the home starts with.
 struct SearchPreset: Identifiable, Hashable {
     let id = UUID()
     let filters: BrowseFilters
+    /// Opens the filter sheet straight away (the filters button).
+    var openFilters = false
     static func == (a: SearchPreset, b: SearchPreset) -> Bool { a.id == b.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
-}
-
-// MARK: Header
-
-struct HomeHeader: View {
-    let name: String?
-    let avatarUrl: String?
-    let points: RemotePoints?
-    var openAccount: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("\(Greeting.text(hour: Calendar.current.component(.hour, from: Date()), name: name)) ☕")
-                    .font(.title2.bold())
-                if let points {
-                    HStack(spacing: 6) {
-                        if points.streak > 0 {
-                            chip("\(points.streak) \(points.streak == 1 ? "يوم" : "أيام")", icon: "flame.fill", tint: .orange)
-                        }
-                        chip("\(points.total.formatted()) نقطة", icon: "star.fill", tint: Brand.gold)
-                    }
-                } else {
-                    Text("وش نشرب اليوم؟").font(.subheadline).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            Button(action: openAccount) { AvatarView(url: avatarUrl, name: name, size: 42) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("حسابي")
-        }
-    }
-
-    private func chip(_ text: String, icon: String, tint: Color) -> some View {
-        Label(text, systemImage: icon)
-            .font(.caption.bold())
-            .labelStyle(ChipLabelStyle(tint: tint))
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Color(.secondarySystemGroupedBackground), in: Capsule())
-    }
-
-    private struct ChipLabelStyle: LabelStyle {
-        let tint: Color
-        func makeBody(configuration: Configuration) -> some View {
-            HStack(spacing: 4) { configuration.icon.foregroundStyle(tint); configuration.title }
-        }
-    }
 }
 
 // MARK: «كمّل من وين وقفت»
@@ -379,115 +335,16 @@ private struct TrendingRecipeLoader: View {
     }
 }
 
-// MARK: For you
-
-/// Coffees with a high taste match, from the ones the home already loaded.
-struct ForYouSection: View {
-    let lots: [RemoteLot]
-    @EnvironmentObject private var auth: AuthModel
-    @ObservedObject private var match = MatchScores.shared
-
-    private var picks: [RemoteLot] {
-        lots.filter { (match.scores[$0.slug] ?? 0) >= 70 }
-            .sorted { (match.scores[$0.slug] ?? 0) > (match.scores[$1.slug] ?? 0) }
-            .prefix(8).map { $0 }
-    }
-
-    var body: some View {
-        Group {
-            if !picks.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label("يناسب ذوقك", systemImage: "heart.text.square.fill").font(.title3.bold())
-                        Text("على حسب تقييماتك وتجاربك").font(.caption).foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .top, spacing: 12) {
-                            ForEach(picks) { lot in
-                                NavigationLink(value: lot.slug) { BunnCoffeeCard(lot: lot).frame(width: 160) }
-                                    .buttonStyle(CardPressStyle())
-                                    .carouselCard()
-                            }
-                        }
-                        .scrollTargetLayout()
-                        .padding(.horizontal)
-                    }
-                    .scrollTargetBehavior(.viewAligned)
-                }
-            }
-        }
-        .task(id: lots.map(\.slug).prefix(60).joined(separator: ",")) {
-            for lot in lots.prefix(60) { match.want(lot.slug, auth: auth) }
-        }
-    }
-}
-
-// MARK: Quick browse
-
-struct QuickBrowseGrid: View {
-    var open: (QuickBrowse) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("تصفّح سريع").font(.title3.bold()).padding(.horizontal)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                ForEach(QuickBrowse.allCases, id: \.self) { item in
-                    Button { open(item) } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: icon(item)).font(.title2).foregroundStyle(color(item))
-                                .symbolRenderingMode(.hierarchical)
-                            Text(item.titleAr).font(.subheadline.bold()).foregroundStyle(Brand.ink)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 78)
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-                    }
-                    .buttonStyle(CardPressStyle())
-                    .accessibilityIdentifier("quick-\(item.rawValue)")
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
-
-    private func icon(_ item: QuickBrowse) -> String {
-        switch item {
-        case .fruity: return "leaf.fill"
-        case .chocolate: return "square.grid.3x3.fill"
-        case .floral: return "camera.macro"
-        case .iced: return "snowflake"
-        case .arabic: return "flame.fill"
-        case .decaf: return "moon.zzz.fill"
-        }
-    }
-
-    private func color(_ item: QuickBrowse) -> Color {
-        switch item {
-        case .fruity: return FlavorFamily.berry.color
-        case .chocolate: return FlavorFamily.chocolate.color
-        case .floral: return FlavorFamily.floral.color
-        case .iced: return .cyan
-        case .arabic: return Brand.gold
-        case .decaf: return .indigo
-        }
-    }
-}
-
 // MARK: Community pulse
 
 struct PulseSection: View {
     let items: [RemotePulseItem]
-    var openCommunity: () -> Void
 
     var body: some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("نبض المجتمع", systemImage: "waveform.path.ecg").font(.title3.bold())
-                    Spacer()
-                    Button("المجتمع", action: openCommunity).font(.subheadline.bold()).tint(Brand.olive)
-                }
-                .padding(.horizontal)
+                Label("نبض المجتمع", systemImage: "waveform.path.ecg").font(.title3.bold())
+                    .padding(.horizontal)
                 VStack(spacing: 0) {
                     ForEach(Array(items.prefix(5).enumerated()), id: \.element.id) { index, item in
                         row(item)
@@ -539,43 +396,5 @@ struct PulseSection: View {
         case .discovery:
             Label("اكتشاف", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(Brand.gold)
         }
-    }
-}
-
-// MARK: Leaders, in one line
-
-struct LeadersStrip: View {
-    let leaders: [RemoteLeaderboard.Entry]
-    let myRank: Int?
-    var open: () -> Void
-
-    var body: some View {
-        Button(action: open) {
-            HStack(spacing: 10) {
-                HStack(spacing: -10) {
-                    ForEach(Array(leaders.prefix(3).enumerated()), id: \.offset) { index, entry in
-                        AvatarView(url: entry.avatarUrl, name: entry.name, size: 32)
-                            .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
-                            .zIndex(Double(3 - index))
-                    }
-                }
-                .environment(\.layoutDirection, .leftToRight)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("المتصدرين هالأسبوع").font(.subheadline.bold()).foregroundStyle(Brand.ink)
-                    if let first = leaders.first {
-                        Text("الأول: \(first.name)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                }
-                Spacer()
-                if let myRank {
-                    Text("أنت #\(myRank)").font(.subheadline.bold()).foregroundStyle(Brand.olive)
-                }
-                Image(systemName: "chevron.left").font(.caption).foregroundStyle(.tertiary)
-            }
-            .padding(12)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-        }
-        .buttonStyle(CardPressStyle())
-        .padding(.horizontal)
     }
 }

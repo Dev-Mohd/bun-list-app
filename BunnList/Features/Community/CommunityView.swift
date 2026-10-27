@@ -1,7 +1,8 @@
 import BunnListCore
 import SwiftUI
 
-/// "المجتمع": your points, streak and week, the leaderboard (this week or all
+/// "المجتمع": your points, streak and week, what's trending this week (coffees,
+/// roasters, recipes), the community pulse, the leaderboard (this week or all
 /// time), how points are earned, and the challenges. The leaderboard is public;
 /// your own card needs an account.
 @MainActor
@@ -16,6 +17,10 @@ struct CommunityView: View {
     @State private var showRules = false
     @State private var showChallenges = false
     @State private var showSignIn = false
+    @State private var feed: RemoteHome?
+    @State private var feedFailed = false
+    @State private var trendTab = TrendTab.coffee
+    @State private var searchPreset: SearchPreset?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -39,6 +44,16 @@ struct CommunityView: View {
                     .tint(Brand.olive)
                     .padding(.horizontal)
 
+                    TrendingSection(trending: feed?.trending, failed: feedFailed, tab: $trendTab) { roaster in
+                        var filters = BrowseFilters()
+                        filters.roasters = [roaster.slug]
+                        searchPreset = SearchPreset(filters: filters)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    PulseSection(items: feed?.pulse ?? [])
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
                     leaderboardSection
                 }
                 .padding(.vertical)
@@ -47,8 +62,11 @@ struct CommunityView: View {
             .brandScreen()
             .navigationTitle("المجتمع")
             .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
-            .refreshable { await load() }
+            .task(id: auth.isSignedIn) { await loadFeed() }
+            .refreshable { await load(); await loadFeed() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
+            .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
+            .navigationDestination(item: $searchPreset) { SearchView(tab: .constant(.community), initial: $0.filters) }
             .sheet(isPresented: $showRules) { PointRulesView() }
             .sheet(isPresented: $showChallenges) { JourneysView() }
             .sheet(isPresented: $showSignIn) { SignInView() }
@@ -157,6 +175,16 @@ struct CommunityView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    /// Trending and the pulse (from the home feed).
+    private func loadFeed() async {
+        do {
+            feed = try await auth.withOptionalToken { try await client.fetchHome(accessToken: $0) }
+            feedFailed = false
+        } catch {
+            feedFailed = feed == nil
+        }
     }
 
     private func load() async {

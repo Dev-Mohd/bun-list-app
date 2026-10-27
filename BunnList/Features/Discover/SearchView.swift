@@ -23,9 +23,10 @@ struct SearchView: View {
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     /// `initial` opens the search already filtered (quick browse, a roaster).
-    init(tab: Binding<AppTab>, initial: BrowseFilters = BrowseFilters()) {
+    init(tab: Binding<AppTab>, initial: BrowseFilters = BrowseFilters(), openFilters: Bool = false) {
         _tab = tab
         _filters = State(initialValue: initial)
+        _showFilters = State(initialValue: openFilters)
     }
 
     var body: some View {

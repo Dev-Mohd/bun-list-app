@@ -32,6 +32,9 @@ struct BrewView: View {
     @State private var showAdd = false
     @State private var showSignIn = false
     @State private var showGrinder = false
+    @State private var showRecipes = false
+    @State private var showConverter = false
+    @State private var lastBrew: RemoteHome.LastBrew?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private var recent: [String] { recentRaw.split(separator: ",").map(String.init) }
@@ -64,6 +67,9 @@ struct BrewView: View {
                 AddCoffeeSearchView().environmentObject(auth)
             }
             .sheet(isPresented: $showSignIn) { SignInView() }
+            .sheet(isPresented: $showRecipes) { RecipesHubView() }
+            .sheet(isPresented: $showConverter) { GrindConverterView() }
+            .task(id: auth.isSignedIn) { await loadLastBrew() }
             .sheet(isPresented: $showGrinder) { NavigationStack { GrinderGuideView(showsDone: true) }.environmentObject(auth) }
             .task { await grinders.load() }
             .fullScreenCover(item: $session, onDismiss: {
@@ -75,7 +81,7 @@ struct BrewView: View {
                                                   grinder: ref.grinder, grindSetting: ref.grindSetting)
                 }
             }
-            .sheet(item: $finishing, onDismiss: { Task { await loadPlans() } }) { ref in
+            .sheet(item: $finishing, onDismiss: { Task { await loadPlans(); await loadLastBrew() } }) { ref in
                 BrewFinishView(ref: ref).environmentObject(auth)
             }
         }
@@ -101,11 +107,22 @@ struct BrewView: View {
     @ViewBuilder
     private var content: some View {
         VStack(alignment: .leading, spacing: 22) {
+            if let lastBrew, lastBrew.lot.slug != selectedSlug || lastBrew.experience.methodCode != method {
+                ContinueCard(lot: lastBrew.lot,
+                             memory: BrewMemory.latest([lastBrew.experience], methodCode: lastBrew.experience.methodCode,
+                                                       grinder: guideGrinder),
+                             methodCode: lastBrew.experience.methodCode) {
+                    method = lastBrew.experience.methodCode
+                    focusSlug = lastBrew.lot.slug
+                }
+                .padding(.horizontal)
+            }
             coffeeSection
             if selected != nil {
                 methodSection
                 recipeSection
             }
+            tools
         }
         .padding(.vertical)
     }
@@ -232,6 +249,31 @@ struct BrewView: View {
                 HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 20)
             }
         }
+    }
+
+    /// Recipes and the grind converter (they used to sit on the home).
+    private var tools: some View {
+        HStack(spacing: 10) {
+            toolButton("الوصفات", icon: "book.closed.fill") { showRecipes = true }
+            toolButton("محوّل الطحن", icon: "dial.medium.fill") { showConverter = true }
+        }
+        .padding(.horizontal)
+    }
+
+    private func toolButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.subheadline.bold())
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                .foregroundStyle(Brand.olive)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func loadLastBrew() async {
+        guard auth.isSignedIn else { lastBrew = nil; return }
+        lastBrew = (try? await auth.withToken { try await client.fetchHome(accessToken: $0) })?.lastBrew
     }
 
     @ViewBuilder
