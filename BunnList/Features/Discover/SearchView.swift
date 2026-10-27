@@ -209,5 +209,5 @@ struct LotGridCard: View {
     let lot: RemoteLot
     var rank: Int?
 
-    var body: some View { CoffeeCard(lot: lot, rank: rank) }
+    var body: some View { BunnCoffeeCard(lot: lot, rank: rank) }
 }

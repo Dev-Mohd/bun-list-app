@@ -6,7 +6,7 @@ import SwiftUI
 /// (the same stamps as جواز القهوة), the flavor strip — one band per flavor family,
 /// in the fingerprint's colors — and, once you've rated a few, how well it fits
 /// you. Press to lift the bag; long-press for quick actions.
-struct CoffeeCard: View {
+struct BunnCoffeeCard: View {
     let lot: RemoteLot
     /// Place in a ranked row ("#1"), shown on the photo.
     var rank: Int?

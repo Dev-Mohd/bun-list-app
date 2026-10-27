@@ -342,7 +342,7 @@ private struct LeaderCard: View {
 private struct DiscoveryCard: View {
     let lot: RemoteLot
 
-    var body: some View { CoffeeCard(lot: lot).frame(width: 172) }
+    var body: some View { BunnCoffeeCard(lot: lot).frame(width: 172) }
 }
 
 /// Converts a grind setting between hand grinders using their published microns
