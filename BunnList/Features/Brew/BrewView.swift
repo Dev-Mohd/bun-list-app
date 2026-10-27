@@ -12,6 +12,8 @@ struct BrewView: View {
     /// Slugs, most recent first, comma-separated.
     @AppStorage("recentBrews") private var recentRaw = ""
     @AppStorage("lastBrewMethod") private var method = "V60"
+    /// Set by the home's «كمّل» card: the coffee to open on.
+    @AppStorage("brewFocus") private var focusSlug = ""
     @AppStorage("myGrinderID") private var myGrinderID = ""
     @AppStorage(MyGrinder.key) private var myGuideGrinderID = ""
     @ObservedObject private var grinders = GrinderCatalog.shared
@@ -53,6 +55,7 @@ struct BrewView: View {
                 }
             }
             .task(id: auth.isSignedIn) { await loadCoffees() }
+            .onChange(of: focusSlug) { _, _ in Task { await applyFocus() } }
             .refreshable { await loadCoffees() }
             // Reloads when the guide grinder arrives too, so last time's setting carries over.
             .task(id: "\(selectedSlug ?? "")|\(method)|\(guideGrinder?.id ?? "")") { await loadPlans() }
@@ -265,6 +268,10 @@ struct BrewView: View {
             if selectedSlug == nil || !(coffees ?? []).contains(where: { $0.slug == selectedSlug }) {
                 selectedSlug = coffees?.first?.slug
             }
+            if !focusSlug.isEmpty, (coffees ?? []).contains(where: { $0.slug == focusSlug }) {
+                selectedSlug = focusSlug
+                focusSlug = ""
+            }
         } catch {
             failed = coffees == nil
         }
@@ -292,6 +299,14 @@ struct BrewView: View {
     /// Your grinder's approximate clicks for the recipe, when known.
     private func suggestedSetting(for plan: BrewPlan) -> String {
         plan.approximateClicks(on: guideGrinder).map(String.init) ?? ""
+    }
+
+    /// Selects the coffee the home asked for, reloading the collection if it's new there.
+    private func applyFocus() async {
+        guard !focusSlug.isEmpty else { return }
+        if coffees?.contains(where: { $0.slug == focusSlug }) != true { await loadCoffees() }
+        if coffees?.contains(where: { $0.slug == focusSlug }) == true { selectedSlug = focusSlug }
+        focusSlug = ""
     }
 
     private func remember(_ slug: String) {

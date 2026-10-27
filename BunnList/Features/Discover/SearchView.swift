@@ -8,7 +8,7 @@ struct SearchView: View {
     @Binding var tab: AppTab
 
     @EnvironmentObject private var auth: AuthModel
-    @State private var filters = BrowseFilters()
+    @State private var filters: BrowseFilters
     @State private var lots: [RemoteLot] = []
     @State private var total = 0
     @State private var phase = Phase.loading
@@ -21,6 +21,12 @@ struct SearchView: View {
     private enum Phase: Equatable { case loading, loaded, failed, loadingMore }
     private static let pageSize = 40
     private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    /// `initial` opens the search already filtered (quick browse, a roaster).
+    init(tab: Binding<AppTab>, initial: BrowseFilters = BrowseFilters()) {
+        _tab = tab
+        _filters = State(initialValue: initial)
+    }
 
     var body: some View {
         ScrollView {
@@ -124,6 +130,17 @@ struct SearchView: View {
         let families = facets?.flavors.compactMap { FlavorFamily(rawValue: $0.value) } ?? []
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                // Filters the sheet doesn't show (set from the home), removable here.
+                ForEach(filters.tags.sorted(), id: \.self) { tag in
+                    Button { filters.tags.remove(tag) } label: {
+                        Label(tag == "decaf" ? "بدون كافيين" : tag == "luxury" ? "فاخرة" : "منقوعة", systemImage: "xmark")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(Brand.olive.opacity(0.16), in: Capsule())
+                            .overlay(Capsule().stroke(Brand.olive))
+                    }
+                    .buttonStyle(.plain)
+                }
                 ForEach(families, id: \.self) { family in
                     let on = filters.flavors.contains(family)
                     Button {

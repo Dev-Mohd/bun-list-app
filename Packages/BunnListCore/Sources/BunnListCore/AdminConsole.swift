@@ -57,6 +57,8 @@ public struct RemoteAdminLot: Codable, Equatable, Sendable {
     public let altitudeMeters: Int?
     public let descriptionAr: String?
     public let tags: [String]
+    /// Home trending override: "pin", "hide" or nil (automatic).
+    public let trending: String?
 }
 
 public enum AdminLotFilter: String, CaseIterable, Sendable {

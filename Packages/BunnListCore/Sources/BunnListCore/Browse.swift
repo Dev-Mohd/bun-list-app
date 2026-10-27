@@ -27,6 +27,8 @@ public struct BrowseFilters: Equatable, Sendable {
     public var processes: Set<String> = []
     public var methods: Set<String> = []
     public var flavors: Set<FlavorFamily> = []
+    /// Lot labels: "luxury", "infused", "decaf".
+    public var tags: Set<String> = []
     public var shelf = Shelf.all
     public var favoritesOnly = false
 
@@ -34,7 +36,7 @@ public struct BrowseFilters: Equatable, Sendable {
 
     /// Filters chosen in the sheet (not text, shelf or sort), for the badge on the filter button.
     public var activeCount: Int {
-        origins.count + roasters.count + processes.count + methods.count + flavors.count + (favoritesOnly ? 1 : 0)
+        origins.count + roasters.count + processes.count + methods.count + flavors.count + tags.count + (favoritesOnly ? 1 : 0)
     }
 
     /// Shelf and favorites need an account.
@@ -52,6 +54,7 @@ public struct BrowseFilters: Equatable, Sendable {
         list("processes", Array(processes))
         list("methods", Array(methods))
         list("flavors", flavors.map(\.rawValue))
+        list("tags", Array(tags))
         if shelf != .all { items.append(URLQueryItem(name: "shelf", value: shelf.rawValue)) }
         if favoritesOnly { items.append(URLQueryItem(name: "favorites", value: "1")) }
         items.append(URLQueryItem(name: "offset", value: String(offset)))

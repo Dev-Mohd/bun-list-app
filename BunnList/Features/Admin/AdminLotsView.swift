@@ -94,6 +94,7 @@ struct AdminLotEditView: View {
     @State private var message: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var isUploading = false
+    @State private var trending: String?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private static let tagNames: [(String, String)] = [("luxury", "فاخرة"), ("infused", "منقوعة"), ("decaf", "منزوعة الكافيين")]
@@ -113,6 +114,18 @@ struct AdminLotEditView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .onChange(of: photoItem) { _, item in if let item { Task { await upload(item) } } }
+    }
+
+    private func setTrending(_ mode: String) async {
+        let previous = trending
+        trending = mode
+        do {
+            try await auth.withToken { try await client.setTrending(lotID: lotID, mode: mode == "auto" ? nil : mode, accessToken: $0) }
+            message = mode == "pin" ? "انثبّتت في الترند" : mode == "hide" ? "انخفت من الترند" : "رجعت تلقائي"
+        } catch {
+            trending = previous
+            message = "ما تغيّر الترند. حاول مرة ثانية."
+        }
     }
 
     private func load() async {
@@ -188,6 +201,22 @@ struct AdminLotEditView: View {
                 TextField("السلالة", text: form.variety)
                 TextField("الارتفاع بالمتر", text: form.altitude).keyboardType(.numberPad)
                 TextField("الوصف", text: form.descriptionAr, axis: .vertical).lineLimit(3...8)
+            }
+
+            Section {
+                Picker("في الترند", selection: Binding(
+                    get: { trending ?? lot.trending ?? "auto" },
+                    set: { mode in Task { await setTrending(mode) } }
+                )) {
+                    Text("تلقائي").tag("auto")
+                    Text("مثبّتة").tag("pin")
+                    Text("مخفية").tag("hide")
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("ترند الواجهة")
+            } footer: {
+                Text("تلقائي = حسب نشاط الأسبوع. المثبّتة تطلع أول القائمة، والمخفية ما تطلع أبد. يتطبّق فورًا.")
             }
 
             Section("العلامات") {

@@ -1,10 +1,12 @@
 import BunnListCore
 import SwiftUI
 
-/// Discover - the home screen: a greeting, quick actions (new recipe, scan, my
-/// collection, grind converter), a daily "هل تعلم؟" fact, the newest community
-/// discoveries with their discoverers, then every published coffee. The search bar
-/// opens the full search screen (SearchView). The demo catalog shows only in UI tests.
+/// Discover - the home screen: greeting with streak and points, search, «كمّل من
+/// وين وقفت» (your last brew and what to try this time), trending this week
+/// (coffees, roasters, recipes), what suits your taste, quick browse, the
+/// community pulse, new discoveries, the leaders in one line, the best rated, tools
+/// and a daily fact, then every published coffee. The search bar opens the full
+/// search screen (SearchView). The demo catalog shows only in UI tests.
 struct DiscoverView: View {
     @Binding var tab: AppTab
 
@@ -19,13 +21,21 @@ struct DiscoverView: View {
     @State private var phase: Phase = .loading
     @State private var discoveries: [RemoteLot] = []
     @State private var topRated: [RemoteLot] = []
-    @State private var leaderKind = LeaderboardKind.discoverers
-    @State private var leaders: [RemoteLeaderboard.Entry]?
     @State private var showSearch = false
     @State private var showSample = false
     @State private var showRecipes = false
     @State private var showConverter = false
     @State private var showScan = false
+    @State private var feed: RemoteHome?
+    @State private var feedFailed = false
+    @State private var trendTab = TrendTab.coffee
+    @State private var points: RemotePoints?
+    @State private var weekLeaders: RemoteLeaderboard?
+    @State private var searchPreset: SearchPreset?
+    @AppStorage("lastBrewMethod") private var brewMethod = "V60"
+    @AppStorage("brewFocus") private var brewFocus = ""
+    @AppStorage(MyGrinder.key) private var myGuideGrinderID = ""
+    @ObservedObject private var grinders = GrinderCatalog.shared
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -50,11 +60,13 @@ struct DiscoverView: View {
             .navigationDestination(for: ProductID.self) { ProductDetailView(productID: $0) }
             .navigationDestination(isPresented: $showSample) { SampleCatalogView() }
             .navigationDestination(isPresented: $showSearch) { SearchView(tab: $tab) }
+            .navigationDestination(item: $searchPreset) { SearchView(tab: $tab, initial: $0.filters) }
             .sheet(isPresented: $showRecipes) { RecipesHubView() }
             .sheet(isPresented: $showConverter) { GrindConverterView() }
             .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
             .task { if case .loading = phase { await load() } }
-            .refreshable { await load() }
+            .task(id: auth.isSignedIn) { await loadPersonal() }
+            .refreshable { await load(); await loadPersonal() }
         }
     }
 
@@ -62,45 +74,32 @@ struct DiscoverView: View {
 
     private var home: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(Greeting.text(hour: Calendar.current.component(.hour, from: Date()), name: profile.me?.displayName)) ☕")
-                        .font(.title2.bold())
-                    Text("وش نشرب اليوم؟").font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HomeHeader(name: profile.me?.displayName, avatarUrl: profile.me?.avatarUrl, points: points) { tab = .account }
+                    searchRow
+                    if auth.isSignedIn, feed != nil { continueCard }
                 }
                 .padding(.horizontal)
 
-                HStack(spacing: 8) {
-                    Button { showSearch = true } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                            Text("ابحث عن قهوة، محمصة، أصل…")
-                            Spacer()
-                            Image(systemName: "line.3.horizontal.decrease")
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 14)
-                        .frame(height: 46)
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
-                    }
-                    .accessibilityIdentifier("open-search")
-                    Button { showScan = true } label: {
-                        Image(systemName: "camera.viewfinder")
-                            .font(.headline)
-                            .foregroundStyle(Brand.olive)
-                            .frame(width: 46, height: 46)
-                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
-                    }
-                    .accessibilityLabel("امسح كيس")
-                    .accessibilityIdentifier("open-scan")
+                TrendingSection(trending: feed?.trending, failed: feedFailed, tab: $trendTab) { roaster in
+                    var filters = BrowseFilters()
+                    filters.roasters = [roaster.slug]
+                    searchPreset = SearchPreset(filters: filters)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
 
-                quickActions
+                if auth.isSignedIn, case let .loaded(lots) = phase { ForYouSection(lots: lots) }
 
-                factCard
+                QuickBrowseGrid { item in
+                    if let filters = item.filters {
+                        searchPreset = SearchPreset(filters: filters)
+                    } else {
+                        brewMethod = "ARABIC"
+                        tab = .brew
+                    }
+                }
+
+                PulseSection(items: feed?.pulse ?? []) { tab = .community }
 
                 if !discoveries.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -123,7 +122,9 @@ struct DiscoverView: View {
                     }
                 }
 
-                leadersSection
+                if let weekLeaders, !weekLeaders.entries.isEmpty {
+                    LeadersStrip(leaders: weekLeaders.entries, myRank: weekLeaders.me?.rank) { tab = .community }
+                }
 
                 if !topRated.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -135,7 +136,7 @@ struct DiscoverView: View {
                                 ForEach(Array(topRated.enumerated()), id: \.offset) { index, lot in
                                     NavigationLink(value: lot.slug) {
                                         LotGridCard(lot: lot, rank: index + 1)
-                                            .frame(width: 172)
+                                            .frame(width: 160)
                                     }
                                     .buttonStyle(CardPressStyle())
                                     .carouselCard()
@@ -149,80 +150,65 @@ struct DiscoverView: View {
                     }
                 }
 
+                tools
+                factCard
                 allCoffees
             }
             .padding(.vertical)
         }
     }
 
-    private var quickActions: some View {
-        HStack(spacing: 10) {
-            QuickAction(icon: "book.closed.fill", title: "إنشاء وصفة") { showRecipes = true }
-            QuickAction(icon: "camera.viewfinder", title: "مسح") { showScan = true }
-            QuickAction(icon: "square.stack.3d.up.fill", title: "مجموعتي") { tab = .collection }
-            QuickAction(icon: "dial.medium.fill", title: "محوّل الطحن") { showConverter = true }
+    private var searchRow: some View {
+        HStack(spacing: 8) {
+            Button { showSearch = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                    Text("ابحث عن قهوة، محمصة، أصل…")
+                    Spacer()
+                    Image(systemName: "line.3.horizontal.decrease")
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 14)
+                .frame(height: 46)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .accessibilityIdentifier("open-search")
+            Button { showScan = true } label: {
+                Image(systemName: "camera.viewfinder")
+                    .font(.headline)
+                    .foregroundStyle(Brand.olive)
+                    .frame(width: 46, height: 46)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .accessibilityLabel("امسح كيس")
+            .accessibilityIdentifier("open-scan")
         }
-        .padding(.horizontal)
+        .buttonStyle(.plain)
     }
 
-    /// Top three of one ranking, with a switch between rankings and a link to the full list.
-    private var leadersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("قائمة المتصدرين", systemImage: "trophy").font(.title3.bold())
-                Spacer()
-                Button { tab = .community } label: {
-                    Label("عرض الكل", systemImage: "chevron.left")
-                        .labelStyle(.titleAndIcon)
-                        .font(.subheadline)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Brand.gold.opacity(0.15), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(LeaderboardKind.allCases, id: \.self) { kind in
-                        Button { leaderKind = kind } label: {
-                            Text(kind.titleAr)
-                                .font(.subheadline.weight(leaderKind == kind ? .semibold : .regular))
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .foregroundStyle(leaderKind == kind ? Brand.background : Brand.ink)
-                                .background(leaderKind == kind ? Brand.ink : Color(.secondarySystemGroupedBackground), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal)
-            }
-
-            if let leaders {
-                if leaders.isEmpty {
-                    Text("ما أحد في هالقائمة بعد. كن الأول!")
-                        .font(.callout).foregroundStyle(.secondary).padding(.horizontal)
-                } else {
-                    HStack(alignment: .top, spacing: 10) {
-                        ForEach(Array(leaders.prefix(3).enumerated()), id: \.offset) { _, entry in
-                            if let username = entry.username, !entry.isMe {
-                                NavigationLink { PublicProfileView(username: username) } label: { LeaderCard(entry: entry, kind: leaderKind) }
-                                    .buttonStyle(.plain)
-                            } else {
-                                LeaderCard(entry: entry, kind: leaderKind)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-            } else {
-                HStack { Spacer(); ProgressView(); Spacer() }.frame(height: 150)
-            }
+    private var continueCard: some View {
+        let last = feed?.lastBrew
+        let memory = last.flatMap {
+            BrewMemory.latest([$0.experience], methodCode: $0.experience.methodCode, grinder: grinders.grinder(myGuideGrinderID))
         }
-        .task(id: leaderKind) {
-            leaders = nil
-            leaders = (try? await client.fetchLeaderboard(allTime: true, kind: leaderKind, limit: 3, accessToken: nil))?.entries ?? []
+        return ContinueCard(lot: last?.lot, memory: memory, methodCode: last?.experience.methodCode) {
+            if let last {
+                brewMethod = last.experience.methodCode
+                brewFocus = last.lot.slug
+            }
+            tab = .brew
         }
+    }
+
+    /// The tools that used to sit on top: recipes and the grind converter.
+    private var tools: some View {
+        HStack(spacing: 10) {
+            QuickAction(icon: "book.closed.fill", title: "الوصفات") { showRecipes = true }
+            QuickAction(icon: "dial.medium.fill", title: "محوّل الطحن") { showConverter = true }
+            QuickAction(icon: "square.stack.3d.up.fill", title: "مجموعتي") { tab = .collection }
+        }
+        .padding(.horizontal)
     }
 
     private var factCard: some View {
@@ -283,13 +269,32 @@ struct DiscoverView: View {
     }
 
     private func load() async {
-        async let feed = try? client.fetchLots()
+        async let all = try? client.fetchLots()
         async let fresh = try? client.fetchDiscoveries()
         async let best = try? client.fetchTopRated()
-        let (lots, newest, top) = await (feed, fresh, best)
+        let (lots, newest, top) = await (all, fresh, best)
         phase = lots.map(Phase.loaded) ?? .failed
         discoveries = newest ?? []
         topRated = top ?? []
+    }
+
+    /// The home feed, points and this week's leaders; with the account when signed in.
+    private func loadPersonal() async {
+        do {
+            feed = try await auth.withOptionalToken { try await client.fetchHome(accessToken: $0) }
+            feedFailed = false
+        } catch {
+            feedFailed = feed == nil
+        }
+        weekLeaders = try? await auth.withOptionalToken {
+            try await client.fetchLeaderboard(allTime: false, kind: .points, limit: 3, accessToken: $0)
+        }
+        if auth.isSignedIn {
+            points = try? await auth.withToken { try await client.fetchPoints(accessToken: $0) }
+        } else {
+            points = nil
+        }
+        await grinders.load()
     }
 }
 
@@ -309,32 +314,6 @@ private struct QuickAction: View {
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// One of the top three on the home leaderboard.
-private struct LeaderCard: View {
-    let entry: RemoteLeaderboard.Entry
-    let kind: LeaderboardKind
-
-    private var medal: String {
-        switch entry.rank { case 1: return "🥇"; case 2: return "🥈"; default: return "🥉" }
-    }
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(medal).font(.title2)
-            AvatarView(url: entry.avatarUrl, name: entry.name, size: 64)
-            Text(entry.name).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
-            Text("\(entry.points.formatted()) \(kind.unitAr)")
-                .font(.caption.monospacedDigit()).foregroundStyle(entry.rank == 1 ? Brand.gold : .secondary)
-        }
-        .padding(.vertical, 14).padding(.horizontal, 6)
-        .frame(maxWidth: .infinity)
-        .background(entry.rank == 1 ? Brand.gold.opacity(0.14) : Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(entry.rank == 1 ? Brand.gold.opacity(0.5) : .clear))
-        .accessibilityElement(children: .combine)
     }
 }
 
