@@ -2,8 +2,9 @@ import BunnListCore
 import SwiftUI
 
 /// «كيف طلعت؟» after a brew: optional. With stars it saves a brew experience
-/// (private unless published), which is what earns its points and passport stamp
-/// under the usual rules; without stars, nothing is saved.
+/// (private unless published) with the brew log (recipe, grind, time, taste), which
+/// is what earns its points and passport stamp under the usual rules; without
+/// stars, nothing is saved. Picking a taste shows one change to try next time.
 @MainActor
 struct BrewFinishView: View {
     let ref: BrewFinishRef
@@ -11,7 +12,7 @@ struct BrewFinishView: View {
     @EnvironmentObject private var auth: AuthModel
     @Environment(\.dismiss) private var dismiss
     @State private var stars = 0
-    @State private var tastes: [String] = []
+    @State private var taste: BrewTaste?
     @State private var note = ""
     @State private var publish = false
     @State private var isSaving = false
@@ -19,7 +20,13 @@ struct BrewFinishView: View {
     @State private var errorMessage: String?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
-    private static let tasteWords = ["حلوة", "متوازنة", "حامضة", "مرّة", "خفيفة", "ثقيلة"]
+    private var fix: TasteFix? {
+        taste.map {
+            TasteFix.suggest(taste: $0, methodCode: ref.plan.methodCode, setting: ref.grindSetting, grinder: ref.grinder,
+                             doseGrams: ref.plan.doseGrams,
+                             waterGrams: ref.plan.isEspresso ? ref.plan.yieldGrams : ref.plan.hotWaterGrams)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -61,8 +68,15 @@ struct BrewFinishView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            Section("بكلمة") {
-                FlowChips(words: Self.tasteWords, selected: $tastes)
+            Section("الطعم بكلمة") {
+                TasteChips(selected: $taste)
+                if let fix { FixCard(fix: fix, lead: "المرة الجاية") }
+            }
+            Section {
+                if !ref.grindSetting.trimmingCharacters(in: .whitespaces).isEmpty {
+                    LabeledContent("الطحنة", value: ref.grindSetting)
+                }
+                LabeledContent("الوصفة", value: ref.plan.title)
                 TextField("ملاحظة (اختياري)", text: $note, axis: .vertical).lineLimit(1...4)
             }
             Section {
@@ -89,6 +103,10 @@ struct BrewFinishView: View {
             Text("انحفظت تجربتك").font(.title2.bold())
             Text("تلقاها في صفحة القهوة، وتحسب في نقاطك وجوازك حسب القواعد.")
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            if let fix {
+                FixCard(fix: fix, lead: "المرة الجاية").padding(.top, 4)
+                Text("بنذكّرك فيها أول ما تختار هالقهوة في «حضّر».").font(.caption).foregroundStyle(.secondary)
+            }
             Button("تم") { dismiss() }.buttonStyle(.borderedProminent).tint(Brand.olive).padding(.top, 8)
         }
         .padding(32)
@@ -100,12 +118,14 @@ struct BrewFinishView: View {
     private func save() async {
         isSaving = true
         defer { isSaving = false }
-        let text = (tastes + [note.trimmingCharacters(in: .whitespacesAndNewlines)]).filter { !$0.isEmpty }.joined(separator: " · ")
+        let text = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let log = BrewLogEntry(plan: ref.plan, grinderId: ref.grinder?.id, grindSetting: ref.grindSetting,
+                               seconds: ref.seconds, taste: taste)
         do {
             _ = try await auth.withToken {
                 try await client.saveExperience(slug: ref.slug, accessToken: $0, clientID: UUID().uuidString,
                                                 methodCode: ref.plan.methodCode, stars: stars, brewedAt: Date(),
-                                                note: text, publish: publish)
+                                                note: text, publish: publish, log: log)
             }
             withAnimation { saved = true }
         } catch APIError.forbidden {
@@ -116,25 +136,51 @@ struct BrewFinishView: View {
     }
 }
 
-/// Tap-to-toggle word chips that wrap.
-private struct FlowChips: View {
-    let words: [String]
-    @Binding var selected: [String]
+/// One taste word at a time; tapping it again clears it.
+private struct TasteChips: View {
+    @Binding var selected: BrewTaste?
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 8) {
-            ForEach(words, id: \.self) { word in
-                let on = selected.contains(word)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
+            ForEach(BrewTaste.allCases, id: \.self) { taste in
+                let on = selected == taste
                 Button {
-                    if on { selected.removeAll { $0 == word } } else { selected.append(word) }
+                    withAnimation(.spring(response: 0.3)) { selected = on ? nil : taste }
                 } label: {
-                    Text(word).font(.subheadline.bold())
-                        .frame(maxWidth: .infinity).padding(.vertical, 8)
-                        .background(on ? Brand.olive : Color(.tertiarySystemFill), in: Capsule())
-                        .foregroundStyle(on ? Brand.background : Brand.ink)
+                    VStack(spacing: 2) {
+                        Text(taste.nameAr).font(.subheadline.bold())
+                        Text(taste.hintAr).font(.caption2).lineLimit(1).minimumScaleFactor(0.8)
+                            .foregroundStyle(on ? Brand.background.opacity(0.8) : .secondary)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 8).padding(.horizontal, 4)
+                    .background(on ? Brand.olive : Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(on ? Brand.background : Brand.ink)
                 }
                 .buttonStyle(.plain)
+                .sensoryFeedback(.selection, trigger: on)
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
+    }
+}
+
+/// One suggested change, said plainly as a suggestion.
+struct FixCard: View {
+    let fix: TasteFix
+    let lead: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: fix.change == .keep ? "checkmark.seal.fill" : "wand.and.stars")
+                .font(.title3).foregroundStyle(Brand.olive)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(lead): \(fix.titleAr)").font(.subheadline.bold()).foregroundStyle(Brand.ink)
+                Text(fix.detailAr).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Brand.olive.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }

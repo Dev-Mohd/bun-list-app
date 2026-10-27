@@ -3,8 +3,9 @@ import SwiftUI
 
 /// «حضّر»: pick the coffee (the last one you brewed first) and the method, take a
 /// recipe (yours, then the community's for this coffee, then a BunnList starting
-/// recipe, always saying which), brew with the timer, and optionally note how it
-/// came out. Scanning lives in search and the scan buttons now.
+/// recipe, always saying which), set the grind, brew with the timer, and optionally
+/// note how it came out. «آخر مرة» brings back your last brew of this coffee and
+/// method with one change to try. Scanning lives in search and the scan buttons now.
 @MainActor
 struct BrewView: View {
     @EnvironmentObject private var auth: AuthModel
@@ -20,6 +21,8 @@ struct BrewView: View {
     @State private var selectedSlug: String?
     @State private var plans: [BrewPlan]?
     @State private var selectedPlanID: String?
+    @State private var memory: BrewMemory?
+    @State private var grindSetting = ""
     @State private var session: BrewSessionRef?
     @State private var pendingFinish: BrewFinishRef?
     @State private var finishing: BrewFinishRef?
@@ -32,6 +35,7 @@ struct BrewView: View {
     private var recent: [String] { recentRaw.split(separator: ",").map(String.init) }
     private var selected: RemoteCollectionItem? { coffees?.first { $0.slug == selectedSlug } }
     private var plan: BrewPlan? { plans?.first { $0.id == selectedPlanID } ?? plans?.first }
+    private var guideGrinder: RemoteGrinder? { grinders.grinder(myGuideGrinderID) }
 
     var body: some View {
         NavigationStack {
@@ -50,7 +54,8 @@ struct BrewView: View {
             }
             .task(id: auth.isSignedIn) { await loadCoffees() }
             .refreshable { await loadCoffees() }
-            .task(id: "\(selectedSlug ?? "")|\(method)") { await loadPlans() }
+            // Reloads when the guide grinder arrives too, so last time's setting carries over.
+            .task(id: "\(selectedSlug ?? "")|\(method)|\(guideGrinder?.id ?? "")") { await loadPlans() }
             .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
             .sheet(isPresented: $showAdd, onDismiss: { Task { await loadCoffees() } }) {
                 AddCoffeeSearchView().environmentObject(auth)
@@ -63,10 +68,13 @@ struct BrewView: View {
             }) { ref in
                 BrewSessionView(plan: ref.plan) { seconds in
                     remember(ref.slug)
-                    pendingFinish = BrewFinishRef(slug: ref.slug, coffeeName: ref.coffeeName, plan: ref.plan, seconds: seconds)
+                    pendingFinish = BrewFinishRef(slug: ref.slug, coffeeName: ref.coffeeName, plan: ref.plan, seconds: seconds,
+                                                  grinder: ref.grinder, grindSetting: ref.grindSetting)
                 }
             }
-            .sheet(item: $finishing) { ref in BrewFinishView(ref: ref).environmentObject(auth) }
+            .sheet(item: $finishing, onDismiss: { Task { await loadPlans() } }) { ref in
+                BrewFinishView(ref: ref).environmentObject(auth)
+            }
         }
     }
 
@@ -202,26 +210,21 @@ struct BrewView: View {
     @ViewBuilder
     private var recipeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let memory { LastBrewCard(memory: memory).padding(.horizontal) }
             Text("الوصفة").font(.title3.bold()).padding(.horizontal)
             if let plans {
                 VStack(spacing: 10) {
                     ForEach(plans) { option in
                         PlanCard(plan: option, isSelected: option.id == plan?.id,
-                                 guideGrinder: grinders.grinder(myGuideGrinderID), legacyGrinder: Grinder.find(myGrinderID)) {
+                                 guideGrinder: guideGrinder, legacyGrinder: Grinder.find(myGrinderID)) {
                             selectedPlanID = option.id
+                            if memory?.startingSetting(grinderId: guideGrinder?.id) == nil { grindSetting = suggestedSetting(for: option) }
                         }
                     }
                 }
                 .padding(.horizontal)
-                Button { showGrinder = true } label: {
-                    if let mine = grinders.grinder(myGuideGrinderID) {
-                        Label("مطحنتي: \(mine.brand) \(mine.title)", systemImage: "dial.medium").font(.caption.bold())
-                    } else {
-                        Label("اختر مطحنتك عشان نقرّب لك الطحنة", systemImage: "dial.medium").font(.caption.bold())
-                    }
-                }
-                .tint(Brand.olive)
-                .padding(.horizontal)
+                GrindRow(grinder: guideGrinder, setting: $grindSetting) { showGrinder = true }
+                    .padding(.horizontal)
             } else {
                 HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 20)
             }
@@ -232,7 +235,8 @@ struct BrewView: View {
     private var startButton: some View {
         if let plan, let coffee = selected {
             Button {
-                session = BrewSessionRef(slug: coffee.slug, coffeeName: coffee.nameAr, plan: plan)
+                session = BrewSessionRef(slug: coffee.slug, coffeeName: coffee.nameAr, plan: plan,
+                                         grinder: guideGrinder, grindSetting: grindSetting)
             } label: {
                 Label("ابدأ التحضير", systemImage: "play.fill")
                     .font(.headline)
@@ -270,10 +274,24 @@ struct BrewView: View {
         guard let slug = selectedSlug else { return }
         plans = nil
         selectedPlanID = nil
+        memory = nil
         let mine = (try? await auth.withToken { try await client.fetchMyRecipes(accessToken: $0) }) ?? []
         let community = (try? await auth.withOptionalToken { try await client.exploreRecipes(lotSlug: slug, accessToken: $0) }) ?? []
+        let history = (try? await auth.withToken { try await client.fetchMyExperiences(slug: slug, accessToken: $0) }) ?? []
         guard slug == selectedSlug else { return }
-        plans = BrewPlanner.options(methodCode: method, lotSlug: slug, mine: mine, community: community)
+        let options = BrewPlanner.options(methodCode: method, lotSlug: slug, mine: mine, community: community)
+        let last = BrewMemory.latest(history, methodCode: method, grinder: guideGrinder)
+        plans = options
+        memory = last
+        // Last time's recipe leads again when it's still on offer.
+        selectedPlanID = options.first { $0.id == last?.log.recipeId }?.id ?? options.first?.id
+        grindSetting = last?.startingSetting(grinderId: guideGrinder?.id)
+            ?? options.first { $0.id == selectedPlanID }.map(suggestedSetting(for:)) ?? ""
+    }
+
+    /// Your grinder's approximate clicks for the recipe, when known.
+    private func suggestedSetting(for plan: BrewPlan) -> String {
+        plan.approximateClicks(on: guideGrinder).map(String.init) ?? ""
     }
 
     private func remember(_ slug: String) {
@@ -285,6 +303,8 @@ struct BrewSessionRef: Identifiable {
     let slug: String
     let coffeeName: String
     let plan: BrewPlan
+    let grinder: RemoteGrinder?
+    let grindSetting: String
     var id: String { slug + plan.id }
 }
 
@@ -293,7 +313,104 @@ struct BrewFinishRef: Identifiable {
     let coffeeName: String
     let plan: BrewPlan
     let seconds: Int
+    let grinder: RemoteGrinder?
+    let grindSetting: String
     var id: String { slug + plan.id + String(seconds) }
+}
+
+/// «آخر مرة»: how your last brew of this coffee and method went, and the one
+/// change to try this time.
+private struct LastBrewCard: View {
+    let memory: BrewMemory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Label("آخر مرة", systemImage: "clock.arrow.circlepath").font(.subheadline.bold())
+                Spacer()
+                HStack(spacing: 2) {
+                    ForEach(1...5, id: \.self) { n in
+                        Image(systemName: n <= memory.stars ? "star.fill" : "star").font(.caption2)
+                            .foregroundStyle(n <= memory.stars ? Brand.gold : .secondary)
+                    }
+                }
+                .environment(\.layoutDirection, .leftToRight)
+            }
+            Text(summary).font(.caption).foregroundStyle(.secondary)
+            if let fix = memory.fix { FixCard(fix: fix, lead: "هالمرة") }
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var summary: String {
+        let log = memory.log
+        var parts: [String] = []
+        if let taste = log.taste { parts.append("طلعت \(taste.nameAr)") }
+        if let setting = log.grindSetting { parts.append("طحنة \(setting)") }
+        if let s = log.brewSeconds { parts.append(RecipeText.duration(s)) }
+        if let title = log.recipeTitle { parts.append(title) }
+        if let date = memory.brewedAt { parts.append(date.formatted(.relative(presentation: .named))) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// The grind you'll actually use, logged with the brew: a number stepper on a
+/// counting grinder, free text otherwise.
+private struct GrindRow: View {
+    let grinder: RemoteGrinder?
+    @Binding var setting: String
+    var chooseGrinder: () -> Void
+
+    private var counts: Bool { grinder?.adjustment == "clicks" || grinder?.adjustment == "stepped" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("طحنتك", systemImage: "dial.medium").font(.subheadline.bold())
+                Spacer()
+                Button(action: chooseGrinder) {
+                    Text(grinder.map { "\($0.brand) \($0.title)" } ?? "اختر مطحنتك").font(.caption.bold()).lineLimit(1)
+                }
+                .tint(Brand.olive)
+            }
+            if counts {
+                HStack(spacing: 14) {
+                    stepButton("minus", -1)
+                    TextField("—", text: $setting)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.center)
+                        .font(.title2.bold().monospacedDigit())
+                        .frame(minWidth: 70)
+                    stepButton("plus", 1)
+                    Text(grinder?.adjustment == "clicks" ? "كليك" : "درجة").font(.caption).foregroundStyle(.secondary)
+                }
+                .environment(\.layoutDirection, .leftToRight)
+                .frame(maxWidth: .infinity)
+            } else {
+                TextField(grinder == nil ? "مثلًا: ٢٢ كليك أو متوسط ناعم" : "رقمك على المطحنة", text: $setting)
+                    .textFieldStyle(.roundedBorder)
+            }
+            Text("نحفظها مع التجربة عشان المرة الجاية نبدأ منها.").font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func stepButton(_ symbol: String, _ delta: Double) -> some View {
+        Button {
+            let value = (Double(setting.replacingOccurrences(of: ",", with: ".")) ?? (grinder?.rangeMin ?? 0)) + delta
+            let clamped = min(max(value, grinder?.rangeMin ?? 0), grinder?.rangeMax ?? 999)
+            setting = clamped == clamped.rounded() ? String(Int(clamped)) : String(format: "%.1f", clamped)
+        } label: {
+            Image(systemName: symbol).font(.headline)
+                .frame(width: 40, height: 40).background(Brand.background, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: setting)
+        .accessibilityLabel(delta < 0 ? "أنعم" : "أخشن")
+    }
 }
 
 /// One recipe option: where it's from, the numbers, and the grind (with your

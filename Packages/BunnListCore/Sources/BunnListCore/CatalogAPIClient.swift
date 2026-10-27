@@ -280,12 +280,13 @@ public struct CatalogAPIClient: Sendable {
     /// Create, or edit by `clientID` (idempotent). `publish` also publishes a draft.
     public func saveExperience(
         slug: String, accessToken: String, clientID: String,
-        methodCode: String, stars: Int, brewedAt: Date, note: String, publish: Bool
+        methodCode: String, stars: Int, brewedAt: Date, note: String, publish: Bool, log: BrewLogEntry? = nil
     ) async throws -> RemoteExperience {
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "clientId": clientID, "methodCode": methodCode, "stars": stars,
             "brewedAt": ISO8601DateFormatter().string(from: brewedAt), "note": note, "publish": publish,
         ]
+        payload.merge(log?.payload ?? [:]) { current, _ in current }
         let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
         let response = try await transport.send(
             HTTPRequest(method: .post, path: "/api/v1/catalog/lots/\(slug)/experiences", body: data, bearer: accessToken)
@@ -398,11 +399,13 @@ public struct RemoteExperience: Codable, Equatable, Sendable, Identifiable {
     public let note: String
     public let state: State
     public let revision: Int
+    /// What «حضّر» logged with it; nil for experiences written elsewhere.
+    public let log: BrewLogEntry?
 
     public init(id: String, clientId: String, methodCode: String, stars: Int,
-                brewedAt: String, note: String, state: State, revision: Int) {
+                brewedAt: String, note: String, state: State, revision: Int, log: BrewLogEntry? = nil) {
         self.id = id; self.clientId = clientId; self.methodCode = methodCode; self.stars = stars
-        self.brewedAt = brewedAt; self.note = note; self.state = state; self.revision = revision
+        self.brewedAt = brewedAt; self.note = note; self.state = state; self.revision = revision; self.log = log
     }
 
     /// `brewedAt` parsed (server sends ISO-8601 with milliseconds).
