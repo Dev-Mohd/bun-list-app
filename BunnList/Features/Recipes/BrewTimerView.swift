@@ -49,7 +49,7 @@ struct BrewTimerView: View {
         NavigationStack {
             VStack(spacing: 24) {
                 header
-                if sceneKind == .none { dial(position) } else { scene }
+                if sceneKind == .ring { dial(position) } else { scene }
                 currentStep(position)
                 Spacer(minLength: 0)
                 nextStep(position)

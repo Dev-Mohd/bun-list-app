@@ -10,7 +10,7 @@ final class BrewSceneTests: XCTestCase {
         XCTAssertEqual(BrewSceneKind.of(plan("aeropress-classic")), .aeropress)
         XCTAssertEqual(BrewSceneKind.of(plan("espresso-classic")), .espresso)
         XCTAssertEqual(BrewSceneKind.of(plan("arabic-saudi")), .arabic)
-        XCTAssertEqual(BrewSceneKind.of(plan("chemex-classic")), .none)
+        XCTAssertEqual(BrewSceneKind.of(plan("chemex-classic")), .ring)
     }
 
     func testReadyBeforeStartAndDoneAfter() {

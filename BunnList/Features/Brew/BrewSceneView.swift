@@ -20,7 +20,7 @@ struct BrewSceneView: View {
             case let .pourOver(iced): PourOverPainter(state: state, t: clock, iced: iced).draw(&context)
             case .aeropress: AeroPressPainter(state: state, t: clock).draw(&context)
             case .arabic: DallaPainter(state: state, t: clock).draw(&context)
-            case .espresso, .none: break
+            case .espresso, .ring: break
             }
         }
         .accessibilityHidden(true)

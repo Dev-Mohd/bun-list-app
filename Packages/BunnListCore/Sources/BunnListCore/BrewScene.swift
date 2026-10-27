@@ -9,7 +9,7 @@ public enum BrewSceneKind: Equatable, Sendable {
     case espresso
     case arabic
     /// Methods without their own scene yet keep the plain timer ring.
-    case none
+    case ring
 
     public static func of(_ plan: BrewPlan) -> BrewSceneKind {
         switch plan.methodCode {
@@ -17,7 +17,7 @@ public enum BrewSceneKind: Equatable, Sendable {
         case "AEROPRESS": return .aeropress
         case "ESPRESSO": return .espresso
         case "ARABIC": return .arabic
-        default: return .none
+        default: return .ring
         }
     }
 }
