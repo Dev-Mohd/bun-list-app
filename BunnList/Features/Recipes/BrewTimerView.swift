@@ -3,9 +3,11 @@ import SwiftUI
 import UIKit
 
 /// Guided brew: a full-screen timer that walks through the recipe's steps, showing
-/// what to do now, the scale reading to pour up to, and what comes next. Taps a
-/// haptic at each step change and keeps the screen awake while brewing. With
-/// `onFinish`, ending the brew hands back the elapsed seconds (for «كيف طلعت؟»).
+/// what to do now, the scale reading to pour up to, and what comes next. Methods
+/// with a scene (V60 hot and iced, AeroPress, Arabic coffee) draw the brewer live
+/// instead of the ring. A light tap three seconds before each step, a stronger one
+/// at the change, and the screen stays awake while brewing. With `onFinish`,
+/// ending the brew hands back the elapsed seconds (for «كيف طلعت؟»).
 @MainActor
 struct BrewTimerView: View {
     let plan: BrewPlan
@@ -16,6 +18,7 @@ struct BrewTimerView: View {
     @State private var pausedElapsed: TimeInterval = 0
     @State private var now = Date()
     @State private var lastStep = -1
+    @State private var cuedStep = -1
 
     private let tick = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
     private var timeline: BrewTimeline { BrewTimeline(steps: plan.steps) }
@@ -26,20 +29,34 @@ struct BrewTimerView: View {
     }
 
     private var isRunning: Bool { startedAt != nil }
+    private var sceneKind: BrewSceneKind { BrewSceneKind.of(plan) }
+    private var totalWater: Double {
+        plan.steps.reduce(0) { $0 + ($1.kind.addsWater ? ($1.addedWaterGrams ?? 0) : 0) }
+    }
+
+    /// Elapsed at a given moment, for the smooth animation (the tick drives the rest).
+    private func elapsed(at date: Date) -> TimeInterval {
+        guard let startedAt else { return pausedElapsed }
+        return pausedElapsed + date.timeIntervalSince(startedAt)
+    }
+
+    private var sceneState: BrewSceneState {
+        BrewScene.state(plan: plan, elapsed: elapsed, started: isRunning || elapsed > 0)
+    }
 
     var body: some View {
         let position = timeline.position(at: Int(elapsed))
         NavigationStack {
             VStack(spacing: 24) {
                 header
-                dial(position)
+                if sceneKind == .none { dial(position) } else { scene }
                 currentStep(position)
                 Spacer(minLength: 0)
                 nextStep(position)
                 controls(position)
             }
             .padding()
-            .background(Color.black.ignoresSafeArea())
+            .background(backdrop.ignoresSafeArea())
             .foregroundStyle(.white)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -65,6 +82,10 @@ struct BrewTimerView: View {
             guard isRunning else { return }
             now = date
             let current = timeline.position(at: Int(elapsed))
+            if sceneState.isCueing, cuedStep != current.stepIndex {
+                cuedStep = current.stepIndex
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
             if current.stepIndex != lastStep || current.isFinished {
                 if lastStep >= 0 { UINotificationFeedbackGenerator().notificationOccurred(current.isFinished ? .success : .warning) }
                 lastStep = current.isFinished ? plan.steps.count : current.stepIndex
@@ -81,6 +102,44 @@ struct BrewTimerView: View {
             Text("\(RecipeText.method(plan.methodCode)) · \(RecipeText.number(plan.doseGrams))غ بن · \(RecipeText.number(plan.waterTempC))°م")
                 .font(.caption).foregroundStyle(.white.opacity(0.7))
         }
+    }
+
+    /// Black, warming (or cooling, iced) as the brew goes on.
+    private var backdrop: some View {
+        let total = Double(max(timeline.totalSeconds, 1))
+        let warmth = 0.12 + min(elapsed / total, 1) * 0.3
+        let iced = sceneKind == .pourOver(iced: true)
+        let tint = iced ? Color(red: 0.35, green: 0.55, blue: 0.7) : Color(red: 0.62, green: 0.4, blue: 0.16)
+        return ZStack {
+            Color.black
+            RadialGradient(colors: [tint.opacity(warmth), .clear], center: .center, startRadius: 10, endRadius: 420)
+                .animation(.easeInOut(duration: 1), value: warmth)
+        }
+    }
+
+    /// The live brewer, the clock and the scale reading.
+    private var scene: some View {
+        TimelineView(.animation) { context in
+            let now = elapsed(at: context.date)
+            let state = BrewScene.state(plan: plan, elapsed: now, started: isRunning || now > 0)
+            VStack(spacing: 6) {
+                BrewSceneView(kind: sceneKind, state: state, clock: context.date.timeIntervalSinceReferenceDate)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 290)
+                HStack(alignment: .lastTextBaseline, spacing: 18) {
+                    Text(RecipeText.duration(Int(now)))
+                        .font(.system(size: 52, weight: .bold, design: .monospaced))
+                    if totalWater > 0 {
+                        Text("\(RecipeText.number(state.poured * totalWater)) / \(RecipeText.number(totalWater))غ")
+                            .font(.title3.bold().monospacedDigit())
+                            .foregroundStyle(Brand.gold)
+                    }
+                }
+                .environment(\.layoutDirection, .leftToRight)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("الوقت \(RecipeText.duration(Int(elapsed))) من \(RecipeText.duration(timeline.totalSeconds))")
     }
 
     private func dial(_ position: BrewTimeline.Position) -> some View {
@@ -117,8 +176,10 @@ struct BrewTimerView: View {
             .multilineTextAlignment(.center)
         } else if let step = plan.steps[safe: position.stepIndex] {
             VStack(spacing: 10) {
-                Label(RecipeText.stepKind(step.kind), systemImage: RecipeText.stepIcon(step.kind))
+                Label(sceneState.titleAr ?? RecipeText.stepKind(step.kind), systemImage: RecipeText.stepIcon(step.kind))
                     .font(.title.bold())
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut, value: position.stepIndex)
                 if let pourTo = position.pourTo {
                     Text("صب حتى \(RecipeText.number(pourTo))غ")
                         .font(.system(.title2, design: .monospaced).bold())
@@ -144,7 +205,10 @@ struct BrewTimerView: View {
                 Spacer()
             }
             .padding(12)
-            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+            .background(sceneState.isCueing ? Brand.gold.opacity(0.35) : Color.white.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 12))
+            .scaleEffect(sceneState.isCueing ? 1.03 : 1)
+            .animation(.spring(response: 0.35), value: sceneState.isCueing)
         }
     }
 
@@ -195,6 +259,7 @@ struct BrewTimerView: View {
         startedAt = nil
         pausedElapsed = 0
         lastStep = -1
+        cuedStep = -1
     }
 
     /// Jumps to the start of the next step (for when you finish a pour early).

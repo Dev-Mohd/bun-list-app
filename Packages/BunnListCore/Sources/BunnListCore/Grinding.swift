@@ -155,6 +155,7 @@ public enum Brewers {
         case "FRENCH_PRESS": return ["Bodum", "Espro P7"]
         case "ESPRESSO": return ["سلة ١٨غ", "سلة ٢٠غ", "VST 18", "VST 20"]
         case "COLD_BREW": return ["Hario Mizudashi", "Toddy", "مرطبان"]
+        case "ARABIC": return ["دلة", "دلة كهربائية"]
         default: return ["Clever", "Hario Switch", "موكا"]
         }
     }

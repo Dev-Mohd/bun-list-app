@@ -71,6 +71,7 @@ public enum ReferenceCodes {
         .init("AEROPRESS", "إيروبرس", "AeroPress", aliases: ["ايروبرس"]),
         .init("FRENCH_PRESS", "فرنش برس", "French press"),
         .init("COLD_BREW", "تقطير بارد", "Cold brew", aliases: ["كولد برو"]),
+        .init("ARABIC", "قهوة عربية", "Arabic coffee", aliases: ["قهوة سعودية", "دلة"]),
         .init("OTHER", "أخرى", "Other"),
     ]
 

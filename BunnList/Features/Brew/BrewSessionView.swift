@@ -52,25 +52,18 @@ struct EspressoShotView: View {
                     Text("\(RecipeText.number(plan.doseGrams))غ بن ← \(RecipeText.number(plan.yieldGrams))غ في الكوب")
                         .font(.subheadline).foregroundStyle(.white.opacity(0.7))
                 }
-                ZStack {
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 14)
-                    Circle()
-                        .trim(from: CGFloat(target.lowerBound) / 40, to: CGFloat(target.upperBound) / 40)
-                        .stroke(Brand.olive.opacity(0.8), style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Circle()
-                        .trim(from: 0, to: min(elapsed / 40, 1))
-                        .stroke(Brand.gold, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    VStack(spacing: 4) {
-                        Text(String(format: "%.1f", elapsed))
-                            .font(.system(size: 64, weight: .bold, design: .monospaced))
-                            .contentTransition(.numericText())
-                        Text("الهدف \(target.lowerBound)–\(target.upperBound) ث").font(.subheadline).foregroundStyle(.white.opacity(0.6))
+                TimelineView(.animation) { context in
+                    let pulled = stoppedAt ?? startedAt.map { context.date.timeIntervalSince($0) } ?? 0
+                    VStack(spacing: 10) {
+                        EspressoSceneView(elapsed: pulled, running: startedAt != nil && stoppedAt == nil,
+                                          target: target, clock: context.date.timeIntervalSinceReferenceDate)
+                            .frame(height: 250)
+                        Text(String(format: "%.1f", pulled))
+                            .font(.system(size: 56, weight: .bold, design: .monospaced))
+                        targetBar(pulled)
                     }
                     .environment(\.layoutDirection, .leftToRight)
                 }
-                .frame(width: 260, height: 260)
                 result
                 Spacer(minLength: 0)
                 controls
@@ -88,6 +81,28 @@ struct EspressoShotView: View {
         .onReceive(tick) { if startedAt != nil && stoppedAt == nil { now = $0 } }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+    }
+
+    /// 0–40 s, the target window shaded, a marker at the shot's time.
+    private func targetBar(_ seconds: Double) -> some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.12))
+                Capsule().fill(Brand.olive.opacity(0.8))
+                    .frame(width: w * Double(target.upperBound - target.lowerBound) / 40)
+                    .offset(x: w * Double(target.lowerBound) / 40)
+                Circle().fill(Brand.gold).frame(width: 16, height: 16)
+                    .offset(x: min(w * seconds / 40, w) - 8)
+            }
+        }
+        .frame(height: 10)
+        .padding(.horizontal, 30)
+        .overlay(alignment: .bottom) {
+            Text("الهدف \(target.lowerBound)–\(target.upperBound) ث").font(.caption).foregroundStyle(.white.opacity(0.6))
+                .offset(y: 22)
+        }
+        .padding(.bottom, 18)
     }
 
     @ViewBuilder

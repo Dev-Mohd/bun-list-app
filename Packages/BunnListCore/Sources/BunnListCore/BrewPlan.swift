@@ -88,7 +88,7 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
 
 public enum BrewPlanner {
     /// Methods «حضّر» offers, in the order shown.
-    public static let methods = ["V60", "CHEMEX", "AEROPRESS", "FRENCH_PRESS", "ESPRESSO", "COLD_BREW"]
+    public static let methods = ["V60", "CHEMEX", "AEROPRESS", "FRENCH_PRESS", "ESPRESSO", "COLD_BREW", "ARABIC"]
 
     /// Recipes for a coffee and method, in the agreed order: yours (this coffee
     /// first), then the community's for this coffee (most liked first), then the

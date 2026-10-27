@@ -114,6 +114,20 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
                 .init(kind: .wait, note: "غطّها وانقعها ١٢–١٦ ساعة في الثلاجة."),
                 .init(kind: .serve, note: "صفّها بفلتر ورقي، وخففها بالماء أو الحليب ١:١ وقدّمها على ثلج."),
             ]),
+        BrewPreset(
+            id: "arabic-saudi", nameAr: "قهوة سعودية بالهيل", summaryAr: "دلة لتر · ٣٠غ بن شقراء · ١٠غ هيل · ١٥ دقيقة",
+            methodCode: "ARABIC", temperature: .hot, doseGrams: 30, hotWaterGrams: 1000, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 100, grindAr: "متوسط", grindLevel: .medium, brewer: "دلة", filterType: nil,
+            steps: [
+                .init(kind: .pour, addedWaterGrams: 1000, seconds: 180,
+                      note: "صب لتر ماء في الدلة على نار قوية لين يغلي."),
+                .init(kind: .stir, seconds: 20, note: "أضف البن (تحميص فاتح) وحرّك، وانتبه لا تفور برا الدلة."),
+                .init(kind: .wait, seconds: 600,
+                      note: "خفّف النار وخلّها تغلي على هدوء ١٠ دقايق. إذا ارتفعت الرغوة ارفعها عن النار شوي."),
+                .init(kind: .stir, seconds: 20, note: "أضف الهيل المطحون، ورشّة زعفران أو قرنفل إذا تحب."),
+                .init(kind: .wait, seconds: 120, note: "طفّ النار وخلّها تركد دقيقتين عشان ينزل البن تحت."),
+                .init(kind: .serve, seconds: 30, note: "صبّها بهدوء في الترمس أو المصفاة، وقدّمها بالفناجين مع التمر."),
+            ]),
     ]
 }
 
@@ -189,6 +203,7 @@ public enum BrewAdvisor {
         switch methodCode {
         case "ESPRESSO": return 1.5...3
         case "COLD_BREW": return 4...12
+        case "ARABIC": return 20...45
         case "AEROPRESS": return 12...18
         default: return 14...18
         }
@@ -207,6 +222,7 @@ public enum BrewAdvisor {
         case "CHEMEX": return 210...330
         case "AEROPRESS": return 90...240
         case "FRENCH_PRESS": return 240...720
+        case "ARABIC": return 600...1_500
         default: return nil
         }
     }
@@ -215,7 +231,8 @@ public enum BrewAdvisor {
         var tips: [BrewTip] = []
         let method = draft.methodCode
 
-        if let temp = draft.waterTempC, method != "COLD_BREW" {
+        // Cold brew is room temperature and Arabic coffee boils by design.
+        if let temp = draft.waterTempC, method != "COLD_BREW", method != "ARABIC" {
             if temp < 88 { tips.append(.waterTooCool) } else if temp > 98 { tips.append(.waterTooHot) }
         }
 
@@ -241,7 +258,7 @@ public enum BrewAdvisor {
             if share < 0.25 || share > 0.5 { tips.append(.icedShare) }
         }
 
-        if draft.roastLevel == .dark, let temp = draft.waterTempC, temp > 93 { tips.append(.darkRoastHot) }
+        if draft.roastLevel == .dark, method != "ARABIC", let temp = draft.waterTempC, temp > 93 { tips.append(.darkRoastHot) }
         if let rest = draft.restDays, rest < (draft.isEspresso ? 7 : 4) { tips.append(.veryFreshBeans) }
 
         if let ppm = draft.waterTdsPpm {

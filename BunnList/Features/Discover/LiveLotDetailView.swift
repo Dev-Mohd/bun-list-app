@@ -369,6 +369,7 @@ struct LiveLotDetailView: View {
         case "CHEMEX": return "كيمكس"
         case "AEROPRESS": return "إيروبرس"
         case "FRENCH_PRESS": return "فرنش برس"
+        case "ARABIC": return "قهوة عربية"
         case "COLD_BREW": return "كولد برو"
         default: return "أخرى"
         }
