@@ -17,6 +17,8 @@ final class ProfileStore: ObservableObject {
         defer { isLoading = false }
         if let fresh = try? await auth.withToken({ try await client.fetchMe(accessToken: $0) }) {
             me = fresh
+            // «مطحنتي» from the profile wins over the phone's copy.
+            if let grinderID = fresh.grinderId { UserDefaults.standard.set(grinderID, forKey: MyGrinder.key) }
         }
     }
 

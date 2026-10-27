@@ -19,6 +19,8 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     public let followersVisibility: ProfileVisibility?
     public let followingVisibility: ProfileVisibility?
     public let activityVisibility: ProfileVisibility?
+    /// «مطحنتي» (a guide grinder id). Missing from older servers.
+    public let grinderId: String?
 
     public var isOnboarded: Bool { onboarded ?? true }
 

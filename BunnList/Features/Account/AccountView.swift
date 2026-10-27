@@ -79,6 +79,10 @@ struct AccountView: View {
     private var shortcuts: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
+                NavigationLink { GrinderGuideView() } label: {
+                    ShortcutTile(icon: "dial.medium.fill", color: Brand.olive, title: "مطحنتي", count: nil)
+                }
+                .accessibilityIdentifier("open-grinders")
                 NavigationLink { PassportView() } label: {
                     ShortcutTile(icon: "globe.europe.africa.fill", color: Brand.gold, title: "جوازي", count: nil)
                 }

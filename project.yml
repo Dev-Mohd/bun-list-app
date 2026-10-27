@@ -13,7 +13,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "5"
     SWIFT_EMIT_LOC_STRINGS: YES
     # Signed with the developer team — required for Sign in with Apple.
     DEVELOPMENT_TEAM: U8874JC7QW

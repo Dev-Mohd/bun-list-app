@@ -12,6 +12,8 @@ struct BrewView: View {
     @AppStorage("recentBrews") private var recentRaw = ""
     @AppStorage("lastBrewMethod") private var method = "V60"
     @AppStorage("myGrinderID") private var myGrinderID = ""
+    @AppStorage(MyGrinder.key) private var myGuideGrinderID = ""
+    @ObservedObject private var grinders = GrinderCatalog.shared
 
     @State private var coffees: [RemoteCollectionItem]?
     @State private var failed = false
@@ -54,7 +56,8 @@ struct BrewView: View {
                 AddCoffeeSearchView().environmentObject(auth)
             }
             .sheet(isPresented: $showSignIn) { SignInView() }
-            .sheet(isPresented: $showGrinder) { GrindConverterView() }
+            .sheet(isPresented: $showGrinder) { NavigationStack { GrinderGuideView(showsDone: true) }.environmentObject(auth) }
+            .task { await grinders.load() }
             .fullScreenCover(item: $session, onDismiss: {
                 if let pendingFinish { finishing = pendingFinish; self.pendingFinish = nil }
             }) { ref in
@@ -203,20 +206,22 @@ struct BrewView: View {
             if let plans {
                 VStack(spacing: 10) {
                     ForEach(plans) { option in
-                        PlanCard(plan: option, isSelected: option.id == plan?.id, grinder: Grinder.find(myGrinderID)) {
+                        PlanCard(plan: option, isSelected: option.id == plan?.id,
+                                 guideGrinder: grinders.grinder(myGuideGrinderID), legacyGrinder: Grinder.find(myGrinderID)) {
                             selectedPlanID = option.id
                         }
                     }
                 }
                 .padding(.horizontal)
-                if Grinder.find(myGrinderID) == nil {
-                    Button { showGrinder = true } label: {
-                        Label("اختر مطحنتك عشان نقرّب لك الطحنة", systemImage: "dial.medium")
-                            .font(.caption.bold())
+                Button { showGrinder = true } label: {
+                    if let mine = grinders.grinder(myGuideGrinderID) {
+                        Label("مطحنتي: \(mine.brand) \(mine.title)", systemImage: "dial.medium").font(.caption.bold())
+                    } else {
+                        Label("اختر مطحنتك عشان نقرّب لك الطحنة", systemImage: "dial.medium").font(.caption.bold())
                     }
-                    .tint(Brand.olive)
-                    .padding(.horizontal)
                 }
+                .tint(Brand.olive)
+                .padding(.horizontal)
             } else {
                 HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 20)
             }
@@ -296,7 +301,8 @@ struct BrewFinishRef: Identifiable {
 private struct PlanCard: View {
     let plan: BrewPlan
     let isSelected: Bool
-    let grinder: Grinder?
+    let guideGrinder: RemoteGrinder?
+    let legacyGrinder: Grinder?
     var onSelect: () -> Void
 
     var body: some View {
@@ -326,8 +332,8 @@ private struct PlanCard: View {
                 if !plan.grindText.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         Label("الطحنة: \(plan.grindText)", systemImage: "dial.medium").font(.caption)
-                        if let clicks = plan.approximateClicks(on: grinder), let grinder {
-                            Text("≈ \(clicks) كليك على \(grinder.name) · تقريبي، ابدأ منه وعدّل بذوقك")
+                        if let (clicks, name) = conversion {
+                            Text("≈ \(clicks) كليك على \(name) · تقريبي، ابدأ منه وعدّل بذوقك")
                                 .font(.caption2).foregroundStyle(Brand.olive)
                         }
                     }
@@ -340,6 +346,13 @@ private struct PlanCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// Your guide grinder first; the older built-in list for those who picked there.
+    private var conversion: (Int, String)? {
+        if let g = guideGrinder, let c = plan.approximateClicks(on: g) { return (c, "\(g.brand) \(g.title)") }
+        if guideGrinder == nil, let g = legacyGrinder, let c = plan.approximateClicks(on: g) { return (c, g.name) }
+        return nil
     }
 
     private var sourceColor: Color {
