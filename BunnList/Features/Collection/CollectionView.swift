@@ -106,7 +106,8 @@ struct CollectionView: View {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
                         ForEach(visible) { item in
                             NavigationLink { LiveLotDetailView(slug: item.slug) } label: { CollectionCard(item: item) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(CardPressStyle())
+                                .cardScrollIn()
                         }
                     }
                     .padding(.horizontal)
@@ -147,5 +148,9 @@ private struct CollectionCard: View {
             .font(.caption).foregroundStyle(Brand.olive)
         }
         .accessibilityElement(children: .combine)
+        .lotQuickActions(slug: item.slug, name: item.nameAr, roaster: item.roasterNameAr, imageUrl: item.imageUrl,
+                         notes: [], origin: item.originNameAr, originCode: item.originCode,
+                         known: RemoteCollectionFlags(owned: item.owned, favorite: item.favorite,
+                                                      wantsToTry: item.wantsToTry, tried: item.tried))
     }
 }

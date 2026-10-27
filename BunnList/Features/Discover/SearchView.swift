@@ -167,7 +167,8 @@ struct SearchView: View {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
                         ForEach(lots) { lot in
                             NavigationLink { LiveLotDetailView(slug: lot.slug) } label: { LotGridCard(lot: lot) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(CardPressStyle())
+                                .cardScrollIn()
                                 .accessibilityIdentifier("search-lot-\(lot.slug)")
                                 .onAppear { if lot.id == lots.last?.id { Task { await load(reset: false) } } }
                         }
@@ -211,20 +212,38 @@ struct LotGridCard: View {
             LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
                          origin: lot.originNameAr, originCode: lot.originCode)
             .aspectRatio(1, contentMode: .fit)
+            .overlay(alignment: .topTrailing) { RatingChip(average: lot.averageRating, count: lot.reviewCount) }
             .clipShape(RoundedRectangle(cornerRadius: 14))
             Text(lot.nameAr).font(.subheadline.bold()).lineLimit(1)
             Text(lot.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             HStack(spacing: 4) {
                 Text(lot.cardLine.isEmpty ? (lot.originNameAr ?? "") : lot.cardLine).lineLimit(1)
                 Spacer(minLength: 0)
-                if lot.reviewCount > 0 {
-                    Label(lot.averageRating.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
-                        .foregroundStyle(Brand.gold)
-                }
             }
             .font(.caption2)
             .foregroundStyle(Brand.olive)
         }
         .accessibilityElement(children: .combine)
+        .lotQuickActions(slug: lot.slug, name: lot.nameAr, roaster: lot.roasterNameAr, imageUrl: lot.imageUrl,
+                         notes: lot.flavorNotes, origin: lot.originNameAr, originCode: lot.originCode)
+    }
+}
+
+/// The lot's rating on a frosted chip over its photo; nothing until rated.
+struct RatingChip: View {
+    let average: Double
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            Label(average.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
+                .font(.caption2.bold().monospacedDigit())
+                .foregroundStyle(Brand.ink)
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Brand.gold.opacity(0.5), lineWidth: 0.5))
+                .padding(7)
+                .environment(\.layoutDirection, .leftToRight)
+        }
     }
 }

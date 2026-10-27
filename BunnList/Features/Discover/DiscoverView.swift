@@ -97,12 +97,15 @@ struct DiscoverView: View {
                             HStack(spacing: 12) {
                                 ForEach(discoveries) { lot in
                                     NavigationLink(value: lot.slug) { DiscoveryCard(lot: lot) }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(CardPressStyle())
+                                        .carouselCard()
                                         .accessibilityIdentifier("discovery-\(lot.slug)")
                                 }
                             }
+                            .scrollTargetLayout()
                             .padding(.horizontal)
                         }
+                        .scrollTargetBehavior(.viewAligned)
                     }
                 }
 
@@ -128,12 +131,15 @@ struct DiscoverView: View {
                                                     .padding(6)
                                             }
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(CardPressStyle())
+                                    .carouselCard()
                                     .accessibilityIdentifier("top-\(lot.slug)")
                                 }
                             }
+                            .scrollTargetLayout()
                             .padding(.horizontal)
                         }
+                        .scrollTargetBehavior(.viewAligned)
                     }
                 }
 
@@ -335,6 +341,7 @@ private struct DiscoveryCard: View {
             LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
                          origin: lot.originNameAr, originCode: lot.originCode)
             .frame(width: 150, height: 150)
+            .overlay(alignment: .topTrailing) { RatingChip(average: lot.averageRating, count: lot.reviewCount) }
             .clipShape(RoundedRectangle(cornerRadius: 14))
             Text(lot.nameAr).font(.subheadline.bold()).lineLimit(1)
             Text(lot.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -347,6 +354,8 @@ private struct DiscoveryCard: View {
         }
         .frame(width: 150)
         .accessibilityElement(children: .combine)
+        .lotQuickActions(slug: lot.slug, name: lot.nameAr, roaster: lot.roasterNameAr, imageUrl: lot.imageUrl,
+                         notes: lot.flavorNotes, origin: lot.originNameAr, originCode: lot.originCode)
     }
 }
 
