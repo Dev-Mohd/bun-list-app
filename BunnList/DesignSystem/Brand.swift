@@ -107,6 +107,14 @@ enum BrandAppearance {
             return base.fontDescriptor.withDesign(.rounded).map { UIFont(descriptor: $0, size: base.pointSize) } ?? base
         }
 
+        UINavigationBar.appearance().tintColor = olive
+        // iOS 26 draws its own (glass) bars; a custom bar appearance there leaves
+        // the large titles («مجموعتي», «المجتمع»…) blank, so keep the system's.
+        if #available(iOS 26, *) {
+            configureControls(olive: olive, ink: ink)
+            return
+        }
+
         let nav = UINavigationBarAppearance()
         nav.configureWithOpaqueBackground()
         nav.backgroundColor = background
@@ -130,6 +138,10 @@ enum BrandAppearance {
         UITabBar.appearance().standardAppearance = tab
         UITabBar.appearance().scrollEdgeAppearance = tab
 
+        configureControls(olive: olive, ink: ink)
+    }
+
+    private static func configureControls(olive: UIColor, ink: UIColor) {
         UISegmentedControl.appearance().selectedSegmentTintColor = olive
         UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
         UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: ink], for: .normal)
