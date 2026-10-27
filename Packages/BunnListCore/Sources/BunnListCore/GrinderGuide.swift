@@ -34,8 +34,10 @@ public struct RemoteGrinder: Codable, Equatable, Hashable, Sendable, Identifiabl
         switch adjustment {
         case "timer": return "بالوقت (بدون درجات طحن)"
         case "stepless": return range.map { "\($0) · بدون درجات" } ?? "بدون درجات"
-        case "clicks": return range.map { "\($0) كليك" }
-        case "stepped": return range.map { "\($0) درجة" }
+        case "clicks":
+            if let range { return "\(range) كليك" }
+            return clicksPerRotation.map { "\($0) كليك في اللفة" } ?? "كليكات"
+        case "stepped": return range.map { "\($0) درجة" } ?? "بدرجات"
         default: return nil
         }
     }
@@ -109,13 +111,16 @@ extension CatalogAPIClient {
         try await decodeGrinders(HTTPRequest(method: .get, path: "/api/v1/admin/grinders", bearer: accessToken))
     }
 
-    /// Adds bundled grinders missing from the guide; returns how many were added.
-    public func seedGrinders(accessToken: String) async throws -> Int {
+    /// Adds bundled grinders missing from the guide and fills specs nobody entered
+    /// yet; returns how many grinders were added and how many got specs.
+    public func seedGrinders(accessToken: String) async throws -> (created: Int, specs: Int) {
         let response = try await transport.send(HTTPRequest(method: .post, path: "/api/v1/admin/grinders/seed", bearer: accessToken))
         try Self.checkContract(response)
-        struct Result: Decodable { let created: Int }
-        do { return try JSONDecoder().decode(Result.self, from: response.body).created }
-        catch { throw AuthClientError.malformedResponse }
+        struct Result: Decodable { let created: Int; let specs: Int? }
+        do {
+            let r = try JSONDecoder().decode(Result.self, from: response.body)
+            return (r.created, r.specs ?? 0)
+        } catch { throw AuthClientError.malformedResponse }
     }
 
     public func updateGrinder(id: String, changes: [String: Any], accessToken: String) async throws -> RemoteGrinder {

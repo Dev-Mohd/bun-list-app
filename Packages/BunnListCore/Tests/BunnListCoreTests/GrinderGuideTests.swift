@@ -27,4 +27,10 @@ final class GrinderGuideTests: XCTestCase {
         XCTAssertEqual(recipePlan.approximateClicks(on: try grinder(#""adjustment":"clicks","micronsPerStep":30"#)), 24)
         XCTAssertNil(recipePlan.approximateClicks(on: try grinder(#""adjustment":"clicks","micronsPerStep":null"#)))
     }
+
+    func testRangeTextWithoutRange() throws {
+        let json = #"{"id":"k","brand":"1Zpresso","model":"K-Ultra","variant":null,"category":"hand","adjustment":"clicks","rangeMin":null,"rangeMax":null,"clicksPerRotation":100,"micronsPerStep":20,"zeroGuideAr":null,"notesAr":null,"sources":[],"imageUrl":null,"imageCredit":null,"published":true}"#
+        let g = try JSONDecoder().decode(RemoteGrinder.self, from: Data(json.utf8))
+        XCTAssertEqual(g.rangeAr, "100 كليك في اللفة")
+    }
 }

@@ -65,8 +65,10 @@ struct AdminGrindersView: View {
         isSeeding = true
         defer { isSeeding = false }
         do {
-            let created = try await auth.withToken { try await client.seedGrinders(accessToken: $0) }
-            message = created > 0 ? "انضافت \(created) مطحنة" : "كل مطاحن الدليل موجودة"
+            let result = try await auth.withToken { try await client.seedGrinders(accessToken: $0) }
+            message = result.created + result.specs > 0
+                ? "انضافت \(result.created) مطحنة، وتعبّت مواصفات \(result.specs)"
+                : "كل مطاحن الدليل ومواصفاتها موجودة"
             await load()
             await GrinderCatalog.shared.load(force: true)
         } catch {
