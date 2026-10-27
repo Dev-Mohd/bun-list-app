@@ -133,22 +133,48 @@ struct CollectionView: View {
 private struct CollectionCard: View {
     let item: RemoteCollectionItem
 
+    /// The shelves it's on, in words, so a card says more than an icon.
+    private struct Shelf: Hashable { let icon: String; let label: String }
+
+    private var shelves: [Shelf] {
+        var out: [Shelf] = []
+        if item.owned { out.append(Shelf(icon: "checkmark.circle.fill", label: "لديّ")) }
+        if item.tried { out.append(Shelf(icon: "cup.and.saucer.fill", label: "جرّبته")) }
+        if item.favorite { out.append(Shelf(icon: "heart.fill", label: "مفضّل")) }
+        if item.wantsToTry { out.append(Shelf(icon: "bookmark.fill", label: "ودّي أجرّب")) }
+        return out
+    }
+
+    private var origin: String? {
+        let text = [ReferenceCodes.flag(item.originCode), item.originNameAr].compactMap { $0 }.joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             LotPhotoWell(imageUrl: item.imageUrl, notes: [], roaster: item.roasterNameAr, name: item.nameAr,
                          origin: item.originNameAr, originCode: item.originCode)
             .aspectRatio(1, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 14))
-            Text(item.nameAr).font(.subheadline.bold()).lineLimit(1)
-            Text(item.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            HStack(spacing: 8) {
-                if item.owned { Image(systemName: "checkmark.circle.fill") }
-                if item.tried { Image(systemName: "cup.and.saucer.fill") }
-                if item.favorite { Image(systemName: "heart.fill") }
-                if item.wantsToTry { Image(systemName: "bookmark.fill") }
+            .padding(.bottom, 4)
+            Text(item.nameAr).font(.headline).foregroundStyle(Brand.ink).lineLimit(1)
+            Text(item.roasterNameAr).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+            if let origin {
+                Text(origin).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
-            .font(.caption).foregroundStyle(Brand.olive)
+            FlowLayout(spacing: 4) {
+                ForEach(shelves, id: \.self) { shelf in
+                    Label(shelf.label, systemImage: shelf.icon)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Brand.olive.opacity(0.12), in: Capsule())
+                        .foregroundStyle(Brand.olive)
+                }
+            }
+            .padding(.top, 2)
         }
+        .padding(8)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
         .lotQuickActions(slug: item.slug, name: item.nameAr, roaster: item.roasterNameAr, imageUrl: item.imageUrl,
                          notes: [], origin: item.originNameAr, originCode: item.originCode,
