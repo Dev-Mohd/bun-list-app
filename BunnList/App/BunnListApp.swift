@@ -33,6 +33,7 @@ struct BunnListApp: App {
                 }
                 .task { PushManager.shared.start(auth: auth) }
                 .onChange(of: auth.isSignedIn) { _, signedIn in
+                    MatchScores.shared.reset()
                     if signedIn { Task { await PushManager.shared.uploadToken() } }
                 }
                 .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }

@@ -22,4 +22,15 @@ final class LotCardTextTests: XCTestCase {
                              process: "OTHER", processLabel: nil, flavorNotes: [], roastLevel: nil, averageRating: 0, reviewCount: 0, imageUrl: nil)
         XCTAssertEqual(bare.cardLine, "")
     }
+
+    func testSpectrumIsDistinctAndCapped() {
+        XCTAssertEqual(FlavorFamily.spectrum(["توت", "فراولة", "خوخ", "غامض", "شوكولاتة", "عسل", "ياسمين"]),
+                       [.berry, .stoneFruit, .chocolate, .honey])
+        XCTAssertEqual(FlavorFamily.spectrum([]), [])
+    }
+
+    func testDecodesMatchScores() throws {
+        let m = try JSONDecoder().decode(RemoteMatchScores.self, from: Data(#"{"scores":{"bk-nardos":87},"needed":0}"#.utf8))
+        XCTAssertEqual(m.scores["bk-nardos"], 87)
+    }
 }

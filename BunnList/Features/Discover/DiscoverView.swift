@@ -94,7 +94,7 @@ struct DiscoverView: View {
                             .font(.title3.bold())
                             .padding(.horizontal)
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
+                            HStack(alignment: .top, spacing: 12) {
                                 ForEach(discoveries) { lot in
                                     NavigationLink(value: lot.slug) { DiscoveryCard(lot: lot) }
                                         .buttonStyle(CardPressStyle())
@@ -120,16 +120,8 @@ struct DiscoverView: View {
                             HStack(alignment: .top, spacing: 12) {
                                 ForEach(Array(topRated.enumerated()), id: \.offset) { index, lot in
                                     NavigationLink(value: lot.slug) {
-                                        LotGridCard(lot: lot)
-                                            .frame(width: 150)
-                                            .overlay(alignment: .topLeading) {
-                                                Text("#\(index + 1)")
-                                                    .font(.caption.bold().monospacedDigit())
-                                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                                    .background(Brand.gold, in: Capsule())
-                                                    .foregroundStyle(.black)
-                                                    .padding(6)
-                                            }
+                                        LotGridCard(lot: lot, rank: index + 1)
+                                            .frame(width: 172)
                                     }
                                     .buttonStyle(CardPressStyle())
                                     .carouselCard()
@@ -332,31 +324,11 @@ private struct LeaderCard: View {
     }
 }
 
-/// A new discovery: the bag (or its drawn card), name, roaster and who found it.
+/// A new discovery: the coffee card, with who found it.
 private struct DiscoveryCard: View {
     let lot: RemoteLot
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
-                         origin: lot.originNameAr, originCode: lot.originCode)
-            .frame(width: 150, height: 150)
-            .overlay(alignment: .topTrailing) { RatingChip(average: lot.averageRating, count: lot.reviewCount) }
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            Text(lot.nameAr).font(.subheadline.bold()).lineLimit(1)
-            Text(lot.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            if let by = lot.discoveredBy {
-                Label("اكتشفها \(by)", systemImage: "star.circle.fill")
-                    .font(.caption2).foregroundStyle(Brand.gold).lineLimit(1)
-            } else if !lot.cardLine.isEmpty {
-                Text(lot.cardLine).font(.caption2).foregroundStyle(Brand.olive).lineLimit(1)
-            }
-        }
-        .frame(width: 150)
-        .accessibilityElement(children: .combine)
-        .lotQuickActions(slug: lot.slug, name: lot.nameAr, roaster: lot.roasterNameAr, imageUrl: lot.imageUrl,
-                         notes: lot.flavorNotes, origin: lot.originNameAr, originCode: lot.originCode)
-    }
+    var body: some View { CoffeeCard(lot: lot).frame(width: 172) }
 }
 
 /// Converts a grind setting between hand grinders using their published microns

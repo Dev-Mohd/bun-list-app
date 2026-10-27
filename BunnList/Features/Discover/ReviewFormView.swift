@@ -98,6 +98,8 @@ struct ReviewFormView: View {
         do {
             let result = try await submit(with: token, note: trimmed)
             onSaved(result)
+            // A new rating changes every match score.
+            MatchScores.shared.reset()
             dismiss()
         } catch {
             errorMessage = Self.message(for: error)
@@ -123,6 +125,7 @@ struct ReviewFormView: View {
             switch api {
             case .unauthorized: return "انتهت الجلسة. سجّل الدخول من جديد ثم أعد المحاولة."
             case .rateLimited: return "محاولات كثيرة. انتظر قليلًا."
+            case .forbidden: return "حسابك موقوف عن النشر حاليًا."
             case .unprocessable: return "تحقّق من بيانات التقييم."
             default: return "تعذّر حفظ التقييم. حاول مجددًا."
             }
