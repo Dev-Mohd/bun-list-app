@@ -4,10 +4,12 @@ import UIKit
 
 /// Guided brew: a full-screen timer that walks through the recipe's steps, showing
 /// what to do now, the scale reading to pour up to, and what comes next. Taps a
-/// haptic at each step change and keeps the screen awake while brewing.
+/// haptic at each step change and keeps the screen awake while brewing. With
+/// `onFinish`, ending the brew hands back the elapsed seconds (for «كيف طلعت؟»).
 @MainActor
 struct BrewTimerView: View {
-    let recipe: RemoteRecipe
+    let plan: BrewPlan
+    var onFinish: ((Int) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     @State private var startedAt: Date?
@@ -16,7 +18,7 @@ struct BrewTimerView: View {
     @State private var lastStep = -1
 
     private let tick = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
-    private var timeline: BrewTimeline { BrewTimeline(steps: recipe.steps) }
+    private var timeline: BrewTimeline { BrewTimeline(steps: plan.steps) }
 
     private var elapsed: TimeInterval {
         guard let startedAt else { return pausedElapsed }
@@ -45,6 +47,17 @@ struct BrewTimerView: View {
                         .tint(.white)
                         .accessibilityLabel("إغلاق")
                 }
+                if let onFinish, elapsed > 0 {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("خلصت") {
+                            let seconds = Int(elapsed)
+                            dismiss()
+                            onFinish(seconds)
+                        }
+                        .font(.headline).tint(Brand.gold)
+                        .accessibilityIdentifier("brew-finish")
+                    }
+                }
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
@@ -54,7 +67,7 @@ struct BrewTimerView: View {
             let current = timeline.position(at: Int(elapsed))
             if current.stepIndex != lastStep || current.isFinished {
                 if lastStep >= 0 { UINotificationFeedbackGenerator().notificationOccurred(current.isFinished ? .success : .warning) }
-                lastStep = current.isFinished ? recipe.steps.count : current.stepIndex
+                lastStep = current.isFinished ? plan.steps.count : current.stepIndex
             }
             if current.isFinished { pause() }
         }
@@ -64,8 +77,8 @@ struct BrewTimerView: View {
 
     private var header: some View {
         VStack(spacing: 4) {
-            Text(recipe.title.isEmpty ? "وصفة" : recipe.title).font(.title3.bold())
-            Text("\(RecipeText.method(recipe.methodCode)) · \(RecipeText.number(recipe.doseGrams))غ بن · \(RecipeText.number(recipe.waterTempC))°م")
+            Text(plan.title).font(.title3.bold())
+            Text("\(RecipeText.method(plan.methodCode)) · \(RecipeText.number(plan.doseGrams))غ بن · \(RecipeText.number(plan.waterTempC))°م")
                 .font(.caption).foregroundStyle(.white.opacity(0.7))
         }
     }
@@ -102,7 +115,7 @@ struct BrewTimerView: View {
                 Text("تذوّقها وهي دافئة ثم وهي تبرد؛ النكهات تتغير.").font(.callout).foregroundStyle(.white.opacity(0.7))
             }
             .multilineTextAlignment(.center)
-        } else if let step = recipe.steps[safe: position.stepIndex] {
+        } else if let step = plan.steps[safe: position.stepIndex] {
             VStack(spacing: 10) {
                 Label(RecipeText.stepKind(step.kind), systemImage: RecipeText.stepIcon(step.kind))
                     .font(.title.bold())
@@ -124,7 +137,7 @@ struct BrewTimerView: View {
 
     @ViewBuilder
     private func nextStep(_ position: BrewTimeline.Position) -> some View {
-        if !position.isFinished, let next = recipe.steps[safe: position.stepIndex + 1] {
+        if !position.isFinished, let next = plan.steps[safe: position.stepIndex + 1] {
             HStack {
                 Text("التالي").font(.caption).foregroundStyle(.white.opacity(0.6))
                 Label(RecipeText.stepKind(next.kind), systemImage: RecipeText.stepIcon(next.kind)).font(.subheadline)

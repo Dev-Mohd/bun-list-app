@@ -14,6 +14,7 @@ struct DiscoverView: View {
         case failed
     }
 
+    @EnvironmentObject private var auth: AuthModel
     @EnvironmentObject private var profile: ProfileStore
     @State private var phase: Phase = .loading
     @State private var discoveries: [RemoteLot] = []
@@ -24,6 +25,7 @@ struct DiscoverView: View {
     @State private var showSample = false
     @State private var showRecipes = false
     @State private var showConverter = false
+    @State private var showScan = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -50,6 +52,7 @@ struct DiscoverView: View {
             .navigationDestination(isPresented: $showSearch) { SearchView(tab: $tab) }
             .sheet(isPresented: $showRecipes) { RecipesHubView() }
             .sheet(isPresented: $showConverter) { GrindConverterView() }
+            .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
             .task { if case .loading = phase { await load() } }
             .refreshable { await load() }
         }
@@ -67,22 +70,33 @@ struct DiscoverView: View {
                 }
                 .padding(.horizontal)
 
-                Button { showSearch = true } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                        Text("ابحث عن قهوة، محمصة، أصل…")
-                        Spacer()
-                        Image(systemName: "line.3.horizontal.decrease")
+                HStack(spacing: 8) {
+                    Button { showSearch = true } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                            Text("ابحث عن قهوة، محمصة، أصل…")
+                            Spacer()
+                            Image(systemName: "line.3.horizontal.decrease")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                        .frame(height: 46)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .frame(height: 46)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityIdentifier("open-search")
+                    Button { showScan = true } label: {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.headline)
+                            .foregroundStyle(Brand.olive)
+                            .frame(width: 46, height: 46)
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .accessibilityLabel("امسح كيس")
+                    .accessibilityIdentifier("open-scan")
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal)
-                .accessibilityIdentifier("open-search")
 
                 quickActions
 
@@ -144,7 +158,7 @@ struct DiscoverView: View {
     private var quickActions: some View {
         HStack(spacing: 10) {
             QuickAction(icon: "book.closed.fill", title: "إنشاء وصفة") { showRecipes = true }
-            QuickAction(icon: "camera.viewfinder", title: "مسح") { tab = .scan }
+            QuickAction(icon: "camera.viewfinder", title: "مسح") { showScan = true }
             QuickAction(icon: "square.stack.3d.up.fill", title: "مجموعتي") { tab = .collection }
             QuickAction(icon: "dial.medium.fill", title: "محوّل الطحن") { showConverter = true }
         }

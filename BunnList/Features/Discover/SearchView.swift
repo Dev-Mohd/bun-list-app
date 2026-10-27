@@ -15,6 +15,7 @@ struct SearchView: View {
     @State private var facets: RemoteFacets?
     @State private var showFilters = false
     @State private var showSignIn = false
+    @State private var showScan = false
     @FocusState private var searchFocused: Bool
 
     private enum Phase: Equatable { case loading, loaded, failed, loadingMore }
@@ -47,6 +48,7 @@ struct SearchView: View {
                 .environmentObject(auth)
         }
         .sheet(isPresented: $showSignIn) { SignInView() }
+        .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             if !signedIn { filters.shelf = .all; filters.favoritesOnly = false }
         }
@@ -90,7 +92,7 @@ struct SearchView: View {
             .accessibilityLabel("فلترة")
             .accessibilityIdentifier("search-filters")
 
-            Button { tab = .scan } label: {
+            Button { showScan = true } label: {
                 Image(systemName: "camera.fill")
                     .font(.headline)
                     .frame(width: 46, height: 46)

@@ -184,7 +184,7 @@ struct RecipeDetailView: View {
             }
             .environmentObject(auth)
         }
-        .fullScreenCover(isPresented: $brewing) { BrewTimerView(recipe: recipe) }
+        .fullScreenCover(isPresented: $brewing) { BrewTimerView(plan: BrewPlan(recipe: recipe)) }
         .confirmationDialog("حذف الوصفة؟", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("حذف نهائيًا", role: .destructive) { Task { await change(to: .deleted) } }
         } message: {

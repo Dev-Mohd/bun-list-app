@@ -26,6 +26,7 @@ struct CollectionView: View {
     @State private var items: [RemoteCollectionItem]?
     @State private var failed = false
     @State private var showSignIn = false
+    @State private var showScan = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -67,6 +68,7 @@ struct CollectionView: View {
             .refreshable { await load() }
             .task(id: auth.isSignedIn) { await load() }
             .sheet(isPresented: $showSignIn) { SignInView() }
+            .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
         }
     }
 
@@ -98,7 +100,7 @@ struct CollectionView: View {
                         Text(query.isEmpty ? "امسح كيس أو دوّر قهوة وعلّمها بـ «لديّ» أو «مفضّل»." : "جرّب كلمة ثانية.")
                     } actions: {
                         if query.isEmpty {
-                            Button("امسح كيس") { tab = .scan }.buttonStyle(.borderedProminent).tint(Brand.ink).foregroundStyle(Brand.background)
+                            Button("امسح كيس") { showScan = true }.buttonStyle(.borderedProminent).tint(Brand.ink).foregroundStyle(Brand.background)
                         }
                     }
                     .padding(.top, 30)

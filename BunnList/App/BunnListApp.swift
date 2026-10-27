@@ -42,7 +42,7 @@ struct BunnListApp: App {
 }
 
 enum AppTab: Hashable {
-    case discover, collection, scan, community, account
+    case discover, collection, brew, community, account
 }
 
 struct RootView: View {
@@ -74,9 +74,9 @@ struct RootView: View {
                 CollectionView(tab: $tab)
                     .tabItem { Label("مجموعتي", systemImage: "square.stack.3d.up") }
                     .tag(AppTab.collection)
-                ScanView()
-                    .tabItem { Label("مسح", systemImage: "camera.viewfinder") }
-                    .tag(AppTab.scan)
+                BrewView()
+                    .tabItem { Label("حضّر", systemImage: "cup.and.saucer.fill") }
+                    .tag(AppTab.brew)
                 CommunityView()
                     .tabItem { Label("المجتمع", systemImage: "person.3.fill") }
                     .tag(AppTab.community)
