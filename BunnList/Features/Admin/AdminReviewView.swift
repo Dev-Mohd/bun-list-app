@@ -12,6 +12,13 @@ struct AdminReviewView: View {
     @State private var errorMessage: String?
     @State private var confirmImport = false
     @State private var importMessage: String?
+    /// Bulk mode (pending only): tap rows to pick them, then approve or reject together.
+    @State private var selecting = false
+    @State private var selected: Set<String> = []
+    @State private var bulkBusy = false
+    @State private var bulkMessage: String?
+    @State private var bulkFailures: [RemoteBulkReview.Failure] = []
+    @State private var confirmBulkReject = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -32,15 +39,39 @@ struct AdminReviewView: View {
             if let errorMessage {
                 Section { Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
             }
+            if let bulkMessage {
+                Section {
+                    Label(bulkMessage, systemImage: "checkmark.circle.fill").foregroundStyle(Brand.olive)
+                    ForEach(bulkFailures) { f in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(f.name).font(.subheadline.weight(.semibold))
+                            Text(f.reason).font(.caption).foregroundStyle(.red)
+                        }
+                    }
+                }
+            }
             if let items {
                 if items.isEmpty {
                     ContentUnavailableView("لا يوجد", systemImage: "tray", description: Text("ما فيه اقتراحات بهذي الحالة."))
                 }
                 ForEach(items) { item in
-                    NavigationLink {
-                        AdminSubmissionDetailView(submission: item) { Task { await load() } }
-                    } label: {
-                        AdminSubmissionRow(item: item)
+                    if selecting {
+                        Button { toggle(item.id) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: selected.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(selected.contains(item.id) ? Brand.olive : .secondary)
+                                AdminSubmissionRow(item: item)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selected.contains(item.id) ? .isSelected : [])
+                    } else {
+                        NavigationLink {
+                            AdminSubmissionDetailView(submission: item) { Task { await load() } }
+                        } label: {
+                            AdminSubmissionRow(item: item)
+                        }
                     }
                 }
             } else if errorMessage == nil {
@@ -50,18 +81,50 @@ struct AdminReviewView: View {
         .brandScreen()
         .navigationTitle("مراجعة الاقتراحات")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: status) { await load() }
+        .task(id: status) {
+            selecting = false
+            selected = []
+            await load()
+        }
         .refreshable { await load() }
         .toolbar {
+            if status == "PENDING", !(items ?? []).isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(selecting ? "إلغاء" : "تحديد") {
+                        selecting.toggle()
+                        selected = []
+                    }
+                }
+            }
+            if selecting {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Button(selected.count == (items ?? []).count ? "إلغاء الكل" : "تحديد الكل") {
+                        let all = Set((items ?? []).map(\.id))
+                        selected = selected == all ? [] : all
+                    }
+                    Spacer()
+                    Button("رفض (\(selected.count))", role: .destructive) { confirmBulkReject = true }
+                        .disabled(selected.isEmpty || bulkBusy)
+                    Button {
+                        Task { await bulk(approve: true) }
+                    } label: {
+                        if bulkBusy { ProgressView() } else { Text("اعتماد (\(selected.count))").bold() }
+                    }
+                    .disabled(selected.isEmpty || bulkBusy)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button { confirmImport = true } label: { Image(systemName: "tray.and.arrow.down") }
                     .accessibilityLabel("استيراد دفعة المحامص")
             }
         }
+        .confirmationDialog("رفض \(selected.count) اقتراح؟", isPresented: $confirmBulkReject, titleVisibility: .visible) {
+            Button("رفض", role: .destructive) { Task { await bulk(approve: false) } }
+        }
         .confirmationDialog("استيراد دفعة المحامص؟", isPresented: $confirmImport, titleVisibility: .visible) {
             Button("استيراد") { Task { await runImport() } }
         } message: {
-            Text("تنضاف ١١٧ قهوة من ٢١ محمصة (مع صور أكياس بلاك نايت) كاقتراحات بانتظار مراجعتك. ما ينشر شي قبل ما تقبله، واللي موجود قبل ما يتكرر.")
+            Text("تنضاف قهاوي المحامص الجديدة مع صور أكياسها كاقتراحات بانتظار مراجعتك. ما ينشر شي قبل ما تقبله، واللي موجود قبل ما يتكرر.")
         }
     }
 
@@ -75,6 +138,37 @@ struct AdminReviewView: View {
         } catch {
             importMessage = "تعذّر الاستيراد. حاول مرة ثانية."
         }
+    }
+
+    private func toggle(_ id: String) {
+        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+    }
+
+    /// Sends the picked suggestions in chunks of 50 (the server takes up to 100, and
+    /// each approval publishes a photo, so smaller requests stay well inside its time limit).
+    private func bulk(approve: Bool) async {
+        let ids = (items ?? []).map(\.id).filter(selected.contains)
+        guard !ids.isEmpty else { return }
+        bulkBusy = true
+        defer { bulkBusy = false }
+        var done = 0
+        var failures: [RemoteBulkReview.Failure] = []
+        do {
+            for start in stride(from: 0, to: ids.count, by: 50) {
+                let chunk = Array(ids[start..<min(start + 50, ids.count)])
+                let result = try await auth.withToken { try await client.bulkReview(ids: chunk, approve: approve, accessToken: $0) }
+                done += result.done.count
+                failures += result.failed
+            }
+        } catch {
+            failures.append(.init(id: "network", name: "انقطع الطلب", reason: "اللي تم محفوظ. حدّث القائمة وكمّل الباقي."))
+        }
+        bulkMessage = approve ? "انعتمد \(done)" : "انرفض \(done)"
+        if !failures.isEmpty { bulkMessage! += " • ما تم \(failures.count)" }
+        bulkFailures = failures
+        selected = []
+        selecting = false
+        await load()
     }
 
     private func load() async {

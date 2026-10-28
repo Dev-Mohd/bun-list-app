@@ -46,6 +46,33 @@ final class AdminAPITests: XCTestCase {
         XCTAssertEqual(transport.requests[1].path, "/api/v1/admin/submissions/s1/reject")
     }
 
+    func testBulkReviewSendsIdsAndReadsFailures() async throws {
+        let transport = FakeTransport { _ in
+            HTTPResponse(status: 200, body: Data(#"{"done":["s1"],"failed":[{"id":"s2","name":"غريبة","reason":"بلد المنشأ غير معروف"}]}"#.utf8))
+        }
+        let result = try await CatalogAPIClient(transport: transport).bulkReview(ids: ["s1", "s2"], approve: true, accessToken: "adm")
+        XCTAssertEqual(result.done, ["s1"])
+        XCTAssertEqual(result.failed.first?.name, "غريبة")
+        let req = try XCTUnwrap(transport.requests.first)
+        XCTAssertEqual(req.path, "/api/v1/admin/submissions/bulk")
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: req.body ?? Data()) as? [String: Any])
+        XCTAssertEqual(body["action"] as? String, "approve")
+        XCTAssertEqual(body["ids"] as? [String], ["s1", "s2"])
+    }
+
+    func testDeletingAUsedLotIsAConflict() async {
+        let transport = FakeTransport { _ in HTTPResponse(status: 409, body: Data(#"{"error":"conflict","reason":"lot_in_use"}"#.utf8)) }
+        do {
+            try await CatalogAPIClient(transport: transport).deleteAdminLot(id: "L1", accessToken: "adm")
+            XCTFail("expected conflict")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .conflict)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        XCTAssertEqual(transport.requests.first?.method, .delete)
+    }
+
     func testNonAdminsGetForbidden() async {
         let transport = FakeTransport { _ in HTTPResponse(status: 403, body: Data(#"{"error":"forbidden"}"#.utf8)) }
         do {

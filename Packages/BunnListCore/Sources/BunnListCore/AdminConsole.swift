@@ -188,6 +188,13 @@ extension CatalogAPIClient {
         return try await decode(RemoteAdminLot.self, HTTPRequest(method: .patch, path: "/api/v1/admin/lots/\(id)", body: data, bearer: accessToken))
     }
 
+    /// Removes a lot nobody has used yet; `APIError.conflict` when it has reviews,
+    /// brews or recipes (hide it instead).
+    public func deleteAdminLot(id: String, accessToken: String) async throws {
+        let response = try await transport.send(HTTPRequest(method: .delete, path: "/api/v1/admin/lots/\(id)", bearer: accessToken))
+        try Self.checkContract(response)
+    }
+
     /// Replaces the lot's picture; returns its new URL.
     public func replaceAdminLotPhoto(id: String, jpeg: Data, accessToken: String) async throws -> String {
         let data = (try? JSONSerialization.data(withJSONObject: ["imageBase64": jpeg.base64EncodedString()])) ?? Data()

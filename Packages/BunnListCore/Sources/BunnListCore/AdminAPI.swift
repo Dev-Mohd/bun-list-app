@@ -148,6 +148,20 @@ public struct ApprovalForm: Equatable, Sendable {
     }
 }
 
+/// What a bulk review did: the ids that went through, and the rest with why.
+public struct RemoteBulkReview: Codable, Equatable, Sendable {
+    public struct Failure: Codable, Equatable, Sendable, Identifiable {
+        public let id: String
+        public let name: String
+        public let reason: String
+        public init(id: String, name: String, reason: String) {
+            self.id = id; self.name = name; self.reason = reason
+        }
+    }
+    public let done: [String]
+    public let failed: [Failure]
+}
+
 extension CatalogAPIClient {
     public func fetchMe(accessToken: String) async throws -> RemoteMe {
         let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/me", bearer: accessToken))
@@ -192,6 +206,20 @@ extension CatalogAPIClient {
         let response = try await transport.send(HTTPRequest(method: .post, path: "/api/v1/admin/import/\(batch)", bearer: accessToken))
         try Self.checkContract(response)
         do { return try JSONDecoder().decode(RemoteImportResult.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// Approves (each as it stands) or rejects several suggestions at once; the
+    /// ones that didn't go through come back with a reason in Arabic.
+    public func bulkReview(ids: [String], approve: Bool, reason: String? = nil, accessToken: String) async throws -> RemoteBulkReview {
+        var body: [String: Any] = ["ids": ids, "action": approve ? "approve" : "reject"]
+        if let reason, !reason.trimmingCharacters(in: .whitespaces).isEmpty { body["reason"] = reason }
+        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .post, path: "/api/v1/admin/submissions/bulk", body: data, bearer: accessToken)
+        )
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteBulkReview.self, from: response.body) }
         catch { throw AuthClientError.malformedResponse }
     }
 

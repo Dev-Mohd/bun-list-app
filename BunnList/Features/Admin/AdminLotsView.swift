@@ -95,6 +95,8 @@ struct AdminLotEditView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var isUploading = false
     @State private var trending: String?
+    @State private var confirmDelete = false
+    @State private var isDeleting = false
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private static let tagNames: [(String, String)] = [("luxury", "فاخرة"), ("infused", "منقوعة"), ("decaf", "منزوعة الكافيين")]
@@ -232,12 +234,40 @@ struct AdminLotEditView: View {
             if let message {
                 Section { Label(message, systemImage: "info.circle").foregroundStyle(Brand.olive) }
             }
+
+            Section {
+                Button(role: .destructive) { confirmDelete = true } label: {
+                    if isDeleting { ProgressView() } else { Label("حذف القهوة من الدليل", systemImage: "trash") }
+                }
+                .disabled(isDeleting)
+            } footer: {
+                Text("الحذف نهائي، وتنشال من مجموعات الناس. القهوة اللي لها تقييمات أو تحضيرات ما تنحذف، أخفها بدال كذا.")
+            }
+        }
+        .confirmationDialog("تحذف «\(lot.nameAr)» نهائيًا؟", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("حذف", role: .destructive) { Task { await delete() } }
+        } message: {
+            Text("ما تقدر ترجعها بعد الحذف، والاستيراد ما يرجّعها.")
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("حفظ") { Task { await save(lot) } }
                     .disabled(isSaving || form.wrappedValue.changes(from: lot).isEmpty)
             }
+        }
+    }
+
+    private func delete() async {
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await auth.withToken { try await client.deleteAdminLot(id: lotID, accessToken: $0) }
+            onSaved()
+            dismiss()
+        } catch APIError.conflict {
+            message = "ما تنحذف: لها تقييمات أو تحضيرات من الناس. أطفِ «ظاهرة في التطبيق والموقع» عشان تخفيها."
+        } catch {
+            message = "ما انحذفت. حاول مرة ثانية."
         }
     }
 
