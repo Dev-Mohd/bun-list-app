@@ -18,6 +18,8 @@ struct BrewFinishView: View {
     @State private var isSaving = false
     @State private var saved = false
     @State private var errorMessage: String?
+    @State private var keepingRecipe: RecipeDraft?
+    @State private var keptRecipe = false
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private var fix: TasteFix? {
@@ -43,6 +45,10 @@ struct BrewFinishView: View {
             }
         }
         .presentationDetents([.large])
+        .sheet(item: Binding(get: { keepingRecipe.map(KeptDraft.init) }, set: { if $0 == nil { keepingRecipe = nil } })) { kept in
+            ServerRecipeEditor(draft: kept.draft) { _ in keptRecipe = true }
+                .environmentObject(auth)
+        }
     }
 
     private var form: some View {
@@ -107,12 +113,30 @@ struct BrewFinishView: View {
                 FixCard(fix: fix, lead: "المرة الجاية").padding(.top, 4)
                 Text("بنذكّرك فيها أول ما تختار هالقهوة في «حضّر».").font(.caption).foregroundStyle(.secondary)
             }
+            if canKeepRecipe {
+                Button {
+                    keepingRecipe = RecipeDraft(
+                        plan: ref.plan, lot: RemoteRecipeLot(slug: ref.slug, nameAr: ref.coffeeName, roasterNameAr: ref.roasterName),
+                        grinderId: ref.grinder?.id, grindSetting: ref.grindSetting)
+                } label: {
+                    Label(keptRecipe ? "انحفظت في وصفاتك" : "احفظها كوصفة لك", systemImage: keptRecipe ? "checkmark" : "bookmark")
+                }
+                .buttonStyle(.bordered)
+                .disabled(keptRecipe)
+                .padding(.top, 4)
+            }
             Button("تم") { dismiss() }.buttonStyle(.borderedProminent).tint(Brand.olive).padding(.top, 8)
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.background.ignoresSafeArea())
         .sensoryFeedback(.success, trigger: saved)
+    }
+
+    /// A barista or community recipe that went well can be kept as one's own.
+    private var canKeepRecipe: Bool {
+        if case .mine = ref.plan.source { return false }
+        return auth.isSignedIn
     }
 
     private func save() async {
@@ -183,4 +207,9 @@ struct FixCard: View {
         .background(Brand.olive.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
+}
+
+private struct KeptDraft: Identifiable {
+    let draft: RecipeDraft
+    var id: String { draft.clientID }
 }

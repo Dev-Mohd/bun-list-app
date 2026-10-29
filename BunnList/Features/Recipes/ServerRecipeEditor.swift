@@ -1,10 +1,11 @@
 import BunnListCore
 import SwiftUI
 
-/// Create or edit a server recipe. A live summary card on top, then the recipe's
-/// info, method, coffee, parameters (dose, temperature, ratio slider), grind and
-/// steps with running water. Saves as a draft, or publishes when the toggle is on
-/// and the recipe is valid.
+/// Create or edit a server recipe in three steps: the tool (a barista recipe is
+/// loaded for it), tuning (dose with the water and pours following it, strength,
+/// grind, steps), then the name, coffee and sharing. Simple and pro walk the same
+/// steps; pro shows more fields inside them. Saves as a draft, or publishes when the
+/// toggle is on and the recipe is valid; "احفظ وجرّبها" opens the brew timer.
 @MainActor
 struct ServerRecipeEditor: View {
     @EnvironmentObject private var auth: AuthModel
@@ -17,6 +18,10 @@ struct ServerRecipeEditor: View {
     @State private var editingStep: StepRef?
     @State private var isBusy = false
     @State private var errorMessage: String?
+    @State private var page: RecipeWizardStep
+    /// The viewer's own latest recipe, offered as a starting point on new recipes.
+    @State private var lastRecipe: RemoteRecipe?
+    @State private var trying: BrewPlan?
     /// Simple shows the essentials; pro opens brewer, filter, roast, grinder and pour details.
     @AppStorage("recipeProMode") private var proMode = false
     /// The viewer's own grinder, used to show converted settings.
@@ -28,6 +33,8 @@ struct ServerRecipeEditor: View {
     init(draft: RecipeDraft, onSaved: @escaping (RemoteRecipe) -> Void) {
         _draft = State(initialValue: draft)
         _publish = State(initialValue: draft.existingState == .published)
+        // Editing (or keeping a brew) skips choosing the tool.
+        _page = State(initialValue: draft.existingState == nil && draft.title.isEmpty ? .tool : .tune)
         self.onSaved = onSaved
     }
 
@@ -44,35 +51,36 @@ struct ServerRecipeEditor: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    RecipeSummaryCard(draft: draft)
+                    header
                     Picker("الوضع", selection: $proMode) {
                         Text("بسيط").tag(false)
                         Text("احترافي").tag(true)
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("recipe-mode")
-                    if isNew { presetsCard }
-                    infoCard
-                    methodCard
-                    coffeeCard
-                    parametersCard
-                    grindCard
-                    if proMode { waterCard }
-                    stepsCard
-                    if draft.isEspresso { milkCard }
-                    if proMode { resultCard }
-                    tipsCard
-                    if canTogglePublish { publishCard }
+                    switch page {
+                    case .tool: toolPage
+                    case .tune: tunePage
+                    case .finish: finishPage
+                    }
                 }
                 .padding()
+                .animation(.snappy, value: page)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Brand.background.ignoresSafeArea())
-            .safeAreaInset(edge: .bottom) { saveBar }
+            .safeAreaInset(edge: .bottom) { bottomBar }
             .brandScreen()
             .navigationTitle(isNew ? "إنشاء وصفة" : "تعديل الوصفة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    if let previous = RecipeWizardStep(rawValue: page.rawValue - 1) {
+                        Button("رجوع") { page = previous }
+                    } else {
+                        Button("إلغاء") { dismiss() }
+                    }
+                }
             }
             .sheet(item: $editingStep) { ref in
                 if draft.steps.indices.contains(ref.index) {
@@ -86,8 +94,166 @@ struct ServerRecipeEditor: View {
                 }
             }
             .sheet(isPresented: $showCoffeePicker) { coffeePicker }
+            .fullScreenCover(item: $trying, onDismiss: { dismiss() }) { plan in BrewTimerView(plan: plan) }
             .disabled(isBusy)
             .task { await loadCollection() }
+        }
+    }
+
+    // MARK: Steps
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(RecipeWizardStep.allCases, id: \.self) { step in
+                    Capsule()
+                        .fill(step.rawValue <= page.rawValue ? Brand.ink : Color.secondary.opacity(0.25))
+                        .frame(height: 5)
+                        .onTapGesture { if step.rawValue < page.rawValue || !isNew { page = step } }
+                }
+            }
+            .accessibilityElement()
+            .accessibilityLabel("الخطوة \((page.rawValue + 1).formatted()) من ٣")
+            Text(page.titleAr).font(.title.bold()).padding(.top, 6)
+            Text(page.subtitleAr).font(.subheadline).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var toolPage: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            ForEach(Self.tools, id: \.code) { tool in
+                Button { pickTool(tool.code) } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Image(systemName: tool.icon).font(.title2).foregroundStyle(Brand.gold)
+                        Text(RecipeText.method(tool.code)).font(.headline)
+                        Text(tool.blurb).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+                    .padding(14)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18)
+                        .stroke(draft.methodCode == tool.code ? Brand.ink : .clear, lineWidth: 2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(draft.methodCode == tool.code ? .isSelected : [])
+                .accessibilityIdentifier("tool-\(tool.code)")
+            }
+        }
+        if !["ESPRESSO", "ARABIC", "COLD_BREW"].contains(draft.methodCode) {
+            Picker("النوع", selection: Binding(get: { draft.temperature }, set: { pickTemperature($0) })) {
+                Text("ساخن").tag(BrewTemperature.hot)
+                Text("مثلج").tag(BrewTemperature.iced)
+            }
+            .pickerStyle(.segmented)
+        }
+        if isNew, let lastRecipe {
+            Button {
+                let keep = draft.lot
+                draft = RecipeDraft(copying: lastRecipe)
+                draft.lot = keep ?? draft.lot
+                draft.title = ""
+                page = .tune
+            } label: {
+                HStack {
+                    Text("أو ابدأ من آخر وصفة لك").foregroundStyle(.primary)
+                    Spacer()
+                    Text(lastRecipe.title.isEmpty ? RecipeText.method(lastRecipe.methodCode) : lastRecipe.title)
+                        .foregroundStyle(Brand.olive).bold()
+                    Image(systemName: "chevron.left").font(.caption).foregroundStyle(.secondary)
+                }
+                .font(.subheadline)
+                .padding(14)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+        }
+        if proMode {
+            if isNew { presetsCard }
+            toolDetailsCard
+        }
+    }
+
+    @ViewBuilder
+    private var tunePage: some View {
+        doseCard
+        parametersCard
+        grindCard
+        stepsCard
+        if draft.isEspresso { milkCard }
+        tipsCard
+        if proMode {
+            roastCard
+            waterCard
+            resultCard
+        }
+    }
+
+    @ViewBuilder
+    private var finishPage: some View {
+        RecipeSummaryCard(draft: draft)
+        infoCard
+        coffeeCard
+        if canTogglePublish { publishCard }
+    }
+
+    private var bottomBar: some View {
+        VStack(spacing: 8) {
+            if let next = RecipeWizardStep(rawValue: page.rawValue + 1) {
+                Button {
+                    if next == .finish, draft.title.trimmingCharacters(in: .whitespaces).isEmpty {
+                        draft.title = draft.suggestedTitle
+                    }
+                    page = next
+                } label: {
+                    Text("التالي")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Brand.ink, in: Capsule())
+                        .foregroundStyle(Brand.background)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("recipe-next")
+            } else {
+                saveBar
+            }
+        }
+        .padding(.horizontal).padding(.vertical, 10)
+        .background(.bar)
+    }
+
+    private struct Tool {
+        let code: String
+        let icon: String
+        let blurb: String
+    }
+
+    private static let tools: [Tool] = [
+        Tool(code: "V60", icon: "drop.fill", blurb: "مقطّرة صافية"),
+        Tool(code: "ESPRESSO", icon: "cup.and.saucer.fill", blurb: "شوت أو بالحليب"),
+        Tool(code: "AEROPRESS", icon: "cylinder.fill", blurb: "سريعة ومركّزة"),
+        Tool(code: "CHEMEX", icon: "hourglass", blurb: "نظيفة وخفيفة"),
+        Tool(code: "FRENCH_PRESS", icon: "mug.fill", blurb: "قوام ممتلئ"),
+        Tool(code: "COLD_BREW", icon: "snowflake", blurb: "نقع بارد لساعات"),
+        Tool(code: "ARABIC", icon: "flame.fill", blurb: "بالدلة والهيل"),
+        Tool(code: "OTHER", icon: "ellipsis.circle", blurb: "طريقتك الخاصة"),
+    ]
+
+    private func pickTool(_ code: String) {
+        Haptics.tap()
+        if isNew {
+            withAnimation { draft.start(methodCode: code, temperature: draft.temperature) }
+        } else {
+            setMethod(code)
+        }
+    }
+
+    private func pickTemperature(_ temperature: BrewTemperature) {
+        if isNew {
+            withAnimation { draft.start(methodCode: draft.methodCode, temperature: temperature) }
+        } else {
+            draft.setTemperature(temperature)
         }
     }
 
@@ -96,7 +262,7 @@ struct ServerRecipeEditor: View {
     private var infoCard: some View {
         card("معلومات الوصفة") {
             field("اسم الوصفة") {
-                TextField("مثال: قهوة مقطرة صباحية", text: $draft.title)
+                TextField(draft.suggestedTitle, text: $draft.title)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("recipe-title")
             }
@@ -108,30 +274,9 @@ struct ServerRecipeEditor: View {
         }
     }
 
-    private var methodCard: some View {
-        card("طريقة التحضير") {
-            field("الطريقة") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(ReferenceCodes.brewMethods, id: \.code) { entry in
-                            ChoiceChip(title: entry.nameAr, isSelected: draft.methodCode == entry.code) {
-                                setMethod(entry.code)
-                            }
-                        }
-                    }
-                }
-            }
-            field("النوع") {
-                HStack(spacing: 8) {
-                    ChoiceChip(title: "ساخن", icon: "flame.fill", isSelected: draft.temperature == .hot) {
-                        setTemperature(.hot)
-                    }
-                    ChoiceChip(title: "مثلج", icon: "snowflake", isSelected: draft.temperature == .iced) {
-                        setTemperature(.iced)
-                    }
-                }
-            }
-            if proMode {
+    /// Pro: the exact brewer and filter.
+    private var toolDetailsCard: some View {
+        card("الأداة") {
                 field("الأداة") {
                     TextField("مثال: V60 02", text: $draft.brewer).textFieldStyle(.roundedBorder)
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -155,7 +300,6 @@ struct ServerRecipeEditor: View {
                         }
                     }
                 }
-            }
         }
     }
 
@@ -172,7 +316,12 @@ struct ServerRecipeEditor: View {
             } else {
                 Text("وصفة عامة تصلح لأي قهوة.").font(.caption).foregroundStyle(.secondary)
             }
-            if proMode {
+        }
+    }
+
+    /// Pro: roast level (with its suggested temperature) and days since roasting.
+    private var roastCard: some View {
+        card("البن") {
                 field("درجة التحميص") {
                     HStack(spacing: 8) {
                         ForEach(RoastLevel.allCases, id: \.self) { roast in
@@ -196,16 +345,48 @@ struct ServerRecipeEditor: View {
                     Text(draft.isEspresso ? "الأفضل للإسبريسو ١٠–٤٠ يوم." : "الأفضل للفلتر ٧–٣٠ يوم.")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
+        }
+    }
+
+    /// The dose, in steps; the water (or the shot), ice and pours follow it.
+    private var doseCard: some View {
+        let step = draft.isEspresso ? 0.5 : 1
+        let dose = draft.doseGrams ?? (draft.isEspresso ? 18 : 15)
+        return card(nil) {
+            HStack {
+                Text("البن").font(.headline)
+                Spacer()
+                Button { draft.setDose(max(dose - step, 1)); Haptics.tap() } label: {
+                    Image(systemName: "minus").frame(width: 44, height: 44)
+                        .background(Color.secondary.opacity(0.12), in: Circle())
+                }
+                .accessibilityLabel("أقل")
+                Text("\(RecipeText.number(dose))غ")
+                    .font(.system(size: 34, weight: .bold, design: .monospaced))
+                    .frame(minWidth: 110)
+                    .contentTransition(.numericText())
+                Button { draft.setDose(min(dose + step, 1000)); Haptics.tap() } label: {
+                    Image(systemName: "plus").frame(width: 44, height: 44)
+                        .background(Color.secondary.opacity(0.12), in: Circle())
+                }
+                .accessibilityLabel("أكثر")
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .contain)
+            if proMode {
+                field("بالضبط (غ)") {
+                    TextField("15", value: Binding(get: { dose }, set: { if $0 > 0 { draft.setDose($0) } }), format: .number)
+                        .keyboardType(.decimalPad)
+                        .textFieldStyle(.roundedBorder)
+                        .monospacedDigit()
+                }
             }
         }
     }
 
     private var parametersCard: some View {
-        card("المعاملات") {
-            HStack(spacing: 12) {
-                field("البن (غ)") { numberField("15", value: $draft.doseGrams) }
-                field("الحرارة (°م)") { numberField("96", value: $draft.waterTempC) }
-            }
+        card("القوة") {
+            field("حرارة الماء (°م)") { numberField("96", value: $draft.waterTempC) }
             if draft.temperature == .iced && !draft.isEspresso {
                 field("الثلج (غ)") { numberField("100", value: iceBinding) }
             }
@@ -515,22 +696,30 @@ struct ServerRecipeEditor: View {
             } else if let blockingProblem {
                 Text(RecipeText.problem(blockingProblem)).font(.caption).foregroundStyle(.secondary)
             }
-            Button { Task { await save() } } label: {
-                HStack {
-                    if isBusy { ProgressView().tint(Brand.background) } else { Image(systemName: "checkmark.circle.fill") }
+            HStack(spacing: 10) {
+                Button { Task { await save(thenTry: false) } } label: {
                     Text(publish && canTogglePublish ? "حفظ ونشر" : "حفظ")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Color.secondary.opacity(0.15), in: Capsule())
+                        .foregroundStyle(blockingProblem == nil ? Brand.ink : .secondary)
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(blockingProblem == nil ? Brand.ink : Color.secondary.opacity(0.4), in: Capsule())
-                .foregroundStyle(Brand.background)
+                .accessibilityIdentifier("recipe-save")
+                Button { Task { await save(thenTry: true) } } label: {
+                    HStack {
+                        if isBusy { ProgressView().tint(Brand.background) } else { Image(systemName: "play.fill") }
+                        Text("احفظ وجرّبها")
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(blockingProblem == nil ? Brand.ink : Color.secondary.opacity(0.4), in: Capsule())
+                    .foregroundStyle(Brand.background)
+                }
+                .accessibilityIdentifier("recipe-save-try")
             }
             .buttonStyle(.plain)
             .disabled(blockingProblem != nil || isBusy)
-            .accessibilityIdentifier("recipe-save")
         }
-        .padding(.horizontal).padding(.vertical, 10)
-        .background(.bar)
     }
 
     private var coffeePicker: some View {
@@ -646,15 +835,6 @@ struct ServerRecipeEditor: View {
     }
 
 
-    private func setTemperature(_ temperature: BrewTemperature) {
-        let ratio = draft.ratio
-        draft.temperature = temperature
-        if temperature == .iced, draft.iceGrams == nil, !draft.isEspresso {
-            draft.iceGrams = ((draft.hotWaterGrams ?? 250) * 0.4).rounded()
-        }
-        if let ratio { draft.applyRatio(ratio) }
-    }
-
     private func apply(_ result: StepEditor.Result?, at index: Int) {
         guard draft.steps.indices.contains(index) else { return }
         guard let result else {
@@ -687,12 +867,15 @@ struct ServerRecipeEditor: View {
 
     private func loadCollection() async {
         guard auth.isSignedIn else { return }
+        if isNew, let mine = try? await auth.withToken({ try await client.fetchMyRecipes(accessToken: $0) }) {
+            lastRecipe = mine.first { $0.state != .deleted } // newest first
+        }
         if let items = try? await auth.withToken({ try await client.fetchCollection(accessToken: $0) }) {
             collection = items
         }
     }
 
-    private func save() async {
+    private func save(thenTry: Bool) async {
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
@@ -701,7 +884,8 @@ struct ServerRecipeEditor: View {
             let saved = try await auth.withToken { try await client.saveRecipe(draft, publish: shouldPublish, accessToken: $0) }
             Haptics.tap()
             onSaved(saved)
-            dismiss()
+            // Trying opens the timer; closing it closes the editor too.
+            if thenTry { trying = BrewPlan(recipe: saved) } else { dismiss() }
         } catch APIError.unauthorized {
             errorMessage = "انتهت الجلسة. سجّل الدخول من جديد ثم أعد المحاولة."
         } catch APIError.unprocessable {

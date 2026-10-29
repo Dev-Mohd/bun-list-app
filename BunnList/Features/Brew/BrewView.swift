@@ -78,7 +78,7 @@ struct BrewView: View {
                 BrewSessionView(plan: ref.plan) { seconds in
                     remember(ref.slug)
                     pendingFinish = BrewFinishRef(slug: ref.slug, coffeeName: ref.coffeeName, plan: ref.plan, seconds: seconds,
-                                                  grinder: ref.grinder, grindSetting: ref.grindSetting)
+                                                  grinder: ref.grinder, grindSetting: ref.grindSetting, roasterName: ref.roasterName)
                 }
             }
             .sheet(item: $finishing, onDismiss: { Task { await loadPlans(); await loadLastBrew() } }) { ref in
@@ -281,7 +281,7 @@ struct BrewView: View {
         if let plan, let coffee = selected {
             Button {
                 session = BrewSessionRef(slug: coffee.slug, coffeeName: coffee.nameAr, plan: plan,
-                                         grinder: guideGrinder, grindSetting: grindSetting)
+                                         grinder: guideGrinder, grindSetting: grindSetting, roasterName: coffee.roasterNameAr)
             } label: {
                 Label("ابدأ التحضير", systemImage: "play.fill")
                     .font(.headline)
@@ -362,6 +362,7 @@ struct BrewSessionRef: Identifiable {
     let plan: BrewPlan
     let grinder: RemoteGrinder?
     let grindSetting: String
+    var roasterName = ""
     var id: String { slug + plan.id }
 }
 
@@ -372,6 +373,7 @@ struct BrewFinishRef: Identifiable {
     let seconds: Int
     let grinder: RemoteGrinder?
     let grindSetting: String
+    var roasterName = ""
     var id: String { slug + plan.id + String(seconds) }
 }
 
