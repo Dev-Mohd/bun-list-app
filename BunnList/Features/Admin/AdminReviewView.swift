@@ -18,7 +18,7 @@ struct AdminReviewView: View {
     @State private var bulkBusy = false
     @State private var bulkMessage: String?
     @State private var bulkFailures: [RemoteBulkReview.Failure] = []
-    @State private var confirmBulkReject = false
+    @State private var confirmBulk: BulkReviewAction?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -88,7 +88,7 @@ struct AdminReviewView: View {
         }
         .refreshable { await load() }
         .toolbar {
-            if status == "PENDING", !(items ?? []).isEmpty {
+            if status != "APPROVED", !(items ?? []).isEmpty {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(selecting ? "إلغاء" : "تحديد") {
                         selecting.toggle()
@@ -96,30 +96,25 @@ struct AdminReviewView: View {
                     }
                 }
             }
-            if selecting {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    Button(selected.count == (items ?? []).count ? "إلغاء الكل" : "تحديد الكل") {
-                        let all = Set((items ?? []).map(\.id))
-                        selected = selected == all ? [] : all
-                    }
-                    Spacer()
-                    Button("رفض (\(selected.count))", role: .destructive) { confirmBulkReject = true }
-                        .disabled(selected.isEmpty || bulkBusy)
-                    Button {
-                        Task { await bulk(approve: true) }
-                    } label: {
-                        if bulkBusy { ProgressView() } else { Text("اعتماد (\(selected.count))").bold() }
-                    }
-                    .disabled(selected.isEmpty || bulkBusy)
-                }
-            }
             ToolbarItem(placement: .primaryAction) {
                 Button { confirmImport = true } label: { Image(systemName: "tray.and.arrow.down") }
                     .accessibilityLabel("استيراد دفعة المحامص")
             }
         }
-        .confirmationDialog("رفض \(selected.count) اقتراح؟", isPresented: $confirmBulkReject, titleVisibility: .visible) {
-            Button("رفض", role: .destructive) { Task { await bulk(approve: false) } }
+        // Above the list, not in a bottom bar: the app's floating tab bar would cover it.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if selecting { bulkBar }
+        }
+        .confirmationDialog(
+            confirmBulk == .remove ? "حذف \(selected.count) من المرفوضة؟" : "رفض \(selected.count) اقتراح؟",
+            isPresented: Binding(get: { confirmBulk != nil }, set: { if !$0 { confirmBulk = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let action = confirmBulk {
+                Button(action == .remove ? "حذف" : "رفض", role: .destructive) { Task { await bulk(action) } }
+            }
+        } message: {
+            if confirmBulk == .remove { Text("تنشال من القائمة، والاستيراد ما يرجّعها.") }
         }
         .confirmationDialog("استيراد دفعة المحامص؟", isPresented: $confirmImport, titleVisibility: .visible) {
             Button("استيراد") { Task { await runImport() } }
@@ -140,13 +135,42 @@ struct AdminReviewView: View {
         }
     }
 
+    private var bulkBar: some View {
+        HStack(spacing: 10) {
+            Button(selected.count == (items ?? []).count ? "إلغاء الكل" : "تحديد الكل") {
+                let all = Set((items ?? []).map(\.id))
+                selected = selected == all ? [] : all
+            }
+            .buttonStyle(.bordered)
+            Spacer()
+            if bulkBusy {
+                ProgressView()
+            } else if status == "REJECTED" {
+                Button("حذف (\(selected.count))", role: .destructive) { confirmBulk = .remove }
+                    .buttonStyle(.borderedProminent).tint(.red)
+                    .disabled(selected.isEmpty)
+            } else {
+                Button("رفض (\(selected.count))", role: .destructive) { confirmBulk = .reject }
+                    .buttonStyle(.bordered).tint(.red)
+                    .disabled(selected.isEmpty)
+                Button("اعتماد (\(selected.count))") { Task { await bulk(.approve) } }
+                    .buttonStyle(.borderedProminent).tint(Brand.olive)
+                    .disabled(selected.isEmpty)
+            }
+        }
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
     private func toggle(_ id: String) {
         if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
     }
 
     /// Sends the picked suggestions in chunks of 50 (the server takes up to 100, and
     /// each approval publishes a photo, so smaller requests stay well inside its time limit).
-    private func bulk(approve: Bool) async {
+    private func bulk(_ action: BulkReviewAction) async {
         let ids = (items ?? []).map(\.id).filter(selected.contains)
         guard !ids.isEmpty else { return }
         bulkBusy = true
@@ -156,14 +180,18 @@ struct AdminReviewView: View {
         do {
             for start in stride(from: 0, to: ids.count, by: 50) {
                 let chunk = Array(ids[start..<min(start + 50, ids.count)])
-                let result = try await auth.withToken { try await client.bulkReview(ids: chunk, approve: approve, accessToken: $0) }
+                let result = try await auth.withToken { try await client.bulkReview(ids: chunk, action: action, accessToken: $0) }
                 done += result.done.count
                 failures += result.failed
             }
         } catch {
             failures.append(.init(id: "network", name: "انقطع الطلب", reason: "اللي تم محفوظ. حدّث القائمة وكمّل الباقي."))
         }
-        bulkMessage = approve ? "انعتمد \(done)" : "انرفض \(done)"
+        bulkMessage = switch action {
+        case .approve: "انعتمد \(done)"
+        case .reject: "انرفض \(done)"
+        case .remove: "انحذف \(done)"
+        }
         if !failures.isEmpty { bulkMessage! += " • ما تم \(failures.count)" }
         bulkFailures = failures
         selected = []

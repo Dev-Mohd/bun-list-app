@@ -148,6 +148,8 @@ public struct ApprovalForm: Equatable, Sendable {
     }
 }
 
+public enum BulkReviewAction: String, Sendable { case approve, reject, remove }
+
 /// What a bulk review did: the ids that went through, and the rest with why.
 public struct RemoteBulkReview: Codable, Equatable, Sendable {
     public struct Failure: Codable, Equatable, Sendable, Identifiable {
@@ -160,6 +162,9 @@ public struct RemoteBulkReview: Codable, Equatable, Sendable {
     }
     public let done: [String]
     public let failed: [Failure]
+    public init(done: [String], failed: [Failure]) {
+        self.done = done; self.failed = failed
+    }
 }
 
 extension CatalogAPIClient {
@@ -209,15 +214,22 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 
-    /// Approves (each as it stands) or rejects several suggestions at once; the
-    /// ones that didn't go through come back with a reason in Arabic.
-    public func bulkReview(ids: [String], approve: Bool, reason: String? = nil, accessToken: String) async throws -> RemoteBulkReview {
-        var body: [String: Any] = ["ids": ids, "action": approve ? "approve" : "reject"]
+    /// Approves (each as it stands), rejects, or clears away (rejected ones only)
+    /// several suggestions at once; the ones that didn't go through come back with a reason.
+    public func bulkReview(ids: [String], action: BulkReviewAction, reason: String? = nil, accessToken: String) async throws -> RemoteBulkReview {
+        var body: [String: Any] = ["ids": ids, "action": action.rawValue]
         if let reason, !reason.trimmingCharacters(in: .whitespaces).isEmpty { body["reason"] = reason }
+        return try await postBulk("/api/v1/admin/submissions/bulk", body, accessToken)
+    }
+
+    /// Deletes several unused coffees; the ones people have used come back in `failed`.
+    public func bulkDeleteLots(ids: [String], accessToken: String) async throws -> RemoteBulkReview {
+        try await postBulk("/api/v1/admin/lots/bulk-delete", ["ids": ids], accessToken)
+    }
+
+    private func postBulk(_ path: String, _ body: [String: Any], _ accessToken: String) async throws -> RemoteBulkReview {
         let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
-        let response = try await transport.send(
-            HTTPRequest(method: .post, path: "/api/v1/admin/submissions/bulk", body: data, bearer: accessToken)
-        )
+        let response = try await transport.send(HTTPRequest(method: .post, path: path, body: data, bearer: accessToken))
         try Self.checkContract(response)
         do { return try JSONDecoder().decode(RemoteBulkReview.self, from: response.body) }
         catch { throw AuthClientError.malformedResponse }

@@ -10,10 +10,28 @@ struct AdminLotsView: View {
     @State private var filter: AdminLotFilter = .all
     @State private var lots: [RemoteAdminLotRow]?
     @State private var failed = false
+    /// Bulk delete: tap rows to pick them (the hidden filter is the usual place for it).
+    @State private var selecting = false
+    @State private var selected: Set<String> = []
+    @State private var busy = false
+    @State private var confirmDelete = false
+    @State private var result: RemoteBulkReview?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     var body: some View {
         List {
+            if let result {
+                Section {
+                    Label("انحذف \(result.done.count)" + (result.failed.isEmpty ? "" : " • ما انحذف \(result.failed.count)"),
+                          systemImage: "trash").foregroundStyle(Brand.olive)
+                    ForEach(result.failed) { f in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(f.name).font(.subheadline.weight(.semibold))
+                            Text(f.reason).font(.caption).foregroundStyle(.red)
+                        }
+                    }
+                }
+            }
             Section {
                 Picker("التصفية", selection: $filter) {
                     ForEach(AdminLotFilter.allCases, id: \.self) { Text($0.nameAr).tag($0) }
@@ -26,7 +44,20 @@ struct AdminLotsView: View {
                     ContentUnavailableView("ما فيه نتائج", systemImage: "magnifyingglass")
                 }
                 ForEach(lots) { lot in
-                    NavigationLink { AdminLotEditView(lotID: lot.id) { Task { await load() } } } label: { AdminLotRow(lot: lot) }
+                    if selecting {
+                        Button { toggle(lot.id) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: selected.contains(lot.id) ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(selected.contains(lot.id) ? .red : .secondary)
+                                AdminLotRow(lot: lot)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selected.contains(lot.id) ? .isSelected : [])
+                    } else {
+                        NavigationLink { AdminLotEditView(lotID: lot.id) { Task { await load() } } } label: { AdminLotRow(lot: lot) }
+                    }
                 }
             } else if failed {
                 Label("ما قدرنا نجيب القهوات", systemImage: "wifi.slash").foregroundStyle(.secondary)
@@ -45,6 +76,72 @@ struct AdminLotsView: View {
             await load()
         }
         .refreshable { await load() }
+        .toolbar {
+            if !(lots ?? []).isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(selecting ? "إلغاء" : "تحديد") {
+                        selecting.toggle()
+                        selected = []
+                    }
+                }
+            }
+        }
+        // Above the list: the app's floating tab bar would cover a bottom bar.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if selecting {
+                HStack {
+                    Button(selected.count == (lots ?? []).count ? "إلغاء الكل" : "تحديد الكل") {
+                        let all = Set((lots ?? []).map(\.id))
+                        selected = selected == all ? [] : all
+                    }
+                    .buttonStyle(.bordered)
+                    Spacer()
+                    if busy {
+                        ProgressView()
+                    } else {
+                        Button("حذف (\(selected.count))", role: .destructive) { confirmDelete = true }
+                            .buttonStyle(.borderedProminent).tint(.red)
+                            .disabled(selected.isEmpty)
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.bar)
+            }
+        }
+        .confirmationDialog("تحذف \(selected.count) قهوة نهائيًا؟", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("حذف", role: .destructive) { Task { await deleteSelected() } }
+        } message: {
+            Text("ما تقدر ترجعها، والاستيراد ما يرجّعها. اللي لها تقييمات أو تحضيرات ما تنحذف.")
+        }
+    }
+
+    private func toggle(_ id: String) {
+        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+    }
+
+    private func deleteSelected() async {
+        let ids = (lots ?? []).map(\.id).filter(selected.contains)
+        guard !ids.isEmpty else { return }
+        busy = true
+        defer { busy = false }
+        var done: [String] = []
+        var failures: [RemoteBulkReview.Failure] = []
+        do {
+            for start in stride(from: 0, to: ids.count, by: 50) {
+                let chunk = Array(ids[start..<min(start + 50, ids.count)])
+                let r = try await auth.withToken { try await client.bulkDeleteLots(ids: chunk, accessToken: $0) }
+                done += r.done
+                failures += r.failed
+            }
+        } catch {
+            failures.append(.init(id: "network", name: "انقطع الطلب", reason: "اللي انحذف محفوظ. حدّث القائمة وكمّل الباقي."))
+        }
+        result = RemoteBulkReview(done: done, failed: failures)
+        selected = []
+        selecting = false
+        await load()
     }
 
     private func load() async {

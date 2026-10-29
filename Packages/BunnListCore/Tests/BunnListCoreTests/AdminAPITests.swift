@@ -50,7 +50,7 @@ final class AdminAPITests: XCTestCase {
         let transport = FakeTransport { _ in
             HTTPResponse(status: 200, body: Data(#"{"done":["s1"],"failed":[{"id":"s2","name":"غريبة","reason":"بلد المنشأ غير معروف"}]}"#.utf8))
         }
-        let result = try await CatalogAPIClient(transport: transport).bulkReview(ids: ["s1", "s2"], approve: true, accessToken: "adm")
+        let result = try await CatalogAPIClient(transport: transport).bulkReview(ids: ["s1", "s2"], action: .approve, accessToken: "adm")
         XCTAssertEqual(result.done, ["s1"])
         XCTAssertEqual(result.failed.first?.name, "غريبة")
         let req = try XCTUnwrap(transport.requests.first)
