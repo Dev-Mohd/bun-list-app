@@ -1,10 +1,11 @@
 import BunnListCore
 import SwiftUI
 
-/// Profile ("ملفي"). Signed in: the header (picture, name, @username, bio) with
-/// counts, shortcuts, the collection card, the taste card, the wishlist and
-/// contributions — all from /api/v1/me/summary. As a guest: the on-device
-/// collection counts and the ways to sign in. Account controls live in Settings.
+/// Profile ("ملفي"). Signed in with a username: the same profile others see
+/// (PublicProfileView: header, counts, coffee shelves, recipes, activity) with your
+/// taste card under the header; tools (grinder, passport, recipes, suggestions,
+/// admin) live in Settings. Before choosing a username: the summary layout. As a
+/// guest: the on-device collection counts and the ways to sign in.
 struct AccountView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var auth: AuthModel
@@ -21,6 +22,37 @@ struct AccountView: View {
 
     var body: some View {
         NavigationStack {
+            if auth.isSignedIn, let username = me?.username {
+                PublicProfileView(username: username) {
+                    tasteCard
+                    deviceRecipes
+                }
+                .id(username)
+                .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                            .accessibilityLabel("الإعدادات")
+                            .accessibilityIdentifier("open-settings")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ShareLink(item: "تابع ذائقتي في BunnList: @\(username) ☕") { Image(systemName: "square.and.arrow.up") }
+                            .accessibilityLabel("شارك ملفك")
+                    }
+                }
+                .task { await load() }
+                .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
+                .sheet(isPresented: $showSettings) { SettingsView() }
+                .sheet(item: Binding(get: { editingRecipe.map(RecipeRef.init) }, set: { editingRecipe = $0?.id })) { ref in
+                    RecipeEditor(lotID: model.recipe(ref.id)?.lotID, existing: ref.id)
+                }
+            } else {
+                summaryLayout
+            }
+        }
+    }
+
+    private var summaryLayout: some View {
             ScrollView {
                 VStack(spacing: 18) {
                     ProfileHeader(isSignedIn: auth.isSignedIn, me: me, summary: summary, points: points) { showProfileEditor = true }
@@ -71,7 +103,6 @@ struct AccountView: View {
                 RecipeEditor(lotID: model.recipe(ref.id)?.lotID, existing: ref.id)
             }
             .sheet(isPresented: $showSignIn) { SignInView() }
-        }
     }
 
     // MARK: Signed in

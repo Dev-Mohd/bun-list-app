@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var confirmDelete = false
     /// Shown right away while the change saves.
     @State private var pendingVisibility: [PrivacyPart: ProfileVisibility] = [:]
+    @State private var pendingPrivate: Bool?
+    @State private var showRecipes = false
 
     var body: some View {
         NavigationStack {
@@ -42,6 +44,40 @@ struct SettingsView: View {
                 }
 
                 if auth.isSignedIn {
+                    Section("أدواتي") {
+                        NavigationLink { GrinderGuideView() } label: { Label("مطحنتي", systemImage: "dial.medium.fill") }
+                            .accessibilityIdentifier("open-grinders")
+                        NavigationLink { PassportView() } label: { Label("جوازي", systemImage: "globe.europe.africa.fill") }
+                            .accessibilityIdentifier("open-passport")
+                        // The recipes hub has its own navigation stack, so it opens as a sheet.
+                        Button { showRecipes = true } label: { Label("وصفاتي", systemImage: "book.closed.fill") }
+                            .foregroundStyle(.primary)
+                            .accessibilityIdentifier("open-recipes")
+                        NavigationLink { MySubmissionsView() } label: { Label("اقتراحاتي", systemImage: "sparkles") }
+                            .accessibilityIdentifier("open-my-submissions")
+                        if profile.me?.isAdmin == true {
+                            NavigationLink { AdminConsoleView() } label: {
+                                Label("لوحة التحكم", systemImage: "gauge.with.dots.needle.67percent")
+                            }
+                            .accessibilityIdentifier("open-admin-review")
+                        }
+                    }
+
+                    Section {
+                        Toggle(isOn: privateBinding) {
+                            Label("حساب خاص", systemImage: "lock.fill")
+                        }
+                        .tint(Brand.olive)
+                        .accessibilityIdentifier("privacy-private")
+                        if pendingPrivate ?? profile.me?.isPrivate ?? false {
+                            NavigationLink { FollowRequestsView() } label: {
+                                Label("طلبات المتابعة", systemImage: "person.badge.clock")
+                            }
+                        }
+                    } footer: {
+                        Text("الحساب الخاص: أي أحد يبي يتابعك يرسل طلب وأنت تقبله أو ترفضه، وقهاويك ووصفاتك ونشاطك لمتابعينك بس. اسمك وصورتك ونبذتك تبقى ظاهرة. وإذا طفيته تنقبل الطلبات اللي تنتظر.")
+                    }
+
                     Section {
                         ForEach(PrivacyPart.allCases, id: \.self) { part in
                             Picker(selection: visibilityBinding(part)) {
@@ -91,6 +127,7 @@ struct SettingsView: View {
                 }
             }
             .brandScreen()
+            .sheet(isPresented: $showRecipes) { RecipesHubView(startOn: .mine) }
             .navigationTitle("الإعدادات")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }
@@ -121,6 +158,21 @@ struct SettingsView: View {
                     _ = try? await auth.withToken { try await client.setVisibility(part, to: value, accessToken: $0) }
                     await profile.refresh(auth)
                     pendingVisibility[part] = nil
+                }
+            }
+        )
+    }
+
+    private var privateBinding: Binding<Bool> {
+        Binding(
+            get: { pendingPrivate ?? profile.me?.isPrivate ?? false },
+            set: { value in
+                pendingPrivate = value
+                Task {
+                    let client = CatalogAPIClient(transport: URLSessionTransport())
+                    _ = try? await auth.withToken { try await client.setPrivate(value, accessToken: $0) }
+                    await profile.refresh(auth)
+                    pendingPrivate = nil
                 }
             }
         )

@@ -23,6 +23,9 @@ public struct RemotePublicProfile: Codable, Equatable, Sendable {
     public let activityHidden: Bool?
     public let isFollowing: Bool
     public let isMe: Bool
+    /// A private account; `requested` means you asked to follow. Missing from older servers.
+    public let isPrivate: Bool?
+    public let requested: Bool?
     public let discoveries: [RemoteLot]
     public let recipes: [RemotePublicRecipe]
 }
@@ -86,11 +89,16 @@ extension CatalogAPIClient {
         try Self.checkContract(response)
     }
 
-    public func setFollowing(_ follow: Bool, username: String, accessToken: String) async throws {
+    /// Follows (a private account: asks to) or unfollows (withdraws the request).
+    @discardableResult
+    public func setFollowing(_ follow: Bool, username: String, accessToken: String) async throws -> FollowState {
         let response = try await transport.send(
             HTTPRequest(method: follow ? .post : .delete, path: Self.userPath(username) + "/follow", bearer: accessToken)
         )
         try Self.checkContract(response)
+        struct Result: Decodable { let following: Bool; let requested: Bool? }
+        let result = try? JSONDecoder().decode(Result.self, from: response.body)
+        return FollowState(following: result?.following ?? follow, requested: result?.requested ?? false)
     }
 
     /// Throws `APIError.forbidden` when the owner keeps the list from you.

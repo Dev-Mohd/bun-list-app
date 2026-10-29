@@ -339,16 +339,19 @@ private struct TrendingRecipeLoader: View {
 
 struct PulseSection: View {
     let items: [RemotePulseItem]
+    var title = "نبض المجتمع"
+    var icon = "waveform.path.ecg"
+    var limit = 5
 
     var body: some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Label("نبض المجتمع", systemImage: "waveform.path.ecg").font(.title3.bold())
+                Label(title, systemImage: icon).font(.title3.bold())
                     .padding(.horizontal)
                 VStack(spacing: 0) {
-                    ForEach(Array(items.prefix(5).enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(items.prefix(limit).enumerated()), id: \.element.id) { index, item in
                         row(item)
-                        if index < min(items.count, 5) - 1 { Divider().padding(.leading, 58) }
+                        if index < min(items.count, limit) - 1 { Divider().padding(.leading, 58) }
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 4)

@@ -21,6 +21,8 @@ struct CommunityView: View {
     @State private var feedFailed = false
     @State private var trendTab = TrendTab.coffee
     @State private var searchPreset: SearchPreset?
+    @State private var pulseScope = PulseScope.everyone
+    @State private var followingFeed: [RemotePulseItem]?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -51,8 +53,20 @@ struct CommunityView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    PulseSection(items: feed?.pulse ?? [])
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if auth.isSignedIn {
+                        Picker("النبض", selection: $pulseScope) {
+                            Text("الكل").tag(PulseScope.everyone)
+                            Text("أتابعهم").tag(PulseScope.following)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                    }
+                    if pulseScope == .following && auth.isSignedIn {
+                        followingSection
+                    } else {
+                        PulseSection(items: feed?.pulse ?? [])
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     leaderboardSection
                 }
@@ -63,7 +77,8 @@ struct CommunityView: View {
             .navigationTitle("المجتمع")
             .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
             .task(id: auth.isSignedIn) { await loadFeed() }
-            .refreshable { await load(); await loadFeed() }
+            .task(id: pulseScope) { if pulseScope == .following { await loadFollowing() } }
+            .refreshable { await load(); await loadFeed(); if pulseScope == .following { await loadFollowing() } }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(item: $searchPreset) { SearchView(tab: .constant(.community), initial: $0.filters) }
@@ -130,6 +145,42 @@ struct CommunityView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
         .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var followingSection: some View {
+        if let followingFeed {
+            if followingFeed.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "person.2").font(.largeTitle).foregroundStyle(Brand.gold)
+                    Text("ما فيه جديد ممن تتابعهم").font(.headline)
+                    Text("تابع ناس ذوقهم قريب منك وتشوف وش جربوا ووش حضّروا هنا أول بأول.")
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    NavigationLink { FindPeopleView() } label: {
+                        Label("اكتشف ناس", systemImage: "person.badge.plus").font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent).tint(Brand.olive)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                .padding(.horizontal)
+            } else {
+                PulseSection(items: followingFeed, title: "أتابعهم", icon: "person.2.fill", limit: 30)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            ProgressView().frame(maxWidth: .infinity).padding()
+        }
+    }
+
+    private func loadFollowing() async {
+        guard auth.isSignedIn else { return }
+        if let items = try? await auth.withToken({ try await client.followingFeed(accessToken: $0) }) {
+            followingFeed = items
+        } else if followingFeed == nil {
+            followingFeed = []
+        }
     }
 
     private var leaderboardSection: some View {
@@ -271,3 +322,6 @@ struct PointRulesView: View {
         .presentationDetents([.medium, .large])
     }
 }
+
+/// The community pulse: everyone, or only people you follow.
+enum PulseScope: Hashable { case everyone, following }

@@ -105,6 +105,8 @@ public struct RemoteProfileSummary: Codable, Equatable, Sendable {
     /// Missing from older servers.
     public let followers: Int?
     public let following: Int?
+    /// People waiting to follow a private account. Missing from older servers.
+    public let followRequests: Int?
     public let taste: Taste
 }
 
