@@ -757,7 +757,10 @@ struct PhotoToolsView: View {
     @EnvironmentObject private var auth: AuthModel
     @Environment(\.dismiss) private var dismiss
     @State private var edit = PhotoEdit()
-    @State private var top = 0.0, bottom = 0.0, left = 0.0, right = 0.0
+    @State private var top = 0.0
+    @State private var bottom = 0.0
+    @State private var left = 0.0
+    @State private var right = 0.0
     @State private var side = Side.after
     @State private var preview: RemotePhotoPreview?
     @State private var previewImage: UIImage?
