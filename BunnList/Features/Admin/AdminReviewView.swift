@@ -128,6 +128,7 @@ struct AdminReviewView: View {
             let result = try await auth.withToken { try await client.importBatch("roasteries-2026-05", accessToken: $0) }
             importMessage = "انضاف \(result.created) • موجود قبل \(result.alreadyImported) • في الدليل \(result.alreadyInCatalog)"
                 + (result.photos.map { " • صور \($0)" } ?? "")
+                + ((result.remaining ?? 0) > 0 ? " • باقي \(result.remaining ?? 0)، اضغط الاستيراد مرة ثانية" : "")
             status = "PENDING"
             await load()
         } catch {

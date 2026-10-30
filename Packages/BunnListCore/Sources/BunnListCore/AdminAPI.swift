@@ -89,6 +89,8 @@ public struct RemoteImportResult: Codable, Equatable, Sendable {
     public let alreadyInCatalog: Int
     /// Product photos uploaded; missing from older servers.
     public let photos: Int?
+    /// New coffees left for the next run (the server stops before its time limit).
+    public let remaining: Int?
 }
 
 /// What the admin confirms to publish a lot. Pre-filled from the suggestion. The
