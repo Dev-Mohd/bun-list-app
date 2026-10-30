@@ -172,70 +172,49 @@ struct RoasterQueueDetail: View {
 
     private var selecting: Bool { editMode.isEditing }
 
+    // The screen is built in steps: one long modifier chain is too much for the type checker.
     var body: some View {
+        withSheets
+            .confirmationDialog("تشيل خلفيات صور \(group.roaster) اللي ما انعدّلت؟", isPresented: $askCut, titleVisibility: .visible) {
+                Button("حساسية خفيفة") { Task { await cutAll(sensitivity: 30) } }
+                Button("حساسية متوسطة") { Task { await cutAll(sensitivity: 50) } }
+                Button("حساسية قوية") { Task { await cutAll(sensitivity: 70) } }
+            } message: {
+                Text("الصور اللي ما تطلع نظيفة (خلفية فيها رسومات أو ظل) تبقى مثل ما هي، وتقدر تعدّلها وحدة وحدة. الأصل محفوظ وتقدر ترجّعه.")
+            }
+            .alert("الاسم الإنجليزي لـ\(group.roaster)", isPresented: $askEnglishName) {
+                englishNameField
+            } message: {
+                Text("ينحط على المحمصة وكل قهاويها مرة وحدة.")
+            }
+            .confirmationDialog("تعتمد \(itemCount.formatted()) قهوة من \(group.roaster)؟", isPresented: $confirmAll, titleVisibility: .visible) {
+                Button("اعتمد الكل") { Task { await approveAll() } }
+            }
+            .task { await load() }
+    }
+
+    private var itemCount: Int { (items ?? []).count }
+
+    private var withSheets: some View {
+        withBars
+            .sheet(isPresented: $bulkEditing) { bulkEditSheet }
+            .sheet(item: $photoTools) { card in photoToolsSheet(card) }
+            .fullScreenCover(isPresented: $reviewing, onDismiss: { Task { await load(); onChange() } }) {
+                NavigationStack { QueueReviewView(kind: kind, cards: items ?? []) }
+            }
+    }
+
+    private var withBars: some View {
+        list
+            .toolbar { ToolbarItem(placement: .primaryAction) { toolbarMenu } }
+            .safeAreaInset(edge: .bottom) { selectionBar }
+    }
+
+    private var list: some View {
         List(selection: $selection) {
-            Section {
-                Button { reviewing = true } label: {
-                    Label("راجعها وحدة وحدة", systemImage: "rectangle.stack.fill").font(.headline)
-                }
-                .disabled((items ?? []).isEmpty)
-                if kind == .pending {
-                    Button { confirmAll = true } label: {
-                        if busy { ProgressView() } else {
-                            Label("اعتمد الكل (\((items ?? []).count.formatted()))", systemImage: "checkmark.circle.fill")
-                        }
-                    }
-                    .disabled((items ?? []).isEmpty || busy)
-                }
-            } footer: {
-                if kind == .pending {
-                    Text("«اعتمد الكل» ينشرها مثل ما هي: اللي بلا منشأ تصير «مزيج» واللي بلا معالجة «أخرى». الأفضل للمحامص اللي بياناتها كاملة.")
-                }
-            }
-            if let cutProgress {
-                Section { Label(cutProgress, systemImage: "scissors").foregroundStyle(.secondary) }
-            }
-            if let message {
-                Section {
-                    Label(message, systemImage: "checkmark.circle").foregroundStyle(Brand.olive)
-                    ForEach(failures) { f in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(f.name).font(.caption.bold())
-                            Text(f.reason).font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-            if let items {
-                Section {
-                    ForEach(items) { item in
-                        HStack(spacing: 10) {
-                            AdminPhoto(url: item.imageUrl).frame(width: 44, height: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.name).font(.subheadline.weight(.semibold))
-                                Text(item.missing.isEmpty ? "مكتملة" : "ناقص: " + item.missing.map(QueueText.missingAr).joined(separator: "، "))
-                                    .font(.caption).foregroundStyle(item.missing.isEmpty ? Brand.olive : .red)
-                            }
-                            Spacer()
-                            if !selecting {
-                                Button { photoTools = item } label: {
-                                    Image(systemName: "crop").font(.subheadline).foregroundStyle(Brand.ink)
-                                        .frame(width: 36, height: 36).background(Color.secondary.opacity(0.1), in: Circle())
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("أدوات الصورة")
-                            }
-                        }
-                        .tag(item.id)
-                    }
-                } header: {
-                    Text("القهاوي")
-                } footer: {
-                    if selecting { Text("حدد القهاوي اللي تبي تعدّلها مرة وحدة.") }
-                }
-            } else {
-                HStack { Spacer(); ProgressView(); Spacer() }
-            }
+            actionsSection
+            statusSections
+            itemsSection
         }
         .scrollContentBackground(.hidden)
         .background(Brand.background.ignoresSafeArea())
@@ -243,86 +222,150 @@ struct RoasterQueueDetail: View {
         .navigationTitle(group.roaster)
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.editMode, $editMode)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                if selecting {
-                    Button("تم") { withAnimation { editMode = .inactive; selection = [] } }
-                } else {
-                    Menu {
-                        Button { withAnimation { editMode = .active } } label: { Label("تعديل جماعي", systemImage: "checklist") }
-                        if kind == .pending {
-                            Button { askCut = true } label: { Label("شيل خلفيات المحمصة كلها", systemImage: "scissors") }
-                        }
-                        Button {
-                            englishName = items?.first(where: { $0.roasterNameEn != nil })?.roasterNameEn ?? ""
-                            askEnglishName = true
-                        } label: { Label("الاسم الإنجليزي للمحمصة", systemImage: "character.book.closed") }
-                    } label: { Image(systemName: "ellipsis.circle") }
-                    .disabled(items == nil || busy)
+    }
+
+    @ViewBuilder private var actionsSection: some View {
+        Section {
+            Button { reviewing = true } label: {
+                Label("راجعها وحدة وحدة", systemImage: "rectangle.stack.fill").font(.headline)
+            }
+            .disabled(itemCount == 0)
+            if kind == .pending {
+                Button { confirmAll = true } label: {
+                    if busy { ProgressView() } else {
+                        Label("اعتمد الكل (\(itemCount.formatted()))", systemImage: "checkmark.circle.fill")
+                    }
+                }
+                .disabled(itemCount == 0 || busy)
+            }
+        } footer: {
+            if kind == .pending {
+                Text("«اعتمد الكل» ينشرها مثل ما هي: اللي بلا منشأ تصير «مزيج» واللي بلا معالجة «أخرى». الأفضل للمحامص اللي بياناتها كاملة.")
+            }
+        }
+    }
+
+    @ViewBuilder private var statusSections: some View {
+        if let cutProgress {
+            Section { Label(cutProgress, systemImage: "scissors").foregroundStyle(.secondary) }
+        }
+        if let message {
+            Section {
+                Label(message, systemImage: "checkmark.circle").foregroundStyle(Brand.olive)
+                ForEach(failures) { f in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(f.name).font(.caption.bold())
+                        Text(f.reason).font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if selecting {
-                HStack(spacing: 10) {
-                    Button(selection.count == (items ?? []).count ? "إلغاء التحديد" : "حدد الكل") {
-                        selection = selection.count == (items ?? []).count ? [] : Set((items ?? []).map(\.id))
-                    }
+    }
+
+    @ViewBuilder private var itemsSection: some View {
+        if let items {
+            Section {
+                ForEach(items) { item in itemRow(item).tag(item.id) }
+            } header: {
+                Text("القهاوي")
+            } footer: {
+                if selecting { Text("حدد القهاوي اللي تبي تعدّلها مرة وحدة.") }
+            }
+        } else {
+            HStack { Spacer(); ProgressView(); Spacer() }
+        }
+    }
+
+    private func itemRow(_ item: RemoteQueueCard) -> some View {
+        HStack(spacing: 10) {
+            AdminPhoto(url: item.imageUrl).frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name).font(.subheadline.weight(.semibold))
+                Text(missingLine(item)).font(.caption).foregroundStyle(item.missing.isEmpty ? Brand.olive : .red)
+            }
+            Spacer()
+            if !selecting {
+                Button { photoTools = item } label: {
+                    Image(systemName: "crop").font(.subheadline).foregroundStyle(Brand.ink)
+                        .frame(width: 36, height: 36).background(Color.secondary.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("أدوات الصورة")
+            }
+        }
+    }
+
+    private func missingLine(_ item: RemoteQueueCard) -> String {
+        item.missing.isEmpty ? "مكتملة" : "ناقص: " + item.missing.map(QueueText.missingAr).joined(separator: "، ")
+    }
+
+    @ViewBuilder private var toolbarMenu: some View {
+        if selecting {
+            Button("تم") { withAnimation { editMode = .inactive; selection = [] } }
+        } else {
+            Menu {
+                Button { withAnimation { editMode = .active } } label: { Label("تعديل جماعي", systemImage: "checklist") }
+                if kind == .pending {
+                    Button { askCut = true } label: { Label("شيل خلفيات المحمصة كلها", systemImage: "scissors") }
+                }
+                Button { startEnglishName() } label: { Label("الاسم الإنجليزي للمحمصة", systemImage: "character.book.closed") }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .disabled(items == nil || busy)
+        }
+    }
+
+    @ViewBuilder private var selectionBar: some View {
+        if selecting {
+            let all = selection.count == itemCount
+            HStack(spacing: 10) {
+                Button(all ? "إلغاء التحديد" : "حدد الكل") { selection = all ? [] : Set((items ?? []).map(\.id)) }
                     .buttonStyle(.bordered).tint(Brand.ink)
-                    Button { bulkEditing = true } label: {
-                        Text("عدّل المحدد (\(selection.count.formatted()))").font(.headline).frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent).tint(Brand.olive)
-                    .disabled(selection.isEmpty)
+                Button { bulkEditing = true } label: {
+                    Text("عدّل المحدد (\(selection.count.formatted()))").font(.headline).frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .padding(.horizontal).padding(.vertical, 10)
-                .background(.bar)
+                .buttonStyle(.borderedProminent).tint(Brand.olive)
+                .disabled(selection.isEmpty)
+            }
+            .padding(.horizontal).padding(.vertical, 10)
+            .background(.bar)
+        }
+    }
+
+    private var bulkEditSheet: some View {
+        NavigationStack {
+            BulkEditSheet(kind: kind == .pending ? .submission : .lot, ids: Array(selection)) { updated in
+                message = "انعدّلت \(updated.formatted()) قهوة"
+                failures = []
+                editMode = .inactive
+                selection = []
+                Task { await load(); onChange() }
             }
         }
-        .sheet(isPresented: $bulkEditing) {
-            NavigationStack {
-                BulkEditSheet(kind: kind == .pending ? .submission : .lot, ids: Array(selection)) { updated in
-                    message = "انعدّلت \(updated.formatted()) قهوة"
-                    failures = []
-                    editMode = .inactive
-                    selection = []
-                    Task { await load(); onChange() }
-                }
+    }
+
+    private func photoToolsSheet(_ card: RemoteQueueCard) -> some View {
+        let hasOriginal = card.hasOriginalPhoto == true || editedPhotos.contains(card.id)
+        return NavigationStack {
+            PhotoToolsView(card: card, currentURL: card.imageUrl, hasOriginal: hasOriginal) { _ in
+                editedPhotos.insert(card.id)
+                Task { await load(); onChange() }
             }
         }
-        .sheet(item: $photoTools) { card in
-            NavigationStack {
-                PhotoToolsView(card: card, currentURL: card.imageUrl,
-                               hasOriginal: card.hasOriginalPhoto == true || editedPhotos.contains(card.id)) { _ in
-                    editedPhotos.insert(card.id)
-                    Task { await load(); onChange() }
-                }
-            }
-        }
-        .confirmationDialog("تشيل خلفيات صور \(group.roaster) اللي ما انعدّلت؟", isPresented: $askCut, titleVisibility: .visible) {
-            Button("حساسية خفيفة") { Task { await cutAll(sensitivity: 30) } }
-            Button("حساسية متوسطة") { Task { await cutAll(sensitivity: 50) } }
-            Button("حساسية قوية") { Task { await cutAll(sensitivity: 70) } }
-        } message: {
-            Text("الصور اللي ما تطلع نظيفة (خلفية فيها رسومات أو ظل) تبقى مثل ما هي، وتقدر تعدّلها وحدة وحدة. الأصل محفوظ وتقدر ترجّعه.")
-        }
-        .alert("الاسم الإنجليزي لـ\(group.roaster)", isPresented: $askEnglishName) {
-            TextField("مثل: Sout Roastery", text: $englishName)
-                .textInputAutocapitalization(.words)
-                .environment(\.layoutDirection, .leftToRight)
-            Button("احفظ") { Task { await saveEnglishName() } }
-                .disabled(englishName.trimmingCharacters(in: .whitespaces).count < 2)
-            Button("إلغاء", role: .cancel) {}
-        } message: {
-            Text("ينحط على المحمصة وكل قهاويها مرة وحدة.")
-        }
-        .task { await load() }
-        .fullScreenCover(isPresented: $reviewing, onDismiss: { Task { await load(); onChange() } }) {
-            NavigationStack { QueueReviewView(kind: kind, cards: items ?? []) }
-        }
-        .confirmationDialog("تعتمد \((items ?? []).count.formatted()) قهوة من \(group.roaster)؟", isPresented: $confirmAll, titleVisibility: .visible) {
-            Button("اعتمد الكل") { Task { await approveAll() } }
-        }
+    }
+
+    @ViewBuilder private var englishNameField: some View {
+        TextField("مثل: Sout Roastery", text: $englishName)
+            .textInputAutocapitalization(.words)
+        Button("احفظ") { Task { await saveEnglishName() } }
+            .disabled(englishName.trimmingCharacters(in: .whitespaces).count < 2)
+        Button("إلغاء", role: .cancel) {}
+    }
+
+    private func startEnglishName() {
+        englishName = items?.first(where: { $0.roasterNameEn != nil })?.roasterNameEn ?? ""
+        askEnglishName = true
     }
 
     private func load() async {
@@ -413,6 +456,15 @@ struct QueueReviewView: View {
 
     private var card: RemoteQueueCard? { cards.indices.contains(index) ? cards[index] : nil }
 
+    private func toolsSheet(_ card: RemoteQueueCard) -> some View {
+        let edited = photos.keys.contains(card.id)
+        return NavigationStack {
+            PhotoToolsView(card: card, currentURL: photoURL(card), hasOriginal: card.hasOriginalPhoto == true || edited) { url in
+                photos[card.id] = .some(url)
+            }
+        }
+    }
+
     private func photoURL(_ card: RemoteQueueCard) -> String? {
         if let changed = photos[card.id] { return changed }
         return card.imageUrl
@@ -450,14 +502,7 @@ struct QueueReviewView: View {
             }
         }
         .task(id: index) { await open() }
-        .sheet(item: $photoTools) { card in
-            NavigationStack {
-                PhotoToolsView(card: card, currentURL: photoURL(card),
-                               hasOriginal: card.hasOriginalPhoto == true || photos[card.id] != nil) { url in
-                    photos[card.id] = .some(url)
-                }
-            }
-        }
+        .sheet(item: $photoTools) { card in toolsSheet(card) }
     }
 
     // MARK: Card
@@ -691,6 +736,371 @@ enum QueueText {
         case .process: return "المعالجة"
         case .notes: return "النكهات"
         case .photo: return "الصورة"
+        }
+    }
+}
+
+/// One coffee's photo: lift the backdrop (with a sensitivity), crop, keep the
+/// backdrop, compare before and after, save, bring the original back, or delete.
+/// The cut runs on the server with plain pixel arithmetic; nothing is generated.
+@MainActor
+struct PhotoToolsView: View {
+    let card: RemoteQueueCard
+    let currentURL: String?
+    /// Whether the original is kept to bring back (the card's flag, or edited in this session).
+    let hasOriginal: Bool
+    /// The new photo's URL (nil when deleted).
+    var onSaved: (String?) -> Void
+
+    enum Side: String { case before, after }
+
+    @EnvironmentObject private var auth: AuthModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var edit = PhotoEdit()
+    @State private var top = 0.0, bottom = 0.0, left = 0.0, right = 0.0
+    @State private var side = Side.after
+    @State private var preview: RemotePhotoPreview?
+    @State private var previewImage: UIImage?
+    @State private var loading = false
+    @State private var busy = false
+    @State private var error: String?
+    @State private var confirmDelete = false
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    private var crop: PhotoCrop { PhotoCrop(top: top, bottom: bottom, leading: left, trailing: right) }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Picker("", selection: $side) {
+                    Text("قبل").tag(Side.before)
+                    Text("بعد").tag(Side.after)
+                }
+                .pickerStyle(.segmented)
+
+                photo
+                    .frame(height: 320)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(white: 0.94), in: RoundedRectangle(cornerRadius: 16))
+
+                if let warning = preview?.warningAr, side == .after {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote).foregroundStyle(.orange)
+                }
+
+                backgroundBox
+                cropBox
+                if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+                buttons
+            }
+            .padding()
+        }
+        .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
+        .navigationTitle("أدوات الصورة")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } } }
+        .confirmationDialog("تحذف صورة «\(card.name)»؟", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("احذف الصورة", role: .destructive) { Task { await delete() } }
+        } message: {
+            Text(card.kind == .submission ? "تقدر ترجّع الأصل بعدين." : "القهوة المنشورة تصير بدون صورة.")
+        }
+        // A new preview a moment after the last change.
+        .task(id: PreviewKey(edit: edit, crop: crop)) {
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            await loadPreview()
+        }
+    }
+
+    private struct PreviewKey: Equatable { let edit: PhotoEdit; let crop: PhotoCrop }
+
+    private var backgroundBox: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("شيل الخلفية", isOn: $edit.removeBackground).tint(Brand.olive)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("الحساسية").font(.subheadline.bold())
+                    Spacer()
+                    Text(Int(edit.sensitivity).formatted()).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                Slider(value: $edit.sensitivity, in: 0...100, step: 5) {
+                    Text("الحساسية")
+                } minimumValueLabel: {
+                    Text("أقل").font(.caption)
+                } maximumValueLabel: {
+                    Text("أكثر").font(.caption)
+                }
+                .tint(Brand.olive)
+                Text("لو أكلت من الكيس خفّفها، ولو بقى شي من الخلفية زِدها.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .disabled(!edit.removeBackground)
+            .opacity(edit.removeBackground ? 1 : 0.4)
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var cropBox: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("القص").font(.subheadline.bold())
+                Spacer()
+                if top + bottom + left + right > 0 {
+                    Button("بدون قص") { top = 0; bottom = 0; left = 0; right = 0 }.font(.caption)
+                }
+            }
+            cropSlider("من فوق", $top)
+            cropSlider("من تحت", $bottom)
+            cropSlider("من اليمين", $right)
+            cropSlider("من اليسار", $left)
+            Text("شوف المربع على صورة «قبل»، وخلّ الكيس داخله.").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var saveDisabled: Bool { busy || (currentURL == nil && !hasOriginal) }
+
+    private var buttons: some View {
+        VStack(spacing: 10) {
+            Button { Task { await apply() } } label: {
+                Label("احفظ الصورة", systemImage: "checkmark").font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Brand.olive, in: Capsule()).foregroundStyle(Brand.background)
+            }
+            .buttonStyle(.plain)
+            .disabled(saveDisabled)
+            HStack(spacing: 10) {
+                if card.kind == .submission, hasOriginal {
+                    Button { Task { await restore() } } label: {
+                        Label("رجّع الأصل", systemImage: "arrow.uturn.backward").frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered).tint(Brand.ink)
+                }
+                if currentURL != nil {
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Label("احذف الصورة", systemImage: "trash").frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .disabled(busy)
+        }
+    }
+
+    @ViewBuilder private var photo: some View {
+        switch side {
+        case .before:
+            if let url = currentURL.flatMap(URL.init(string:)) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFit().overlay { cropOverlay }
+                } placeholder: { ProgressView() }
+                .padding(8)
+            } else {
+                ContentUnavailableView("بدون صورة", systemImage: "photo")
+            }
+        case .after:
+            ZStack {
+                if let previewImage {
+                    Image(uiImage: previewImage).resizable().scaledToFit().padding(8)
+                } else if !loading {
+                    ContentUnavailableView("ما فيه معاينة", systemImage: "photo")
+                }
+                if loading { ProgressView().controlSize(.large) }
+            }
+        }
+    }
+
+    /// The part the crop keeps, drawn over the "before" photo.
+    private var cropOverlay: some View {
+        GeometryReader { geo in
+            let c = crop
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.35)
+                    .mask {
+                        Rectangle().overlay(alignment: .topLeading) {
+                            Rectangle().frame(width: geo.size.width * c.w, height: geo.size.height * c.h)
+                                .offset(x: geo.size.width * c.x, y: geo.size.height * c.y)
+                                .blendMode(.destinationOut)
+                        }
+                        .compositingGroup()
+                    }
+                Rectangle().stroke(Brand.olive, lineWidth: 2)
+                    .frame(width: geo.size.width * c.w, height: geo.size.height * c.h)
+                    .offset(x: geo.size.width * c.x, y: geo.size.height * c.y)
+            }
+            .environment(\.layoutDirection, .leftToRight)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func cropSlider(_ title: String, _ value: Binding<Double>) -> some View {
+        HStack {
+            Text(title).font(.caption).frame(width: 70, alignment: .leading)
+            Slider(value: value, in: 0...0.45, step: 0.01).tint(Brand.ink)
+            Text("\(Int(value.wrappedValue * 100))٪").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 36)
+        }
+    }
+
+    private func current() -> PhotoEdit {
+        var e = edit
+        e.crop = crop
+        return e
+    }
+
+    private func loadPreview() async {
+        guard currentURL != nil || hasOriginal else { return }
+        loading = true
+        defer { loading = false }
+        do {
+            let p = try await auth.withToken { try await client.previewPhoto(card, current(), accessToken: $0) }
+            preview = p
+            previewImage = p.imageData.flatMap(UIImage.init(data:))
+            error = nil
+        } catch {
+            preview = nil
+            previewImage = nil
+            self.error = "ما قدرنا نشيل الخلفية بهالإعدادات. جرّب حساسية ثانية أو قص الصورة."
+        }
+    }
+
+    private func apply() async {
+        busy = true
+        defer { busy = false }
+        do {
+            let url = try await auth.withToken { try await client.applyPhoto(card, current(), accessToken: $0) }
+            Haptics.tap()
+            onSaved(url)
+            dismiss()
+        } catch {
+            self.error = "ما انحفظت الصورة. حاول مرة ثانية."
+        }
+    }
+
+    private func restore() async {
+        busy = true
+        defer { busy = false }
+        do {
+            let url = try await auth.withToken { try await client.restorePhoto(card, accessToken: $0) }
+            onSaved(url)
+            dismiss()
+        } catch {
+            self.error = "ما رجعت الصورة الأصلية."
+        }
+    }
+
+    private func delete() async {
+        busy = true
+        defer { busy = false }
+        do {
+            try await auth.withToken { try await client.deletePhoto(card, accessToken: $0) }
+            onSaved(nil)
+            dismiss()
+        } catch {
+            self.error = "ما انحذفت الصورة."
+        }
+    }
+}
+
+/// The same origin, process, roast or extra notes for every selected coffee.
+@MainActor
+struct BulkEditSheet: View {
+    let kind: RemoteQueueCard.Kind
+    let ids: [String]
+    var onDone: (Int) -> Void
+
+    @EnvironmentObject private var auth: AuthModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var edit = BulkEdit()
+    @State private var note = ""
+    @State private var busy = false
+    @State private var error: String?
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    var body: some View {
+        Form {
+            Section {
+                Text("اللي تختاره هنا ينحط على \(ids.count.formatted()) قهوة. اللي تخليه فاضي ما يتغيّر.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("المنشأ") {
+                Picker("المنشأ", selection: $edit.originCode) {
+                    Text("بدون تغيير").tag(String?.none)
+                    ForEach(ReferenceCodes.countries.filter { $0.code != "XB" }, id: \.code) { Text($0.nameAr).tag(String?.some($0.code)) }
+                }
+            }
+            Section("المعالجة") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(ReferenceCodes.processes.filter { $0.code != "OTHER" }, id: \.code) { p in
+                            ChoiceChip(title: p.nameAr, isSelected: edit.process == p.code) {
+                                edit.process = edit.process == p.code ? nil : p.code
+                            }
+                        }
+                    }
+                }
+            }
+            Section("التحميص") {
+                HStack(spacing: 6) {
+                    ForEach(RoastLevel.allCases, id: \.self) { r in
+                        ChoiceChip(title: r.nameAr, isSelected: edit.roastLevel == r) {
+                            edit.roastLevel = edit.roastLevel == r ? nil : r
+                        }
+                    }
+                }
+            }
+            Section {
+                ForEach(edit.addNotes, id: \.self) { n in Text(n) }
+                    .onDelete { edit.addNotes.remove(atOffsets: $0) }
+                HStack {
+                    TextField("نكهة", text: $note).onSubmit(addNote)
+                    Button("إضافة", action: addNote).disabled(note.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } header: {
+                Text("أضف نكهات")
+            } footer: {
+                Text("تنضاف على نكهات كل قهوة، ما تمسح اللي فيها.")
+            }
+            if let error { Section { Text(error).foregroundStyle(.red) } }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
+        .navigationTitle("تعديل جماعي")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                if busy { ProgressView() } else {
+                    Button("طبّق") { Task { await save() } }.disabled(edit.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func addNote() {
+        let n = note.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty, !edit.addNotes.contains(n), edit.addNotes.count < 6 else { return }
+        edit.addNotes.append(n)
+        note = ""
+    }
+
+    private func save() async {
+        busy = true
+        defer { busy = false }
+        do {
+            var updated = 0
+            for start in stride(from: 0, to: ids.count, by: 200) {
+                let chunk = Array(ids[start..<min(start + 200, ids.count)])
+                updated += try await auth.withToken { try await client.bulkEdit(kind, ids: chunk, edit, accessToken: $0) }
+            }
+            Haptics.tap()
+            onDone(updated)
+            dismiss()
+        } catch {
+            self.error = "ما انحفظ التعديل. حاول مرة ثانية."
         }
     }
 }
