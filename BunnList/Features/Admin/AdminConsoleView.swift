@@ -2,8 +2,8 @@ import BunnListCore
 import Charts
 import SwiftUI
 
-/// The admin console's home: what needs attention, the week in numbers, 30 days
-/// of activity, and the way into review, coffees and reports.
+/// The admin console's home: «مهامك» (what waits, roaster by roaster), the tools,
+/// then the week in numbers and 30 days of activity.
 @MainActor
 struct AdminConsoleView: View {
     @EnvironmentObject private var auth: AuthModel
@@ -14,7 +14,10 @@ struct AdminConsoleView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                attention
+                AdminTasksSection()
+                Text("أدوات").font(.title3.bold())
+                sections
+                Text("الأرقام").font(.title3.bold())
                 if let o = overview {
                     stats(o)
                     chart(o)
@@ -23,7 +26,6 @@ struct AdminConsoleView: View {
                 } else {
                     HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 40)
                 }
-                sections
             }
             .padding()
         }
@@ -41,39 +43,6 @@ struct AdminConsoleView: View {
         } catch {
             failed = overview == nil
         }
-    }
-
-    // MARK: Needs attention
-
-    @ViewBuilder
-    private var attention: some View {
-        let pending = overview?.pendingSubmissions ?? 0
-        let reports = overview?.openReports ?? 0
-        if pending > 0 || reports > 0 {
-            VStack(spacing: 8) {
-                if reports > 0 {
-                    NavigationLink { AdminReportsView() } label: {
-                        alert("\(reports.formatted()) بلاغ مفتوح", icon: "flag.fill", color: .red)
-                    }
-                }
-                if pending > 0 {
-                    NavigationLink { AdminReviewView() } label: {
-                        alert("\(pending.formatted()) اقتراح ينتظر المراجعة", icon: "tray.full.fill", color: Brand.gold)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func alert(_ text: String, icon: String, color: Color) -> some View {
-        HStack {
-            Label(text, systemImage: icon).font(.subheadline.weight(.semibold)).foregroundStyle(color)
-            Spacer()
-            Image(systemName: "chevron.backward").font(.caption).foregroundStyle(.tertiary)
-        }
-        .padding(14)
-        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: Numbers
@@ -133,13 +102,13 @@ struct AdminConsoleView: View {
     private var sections: some View {
         VStack(spacing: 10) {
             NavigationLink { AdminReviewView() } label: {
-                row("مراجعة الاقتراحات", detail: "القبول والرفض والاستيراد", icon: "checkmark.shield.fill", count: overview?.pendingSubmissions)
+                row("كل الاقتراحات والاستيراد", detail: "القائمة الكاملة، التحديد الجماعي، الاستيراد", icon: "checkmark.shield.fill", count: nil)
             }
             NavigationLink { AdminLotsView() } label: {
                 row("القهوات", detail: "تعديل، إخفاء، تغيير الصورة", icon: "cup.and.saucer.fill", count: nil)
             }
             NavigationLink { AdminReportsView() } label: {
-                row("البلاغات", detail: "التقييمات والوصفات والحسابات", icon: "flag.fill", count: overview?.openReports)
+                row("البلاغات", detail: "التقييمات والوصفات والحسابات", icon: "flag.fill", count: nil)
             }
             NavigationLink { AdminGrindersView() } label: {
                 row("دليل المطاحن", detail: "المواصفات ومصادرها والصور", icon: "dial.medium.fill", count: nil)

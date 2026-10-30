@@ -20,14 +20,16 @@ enum BagCutout {
         await process(image)?.image
     }
 
-    static func process(_ image: UIImage, background: UIColor = UIColor(white: 0.97, alpha: 1)) async -> Result? {
+    /// `enhance: false` keeps the photo's own exposure and colour (catalog photos are only
+    /// cut out and cropped, never retouched).
+    static func process(_ image: UIImage, background: UIColor = UIColor(white: 0.97, alpha: 1), enhance: Bool = true) async -> Result? {
         await Task.detached(priority: .userInitiated) { () -> Result? in
             guard let cgImage = image.cgImage else { return nil }
             let context = CIContext()
 
             // 1. Enhance the real photo: exposure, color balance and straightening.
             var enhanced = CIImage(cgImage: cgImage).oriented(orientation(of: image))
-            for filter in enhanced.autoAdjustmentFilters(options: [.redEye: false, .level: true]) {
+            for filter in enhance ? enhanced.autoAdjustmentFilters(options: [.redEye: false, .level: true]) : [] {
                 filter.setValue(enhanced, forKey: kCIInputImageKey)
                 if let output = filter.outputImage { enhanced = output }
             }

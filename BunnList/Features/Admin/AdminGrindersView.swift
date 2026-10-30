@@ -198,7 +198,7 @@ struct AdminGrinderEditView: View {
     private func upload(_ item: PhotosPickerItem) async {
         defer { photoItem = nil }
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
-        let card = await BagCutout.process(image, background: .white)?.image ?? image
+        let card = await BagCutout.process(image, background: .white, enhance: false)?.image ?? image
         guard let jpeg = card.jpegData(compressionQuality: 0.85) else { return }
         do {
             let saved = try await auth.withToken { try await client.replaceGrinderPhoto(id: grinder.id, jpeg: jpeg, accessToken: $0) }

@@ -5,9 +5,13 @@ import SwiftUI
 /// Every coffee in the catalog, hidden ones too: search, filter, open to edit.
 @MainActor
 struct AdminLotsView: View {
+    /// The filter it opens on (the console's «بدون صورة» opens on noPhoto).
+    var startFilter: AdminLotFilter = .all
+
     @EnvironmentObject private var auth: AuthModel
     @State private var query = ""
     @State private var filter: AdminLotFilter = .all
+    @State private var appliedStart = false
     @State private var lots: [RemoteAdminLotRow]?
     @State private var failed = false
     /// Bulk delete: tap rows to pick them (the hidden filter is the usual place for it).
@@ -70,6 +74,7 @@ struct AdminLotsView: View {
         .brandScreen()
         .navigationTitle("القهوات")
         .searchable(text: $query, prompt: "اسم القهوة أو المحمصة")
+        .onAppear { if !appliedStart { filter = startFilter; appliedStart = true } }
         .task(id: "\(filter.rawValue)|\(query)") {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
@@ -398,7 +403,7 @@ struct AdminLotEditView: View {
             return
         }
         // The bag on white, like the bundled photos, so the card's flavor wash shows through.
-        let card = await BagCutout.process(image, background: .white)?.image ?? image
+        let card = await BagCutout.process(image, background: .white, enhance: false)?.image ?? image
         guard let jpeg = card.jpegData(compressionQuality: 0.85) else { return }
         do {
             _ = try await auth.withToken { try await client.replaceAdminLotPhoto(id: lotID, jpeg: jpeg, accessToken: $0) }
