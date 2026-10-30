@@ -65,7 +65,13 @@ struct RoasterQueueView: View {
     @State private var failed = false
     @State private var query = ""
     @State private var sort = Sort.count
+    @State private var confirmAll = false
+    @State private var approving: String?
+    @State private var approvedMessage: String?
+    @State private var approveFailures: [RemoteBulkReview.Failure] = []
     private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    private var waitingTotal: Int { (groups ?? []).reduce(0) { $0 + $1.count } }
 
     private var shown: [RemoteRoasterGroup] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -88,6 +94,7 @@ struct RoasterQueueView: View {
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
             }
+            approveAllSection
             if let groups {
                 if groups.isEmpty {
                     ContentUnavailableView(kind == .pending ? "ما فيه اقتراحات تنتظر" : "كل القهاوي مكتملة",
@@ -110,6 +117,61 @@ struct RoasterQueueView: View {
         .searchable(text: $query, prompt: "اسم المحمصة")
         .task { await load() }
         .refreshable { await load() }
+        .confirmationDialog("تنشر \(waitingTotal.formatted()) قهوة في الدليل؟", isPresented: $confirmAll, titleVisibility: .visible) {
+            Button("انشرها كلها") { Task { await approveEverything() } }
+        } message: {
+            Text("تنشر مثل ما هي: اللي بلا منشأ تصير «مزيج» واللي بلا معالجة «أخرى». تقدر تكمّل نواقصها بعدين من «قهاوي ناقصة».")
+        }
+    }
+
+    @ViewBuilder private var approveAllSection: some View {
+        if kind == .pending, waitingTotal > 0 || approving != nil || approvedMessage != nil {
+            Section {
+                if let approving {
+                    HStack(spacing: 10) { ProgressView(); Text(approving).font(.subheadline) }
+                } else if waitingTotal > 0 {
+                    Button { confirmAll = true } label: {
+                        Label("اعتمد كل الاقتراحات (\(waitingTotal.formatted()))", systemImage: "checkmark.circle.fill").font(.headline)
+                    }
+                    .tint(Brand.olive)
+                }
+                if let approvedMessage {
+                    Label(approvedMessage, systemImage: "checkmark.circle").foregroundStyle(Brand.olive)
+                    ForEach(approveFailures) { f in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(f.name).font(.caption.bold())
+                            Text(f.reason).font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } footer: {
+                if approving != nil { Text("خلّ الشاشة مفتوحة لين يخلص. كل دفعة تاخذ أقل من دقيقة.") }
+            }
+        }
+    }
+
+    /// Runs «approve everything» until nothing is left; the ones that fail are skipped in later runs.
+    private func approveEverything() async {
+        var done = 0
+        var failed: [RemoteBulkReview.Failure] = []
+        approvedMessage = nil
+        approveFailures = []
+        defer { approving = nil }
+        do {
+            for _ in 0..<100 {
+                approving = "ننشر… انتشر \(done.formatted())"
+                let skip = failed.map(\.id)
+                let r = try await auth.withToken { try await client.approveAllSuggestions(skip: skip, accessToken: $0) }
+                done += r.done.count
+                failed += r.failed
+                if r.remaining == 0 || (r.done.isEmpty && r.failed.isEmpty) { break }
+            }
+            approvedMessage = "انتشر \(done.formatted()) قهوة" + (failed.isEmpty ? "" : " • \(failed.count.formatted()) ما انتشرت:")
+        } catch {
+            approvedMessage = "وقفنا بعد \(done.formatted()). اضغطها مرة ثانية تكمّل الباقي."
+        }
+        approveFailures = failed
+        await load()
     }
 
     private func row(_ g: RemoteRoasterGroup) -> some View {

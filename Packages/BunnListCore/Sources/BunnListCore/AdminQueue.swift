@@ -308,3 +308,24 @@ extension CatalogAPIClient {
         return try await adminPost(Renamed.self, "/api/v1/admin/roasters/name", ["roasterAr": roasterAr, "nameEn": nameEn], accessToken).suggestions
     }
 }
+
+/// One run of «approve everything»: what went through, what didn't (and why), and how many are left.
+public struct RemoteApproveAll: Codable, Equatable, Sendable {
+    public let done: [String]
+    public let failed: [RemoteBulkReview.Failure]
+    public let remaining: Int
+}
+
+extension CatalogAPIClient {
+    /// Publishes waiting suggestions as they stand (all, or one roaster's); call again while `remaining` > 0,
+    /// passing the ids that failed so far in `skip`.
+    public func approveAllSuggestions(roaster: String? = nil, skip: [String], accessToken: String) async throws -> RemoteApproveAll {
+        var body: [String: Any] = ["skip": skip]
+        if let roaster { body["roaster"] = roaster }
+        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        let response = try await transport.send(HTTPRequest(method: .post, path: "/api/v1/admin/submissions/approve-all", body: data, bearer: accessToken))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteApproveAll.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+}
