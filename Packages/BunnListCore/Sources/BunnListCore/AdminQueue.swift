@@ -44,6 +44,8 @@ public struct RemoteQueueCard: Codable, Equatable, Sendable, Identifiable {
     public let name: String
     public let nameEn: String?
     public let roasterName: String
+    /// The roaster's English name, when one is set.
+    public let roasterNameEn: String?
     public let imageUrl: String?
     public let originName: String?
     public let originCode: String?
@@ -53,6 +55,8 @@ public struct RemoteQueueCard: Codable, Equatable, Sendable, Identifiable {
     public let descriptionAr: String?
     public let sourceUrl: String?
     public let missing: [Missing]
+    /// A suggestion whose photo was edited or deleted, with the original kept to bring back.
+    public let hasOriginalPhoto: Bool?
 }
 
 /// What the description says; nil (or empty) for what it doesn't.
@@ -115,7 +119,7 @@ public struct QueueEdit: Equatable, Sendable {
     /// For a suggestion: publish with what's set. No origin is a blend, no process "other".
     public func approvalPayload() -> [String: Any] {
         var body: [String: Any] = [
-            "nameAr": card.name, "name": card.nameEn ?? "", "roasterNameAr": card.roasterName, "roasterName": "",
+            "nameAr": card.name, "name": card.nameEn ?? "", "roasterNameAr": card.roasterName, "roasterName": card.roasterNameEn ?? "",
             "originCode": originCode ?? "XB", "originNameAr": originCode == nil ? "مزيج" : originNameAr,
             "process": process ?? "OTHER", "flavorNotes": flavorNotes,
         ]
@@ -178,5 +182,129 @@ extension CatalogAPIClient {
         struct Approved: Decodable { let lotSlug: String }
         do { return try JSONDecoder().decode(Approved.self, from: response.body).lotSlug }
         catch { throw AuthClientError.malformedResponse }
+    }
+}
+
+// MARK: Photo tools, bulk edit, roaster English name
+
+/// Part of a photo to keep, as fractions of its width and height.
+public struct PhotoCrop: Equatable, Sendable {
+    public var x: Double, y: Double, w: Double, h: Double
+    public init(x: Double, y: Double, w: Double, h: Double) { self.x = x; self.y = y; self.w = w; self.h = h }
+    public static let whole = PhotoCrop(x: 0, y: 0, w: 1, h: 1)
+
+    /// From insets (each 0–0.45) off the four sides.
+    public init(top: Double, bottom: Double, leading: Double, trailing: Double) {
+        let clamp = { (v: Double) in min(max(v, 0), 0.45) }
+        x = clamp(leading); y = clamp(top)
+        w = max(0.1, 1 - clamp(leading) - clamp(trailing)); h = max(0.1, 1 - clamp(top) - clamp(bottom))
+    }
+
+    var isWhole: Bool { x <= 0.001 && y <= 0.001 && w >= 0.999 && h >= 0.999 }
+    var json: [String: Double] { ["x": x, "y": y, "w": w, "h": h] }
+}
+
+/// How a photo edit should go: how close to the backdrop colour still counts as backdrop, and the crop.
+public struct PhotoEdit: Equatable, Sendable {
+    /// 0–100.
+    public var sensitivity: Double = 50
+    public var crop: PhotoCrop = .whole
+    /// False: crop and square only, the backdrop stays.
+    public var removeBackground = true
+    public init() {}
+
+    func body(_ action: String, _ card: RemoteQueueCard) -> [String: Any] {
+        var b: [String: Any] = ["action": action, "kind": card.kind.rawValue, "id": card.id,
+                                "sensitivity": sensitivity.rounded(), "removeBackground": removeBackground]
+        if !crop.isWhole { b["crop"] = crop.json }
+        return b
+    }
+}
+
+/// A cut done on the server but not saved: the JPEG to show, and a warning when it looks off.
+public struct RemotePhotoPreview: Codable, Equatable, Sendable {
+    public let imageBase64: String
+    public let foreground: Double
+    public let warningAr: String?
+    public var imageData: Data? { Data(base64Encoded: imageBase64) }
+}
+
+/// A roaster-wide cut run: how many went, the ones left as they were (and why), and how many wait for the next run.
+public struct RemoteRoasterCut: Codable, Equatable, Sendable {
+    public let done: Int
+    public let failed: [RemoteBulkReview.Failure]
+    public let remaining: Int
+}
+
+/// What a bulk edit sets; nil leaves a field as it is.
+public struct BulkEdit: Equatable, Sendable {
+    public var originCode: String?
+    public var process: String?
+    public var roastLevel: RoastLevel?
+    public var addNotes: [String] = []
+    public init() {}
+
+    public var isEmpty: Bool { originCode == nil && process == nil && roastLevel == nil && addNotes.isEmpty }
+
+    public func payload() -> [String: Any] {
+        var set: [String: Any] = [:]
+        if let originCode {
+            set["originCode"] = originCode
+            set["originNameAr"] = ReferenceCodes.country(originCode)?.nameAr ?? originCode
+        }
+        if let process { set["process"] = process }
+        if let roastLevel { set["roastLevel"] = roastLevel.rawValue }
+        if !addNotes.isEmpty { set["addNotes"] = addNotes }
+        return set
+    }
+}
+
+extension CatalogAPIClient {
+    private func adminPost<T: Decodable>(_ type: T.Type, _ path: String, _ body: [String: Any], _ token: String) async throws -> T {
+        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        let response = try await transport.send(HTTPRequest(method: .post, path: path, body: data, bearer: token))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(T.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    private struct PhotoURL: Decodable { let imageUrl: String? }
+
+    /// Cuts (or crops) the card's photo on the server and returns it without saving.
+    public func previewPhoto(_ card: RemoteQueueCard, _ edit: PhotoEdit, accessToken: String) async throws -> RemotePhotoPreview {
+        try await adminPost(RemotePhotoPreview.self, "/api/v1/admin/photos", edit.body("preview", card), accessToken)
+    }
+
+    /// Saves the cut as the card's photo; returns a URL to show it.
+    public func applyPhoto(_ card: RemoteQueueCard, _ edit: PhotoEdit, accessToken: String) async throws -> String? {
+        try await adminPost(PhotoURL.self, "/api/v1/admin/photos", edit.body("apply", card), accessToken).imageUrl
+    }
+
+    public func deletePhoto(_ card: RemoteQueueCard, accessToken: String) async throws {
+        _ = try await adminPost(PhotoURL.self, "/api/v1/admin/photos", ["action": "delete", "kind": card.kind.rawValue, "id": card.id], accessToken)
+    }
+
+    /// Brings back a suggestion's original photo; returns a URL to show it.
+    public func restorePhoto(_ card: RemoteQueueCard, accessToken: String) async throws -> String? {
+        try await adminPost(PhotoURL.self, "/api/v1/admin/photos", ["action": "restore", "kind": card.kind.rawValue, "id": card.id], accessToken).imageUrl
+    }
+
+    /// Lifts the backdrop off a roaster's waiting photos not edited yet; repeat while `remaining` > 0.
+    public func cutRoasterPhotos(_ roaster: String, sensitivity: Double, accessToken: String) async throws -> RemoteRoasterCut {
+        try await adminPost(RemoteRoasterCut.self, "/api/v1/admin/photos",
+                            ["action": "roaster", "roaster": roaster, "sensitivity": sensitivity.rounded()], accessToken)
+    }
+
+    /// Sets the same details on many cards (all suggestions, or all published coffees); returns how many changed.
+    public func bulkEdit(_ kind: RemoteQueueCard.Kind, ids: [String], _ edit: BulkEdit, accessToken: String) async throws -> Int {
+        struct Updated: Decodable { let updated: Int }
+        return try await adminPost(Updated.self, "/api/v1/admin/queue/bulk-edit",
+                                   ["kind": kind.rawValue, "ids": ids, "set": edit.payload()], accessToken).updated
+    }
+
+    /// A roaster's English name, for its published record and all its suggestions; returns how many suggestions changed.
+    public func setRoasterEnglishName(_ roasterAr: String, nameEn: String, accessToken: String) async throws -> Int {
+        struct Renamed: Decodable { let roasters: Int; let suggestions: Int }
+        return try await adminPost(Renamed.self, "/api/v1/admin/roasters/name", ["roasterAr": roasterAr, "nameEn": nameEn], accessToken).suggestions
     }
 }

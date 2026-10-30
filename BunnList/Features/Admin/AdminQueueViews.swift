@@ -158,10 +158,22 @@ struct RoasterQueueDetail: View {
     @State private var confirmAll = false
     @State private var busy = false
     @State private var message: String?
+    @State private var failures: [RemoteBulkReview.Failure] = []
+    @State private var editMode = EditMode.inactive
+    @State private var selection = Set<String>()
+    @State private var bulkEditing = false
+    @State private var askCut = false
+    @State private var cutProgress: String?
+    @State private var askEnglishName = false
+    @State private var englishName = ""
+    @State private var photoTools: RemoteQueueCard?
+    @State private var editedPhotos = Set<String>()
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
+    private var selecting: Bool { editMode.isEditing }
+
     var body: some View {
-        List {
+        List(selection: $selection) {
             Section {
                 Button { reviewing = true } label: {
                     Label("راجعها وحدة وحدة", systemImage: "rectangle.stack.fill").font(.headline)
@@ -180,11 +192,22 @@ struct RoasterQueueDetail: View {
                     Text("«اعتمد الكل» ينشرها مثل ما هي: اللي بلا منشأ تصير «مزيج» واللي بلا معالجة «أخرى». الأفضل للمحامص اللي بياناتها كاملة.")
                 }
             }
+            if let cutProgress {
+                Section { Label(cutProgress, systemImage: "scissors").foregroundStyle(.secondary) }
+            }
             if let message {
-                Section { Label(message, systemImage: "checkmark.circle").foregroundStyle(Brand.olive) }
+                Section {
+                    Label(message, systemImage: "checkmark.circle").foregroundStyle(Brand.olive)
+                    ForEach(failures) { f in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(f.name).font(.caption.bold())
+                            Text(f.reason).font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             if let items {
-                Section("القهاوي") {
+                Section {
                     ForEach(items) { item in
                         HStack(spacing: 10) {
                             AdminPhoto(url: item.imageUrl).frame(width: 44, height: 44)
@@ -193,8 +216,22 @@ struct RoasterQueueDetail: View {
                                 Text(item.missing.isEmpty ? "مكتملة" : "ناقص: " + item.missing.map(QueueText.missingAr).joined(separator: "، "))
                                     .font(.caption).foregroundStyle(item.missing.isEmpty ? Brand.olive : .red)
                             }
+                            Spacer()
+                            if !selecting {
+                                Button { photoTools = item } label: {
+                                    Image(systemName: "crop").font(.subheadline).foregroundStyle(Brand.ink)
+                                        .frame(width: 36, height: 36).background(Color.secondary.opacity(0.1), in: Circle())
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("أدوات الصورة")
+                            }
                         }
+                        .tag(item.id)
                     }
+                } header: {
+                    Text("القهاوي")
+                } footer: {
+                    if selecting { Text("حدد القهاوي اللي تبي تعدّلها مرة وحدة.") }
                 }
             } else {
                 HStack { Spacer(); ProgressView(); Spacer() }
@@ -205,6 +242,80 @@ struct RoasterQueueDetail: View {
         .brandScreen()
         .navigationTitle(group.roaster)
         .navigationBarTitleDisplayMode(.inline)
+        .environment(\.editMode, $editMode)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if selecting {
+                    Button("تم") { withAnimation { editMode = .inactive; selection = [] } }
+                } else {
+                    Menu {
+                        Button { withAnimation { editMode = .active } } label: { Label("تعديل جماعي", systemImage: "checklist") }
+                        if kind == .pending {
+                            Button { askCut = true } label: { Label("شيل خلفيات المحمصة كلها", systemImage: "scissors") }
+                        }
+                        Button {
+                            englishName = items?.first(where: { $0.roasterNameEn != nil })?.roasterNameEn ?? ""
+                            askEnglishName = true
+                        } label: { Label("الاسم الإنجليزي للمحمصة", systemImage: "character.book.closed") }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                    .disabled(items == nil || busy)
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if selecting {
+                HStack(spacing: 10) {
+                    Button(selection.count == (items ?? []).count ? "إلغاء التحديد" : "حدد الكل") {
+                        selection = selection.count == (items ?? []).count ? [] : Set((items ?? []).map(\.id))
+                    }
+                    .buttonStyle(.bordered).tint(Brand.ink)
+                    Button { bulkEditing = true } label: {
+                        Text("عدّل المحدد (\(selection.count.formatted()))").font(.headline).frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent).tint(Brand.olive)
+                    .disabled(selection.isEmpty)
+                }
+                .padding(.horizontal).padding(.vertical, 10)
+                .background(.bar)
+            }
+        }
+        .sheet(isPresented: $bulkEditing) {
+            NavigationStack {
+                BulkEditSheet(kind: kind == .pending ? .submission : .lot, ids: Array(selection)) { updated in
+                    message = "انعدّلت \(updated.formatted()) قهوة"
+                    failures = []
+                    editMode = .inactive
+                    selection = []
+                    Task { await load(); onChange() }
+                }
+            }
+        }
+        .sheet(item: $photoTools) { card in
+            NavigationStack {
+                PhotoToolsView(card: card, currentURL: card.imageUrl,
+                               hasOriginal: card.hasOriginalPhoto == true || editedPhotos.contains(card.id)) { _ in
+                    editedPhotos.insert(card.id)
+                    Task { await load(); onChange() }
+                }
+            }
+        }
+        .confirmationDialog("تشيل خلفيات صور \(group.roaster) اللي ما انعدّلت؟", isPresented: $askCut, titleVisibility: .visible) {
+            Button("حساسية خفيفة") { Task { await cutAll(sensitivity: 30) } }
+            Button("حساسية متوسطة") { Task { await cutAll(sensitivity: 50) } }
+            Button("حساسية قوية") { Task { await cutAll(sensitivity: 70) } }
+        } message: {
+            Text("الصور اللي ما تطلع نظيفة (خلفية فيها رسومات أو ظل) تبقى مثل ما هي، وتقدر تعدّلها وحدة وحدة. الأصل محفوظ وتقدر ترجّعه.")
+        }
+        .alert("الاسم الإنجليزي لـ\(group.roaster)", isPresented: $askEnglishName) {
+            TextField("مثل: Sout Roastery", text: $englishName)
+                .textInputAutocapitalization(.words)
+                .environment(\.layoutDirection, .leftToRight)
+            Button("احفظ") { Task { await saveEnglishName() } }
+                .disabled(englishName.trimmingCharacters(in: .whitespaces).count < 2)
+            Button("إلغاء", role: .cancel) {}
+        } message: {
+            Text("ينحط على المحمصة وكل قهاويها مرة وحدة.")
+        }
         .task { await load() }
         .fullScreenCover(isPresented: $reviewing, onDismiss: { Task { await load(); onChange() } }) {
             NavigationStack { QueueReviewView(kind: kind, cards: items ?? []) }
@@ -216,6 +327,43 @@ struct RoasterQueueDetail: View {
 
     private func load() async {
         items = try? await auth.withToken { try await client.queueItems(kind, roaster: group.roaster, accessToken: $0) }
+    }
+
+    /// Runs the roaster-wide cut until nothing is left (each run stops before the server's time limit).
+    private func cutAll(sensitivity: Double) async {
+        busy = true
+        defer { busy = false; cutProgress = nil }
+        var done = 0
+        var failed: [RemoteBulkReview.Failure] = []
+        do {
+            for _ in 0..<20 {
+                cutProgress = "نشيل الخلفيات… انتهى \(done.formatted())"
+                let r = try await auth.withToken { try await client.cutRoasterPhotos(group.roaster, sensitivity: sensitivity, accessToken: $0) }
+                done += r.done
+                failed += r.failed
+                if r.remaining == 0 { break }
+            }
+            message = "انشالت خلفية \(done.formatted()) صورة" + (failed.isEmpty ? "" : " • \(failed.count.formatted()) بقت مثل ما هي:")
+        } catch {
+            message = "وقفنا بعد \(done.formatted()) صورة. اضغطها مرة ثانية تكمّل."
+        }
+        failures = failed
+        await load()
+        onChange()
+    }
+
+    private func saveEnglishName() async {
+        let name = englishName.trimmingCharacters(in: .whitespaces)
+        busy = true
+        defer { busy = false }
+        do {
+            let n = try await auth.withToken { try await client.setRoasterEnglishName(group.roaster, nameEn: name, accessToken: $0) }
+            message = "صار اسمها «\(name)» على المحمصة و\(n.formatted()) اقتراح"
+            failures = []
+            await load()
+        } catch {
+            message = "ما انحفظ الاسم. حاول مرة ثانية."
+        }
     }
 
     private func approveAll() async {
@@ -235,6 +383,7 @@ struct RoasterQueueDetail: View {
             left = ids.count - done
         }
         message = "انعتمد \(done.formatted())" + (left > 0 ? " • باقي \(left.formatted())، اضغط مرة ثانية" : "")
+        failures = []
         await load()
         onChange()
     }
@@ -257,9 +406,17 @@ struct QueueReviewView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var done = 0
+    /// Photos changed in this session, by card (nil: deleted).
+    @State private var photos: [String: String?] = [:]
+    @State private var photoTools: RemoteQueueCard?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private var card: RemoteQueueCard? { cards.indices.contains(index) ? cards[index] : nil }
+
+    private func photoURL(_ card: RemoteQueueCard) -> String? {
+        if let changed = photos[card.id] { return changed }
+        return card.imageUrl
+    }
 
     var body: some View {
         Group {
@@ -293,16 +450,34 @@ struct QueueReviewView: View {
             }
         }
         .task(id: index) { await open() }
+        .sheet(item: $photoTools) { card in
+            NavigationStack {
+                PhotoToolsView(card: card, currentURL: photoURL(card),
+                               hasOriginal: card.hasOriginalPhoto == true || photos[card.id] != nil) { url in
+                    photos[card.id] = .some(url)
+                }
+            }
+        }
     }
 
     // MARK: Card
 
     private func cardView(_ card: RemoteQueueCard, _ edit: Binding<QueueEdit>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            AdminPhoto(url: card.imageUrl)
+            AdminPhoto(url: photoURL(card))
                 .frame(height: 220)
                 .overlay(alignment: .topLeading) {
-                    if card.missing.contains(.photo) { badge("بدون صورة") }
+                    if photoURL(card) == nil { badge("بدون صورة") }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Button { photoTools = card } label: {
+                        Label("أدوات الصورة", systemImage: "crop").font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(.white, in: Capsule()).foregroundStyle(Brand.ink)
+                            .shadow(color: .black.opacity(0.08), radius: 4, y: 1)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
                 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(card.name).font(.title3.bold())

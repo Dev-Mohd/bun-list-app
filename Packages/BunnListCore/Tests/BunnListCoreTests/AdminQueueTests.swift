@@ -52,6 +52,38 @@ final class AdminQueueTests: XCTestCase {
         XCTAssertNil(body["flavorNotes"])
     }
 
+    func testApprovalCarriesTheRoastersEnglishName() throws {
+        let json = pendingJSON.replacingOccurrences(of: #""roasterName":"محمصة دبليو","#, with: #""roasterName":"محمصة دبليو","roasterNameEn":"W Roastery","hasOriginalPhoto":true,"#)
+        let c = try card(json)
+        XCTAssertEqual(c.hasOriginalPhoto, true)
+        XCTAssertEqual(QueueEdit(c).approvalPayload()["roasterName"] as? String, "W Roastery")
+        XCTAssertEqual(QueueEdit(try card(pendingJSON)).approvalPayload()["roasterName"] as? String, "")
+    }
+
+    func testPhotoEditAndBulkEditBodies() throws {
+        var edit = PhotoEdit()
+        let c = try card(pendingJSON)
+        XCTAssertNil(edit.body("preview", c)["crop"])
+        edit.crop = PhotoCrop(top: 0.1, bottom: 0.2, leading: 0.05, trailing: 0.6)
+        edit.sensitivity = 62.4
+        let body = edit.body("apply", c)
+        XCTAssertEqual(body["action"] as? String, "apply")
+        XCTAssertEqual(body["kind"] as? String, "submission")
+        XCTAssertEqual(body["sensitivity"] as? Double, 62)
+        let crop = try XCTUnwrap(body["crop"] as? [String: Double])
+        XCTAssertEqual(crop["x"]!, 0.05, accuracy: 1e-9)
+        XCTAssertEqual(crop["w"]!, 0.5, accuracy: 1e-9) // trailing capped at 0.45
+        XCTAssertEqual(crop["h"]!, 0.7, accuracy: 1e-9)
+
+        var bulk = BulkEdit()
+        XCTAssertTrue(bulk.isEmpty)
+        bulk.originCode = "ET"; bulk.roastLevel = .light
+        let set = bulk.payload()
+        XCTAssertEqual(set["originNameAr"] as? String, ReferenceCodes.country("ET")?.nameAr)
+        XCTAssertEqual(set["roastLevel"] as? String, "light")
+        XCTAssertNil(set["process"])
+    }
+
     func testRoasterGroupsDecode() throws {
         let g = try JSONDecoder().decode(RemoteRoasterGroup.self, from: Data(#"{"roaster":"أودن","count":26,"noOrigin":4,"noProcess":9,"noNotes":2,"noPhoto":0,"imageUrl":null}"#.utf8))
         XCTAssertEqual(g.gaps, 9)
