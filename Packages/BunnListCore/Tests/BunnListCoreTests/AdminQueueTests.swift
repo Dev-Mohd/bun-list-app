@@ -84,6 +84,13 @@ final class AdminQueueTests: XCTestCase {
         XCTAssertNil(set["process"])
     }
 
+    func testDuplicatePairsDecodeWithAStableId() throws {
+        let json = #"{"roaster":"محمصة ضحى","score":0.8,"keepId":"b","a":{"id":"z","slug":"doha-brazil-diamond","nameAr":"Brazil Diamond","name":"Brazil Diamond","imageUrl":null,"originName":"البرازيل","process":"OTHER","flavorNotes":[],"used":0},"b":{"id":"b","slug":"doha-diamond","nameAr":"دايموند البرازيل","name":"Diamond Brazil","imageUrl":"https://x/d.jpg","originName":"البرازيل","process":"NATURAL","flavorNotes":["كراميل"],"used":2}}"#
+        let p = try JSONDecoder().decode(RemoteDuplicatePair.self, from: Data(json.utf8))
+        XCTAssertEqual(p.id, "b|z")
+        XCTAssertEqual(p.other(than: p.keepId).slug, "doha-brazil-diamond")
+    }
+
     func testRoasterGroupsDecode() throws {
         let g = try JSONDecoder().decode(RemoteRoasterGroup.self, from: Data(#"{"roaster":"أودن","count":26,"noOrigin":4,"noProcess":9,"noNotes":2,"noPhoto":0,"imageUrl":null}"#.utf8))
         XCTAssertEqual(g.gaps, 9)

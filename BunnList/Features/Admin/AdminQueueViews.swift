@@ -22,6 +22,9 @@ struct AdminTasksSection: View {
             NavigationLink { RoasterQueueView(kind: .photos) } label: {
                 task(counts?.published, "مراجعة الصور", detail: "كل القهاوي المنشورة حسب المحمصة: شيل الخلفية، قص، رجّع الأصل", color: Brand.gold)
             }
+            NavigationLink { DuplicatesView() } label: {
+                task(nil, "قهاوي مكررة", detail: "نفس القهوة منشورة مرتين: اختر وحدة وادمج", color: Brand.ink)
+            }
             NavigationLink { AdminLotsView(startFilter: .noPhoto) } label: {
                 task(counts?.noPhoto, "قهاوي بدون صورة", detail: "أضف صورة الكيس", color: Brand.olive)
             }
@@ -1186,6 +1189,155 @@ struct BulkEditSheet: View {
             dismiss()
         } catch {
             self.error = "ما انحفظ التعديل. حاول مرة ثانية."
+        }
+    }
+}
+
+/// Coffees published twice: each pair side by side, the one to keep chosen (the
+/// server's pick to start), then merge, or say they're two different coffees.
+@MainActor
+struct DuplicatesView: View {
+    @EnvironmentObject private var auth: AuthModel
+    @State private var pairs: [RemoteDuplicatePair]?
+    @State private var keep: [String: String] = [:]
+    @State private var busy: String?
+    @State private var confirm: RemoteDuplicatePair?
+    @State private var merged = 0
+    @State private var error: String?
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    private var roasters: [String] { Array(Set((pairs ?? []).map(\.roaster))).sorted() }
+
+    var body: some View {
+        List {
+            summary
+            ForEach(roasters, id: \.self) { roaster in
+                Section(roaster) {
+                    ForEach((pairs ?? []).filter { $0.roaster == roaster }) { pair in pairRow(pair) }
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
+        .navigationTitle("قهاوي مكررة")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+        .refreshable { await load() }
+        .confirmationDialog(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }), titleVisibility: .visible) {
+            if let pair = confirm { Button("ادمج") { Task { await merge(pair) } } }
+        } message: {
+            Text("المعلومات الناقصة تنعبّى من الثانية، والتقييمات والتحضيرات والوصفات والقوائم تنتقل، ورابط الثانية يفتح هذي.")
+        }
+    }
+
+    private var confirmTitle: String {
+        guard let pair = confirm else { return "" }
+        let kept = keptSide(pair)
+        return "تبقي «\(kept.nameAr)» وتدمج فيها «\(pair.other(than: kept.id).nameAr)»؟"
+    }
+
+    @ViewBuilder private var summary: some View {
+        Section {
+            if let pairs {
+                if pairs.isEmpty {
+                    ContentUnavailableView("ما فيه مكرر", systemImage: "checkmark.seal")
+                } else {
+                    Text("\(pairs.count.formatted()) زوج يشبهون بعض. اضغط على اللي تبي تبقيه، ثم «ادمج».").font(.footnote)
+                }
+                if merged > 0 { Label("اندمج \(merged.formatted())", systemImage: "checkmark.circle").foregroundStyle(Brand.olive) }
+                if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+            } else {
+                HStack { Spacer(); ProgressView(); Spacer() }
+            }
+        }
+    }
+
+    private func keptSide(_ pair: RemoteDuplicatePair) -> RemoteDuplicateSide {
+        let id = keep[pair.id] ?? pair.keepId
+        return id == pair.a.id ? pair.a : pair.b
+    }
+
+    private func pairRow(_ pair: RemoteDuplicatePair) -> some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                sideCard(pair, pair.a)
+                sideCard(pair, pair.b)
+            }
+            HStack(spacing: 10) {
+                Button("مو مكررة") { Task { await dismiss(pair) } }
+                    .buttonStyle(.bordered).tint(Brand.ink)
+                Button { confirm = pair } label: {
+                    Label("ادمج", systemImage: "arrow.triangle.merge").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(Brand.olive)
+            }
+            .disabled(busy != nil)
+            .opacity(busy == pair.id ? 0.5 : 1)
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func sideCard(_ pair: RemoteDuplicatePair, _ side: RemoteDuplicateSide) -> some View {
+        let kept = keptSide(pair).id == side.id
+        return Button { keep[pair.id] = side.id } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                AdminPhoto(url: side.imageUrl).frame(height: 90)
+                Text(side.nameAr).font(.caption.bold()).lineLimit(2)
+                Text(side.name).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                Text(detailLine(side)).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                Text(kept ? "تبقى" : "تندمج").font(.caption2.bold()).foregroundStyle(kept ? Brand.olive : .secondary)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12).stroke(kept ? Brand.olive : Color.secondary.opacity(0.25), lineWidth: kept ? 2 : 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func detailLine(_ side: RemoteDuplicateSide) -> String {
+        var parts: [String] = []
+        parts.append(side.originName ?? "بلا منشأ")
+        parts.append(side.process == "OTHER" ? "بلا معالجة" : (ReferenceCodes.process(side.process)?.nameAr ?? side.process))
+        parts.append(side.flavorNotes.isEmpty ? "بلا نكهات" : "\(side.flavorNotes.count.formatted()) نكهات")
+        if side.used > 0 { parts.append("عليها \(side.used.formatted()) نشاط") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func load() async {
+        do {
+            pairs = try await auth.withToken { try await client.duplicatePairs(accessToken: $0) }
+            error = nil
+        } catch {
+            self.error = "ما قدرنا نجيب القائمة"
+            if pairs == nil { pairs = [] }
+        }
+    }
+
+    private func merge(_ pair: RemoteDuplicatePair) async {
+        let kept = keptSide(pair)
+        busy = pair.id
+        defer { busy = nil }
+        do {
+            try await auth.withToken { try await client.mergeDuplicate(keepId: kept.id, dropId: pair.other(than: kept.id).id, accessToken: $0) }
+            Haptics.tap()
+            merged += 1
+            // The dropped coffee is gone: any other pair with it goes too.
+            let dropped = pair.other(than: kept.id).id
+            pairs?.removeAll { $0.a.id == dropped || $0.b.id == dropped }
+        } catch {
+            self.error = "ما اندمجت «\(kept.nameAr)». حاول مرة ثانية."
+        }
+    }
+
+    private func dismiss(_ pair: RemoteDuplicatePair) async {
+        busy = pair.id
+        defer { busy = nil }
+        do {
+            try await auth.withToken { try await client.dismissDuplicate(pair, accessToken: $0) }
+            pairs?.removeAll { $0.id == pair.id }
+        } catch {
+            self.error = "ما انحفظ. حاول مرة ثانية."
         }
     }
 }

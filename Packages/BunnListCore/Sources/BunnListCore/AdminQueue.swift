@@ -335,3 +335,56 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 }
+
+// MARK: Duplicate coffees
+
+/// One side of a likely duplicate.
+public struct RemoteDuplicateSide: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let slug: String
+    public let nameAr: String
+    public let name: String
+    public let imageUrl: String?
+    public let originName: String?
+    public let process: String
+    public let flavorNotes: [String]
+    /// People's reviews, brews, recipes and shelf entries on it.
+    public let used: Int
+}
+
+/// Two published coffees of one roaster that look like the same coffee.
+public struct RemoteDuplicatePair: Codable, Equatable, Sendable, Identifiable {
+    public var id: String { a.id < b.id ? "\(a.id)|\(b.id)" : "\(b.id)|\(a.id)" }
+    public let roaster: String
+    public let score: Double
+    public let a: RemoteDuplicateSide
+    public let b: RemoteDuplicateSide
+    /// The one the server suggests keeping.
+    public let keepId: String
+
+    public func other(than id: String) -> RemoteDuplicateSide { id == a.id ? b : a }
+}
+
+extension CatalogAPIClient {
+    public func duplicatePairs(accessToken: String) async throws -> [RemoteDuplicatePair] {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/admin/duplicates", bearer: accessToken))
+        try Self.checkContract(response)
+        struct Wrapper: Decodable { let pairs: [RemoteDuplicatePair] }
+        do { return try JSONDecoder().decode(Wrapper.self, from: response.body).pairs }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
+    /// Merges `dropId` into `keepId` (details, people's records and its link move over).
+    public func mergeDuplicate(keepId: String, dropId: String, accessToken: String) async throws {
+        let data = (try? JSONSerialization.data(withJSONObject: ["keepId": keepId, "dropId": dropId])) ?? Data()
+        let response = try await transport.send(HTTPRequest(method: .post, path: "/api/v1/admin/duplicates/merge", body: data, bearer: accessToken))
+        try Self.checkContract(response)
+    }
+
+    /// Two different coffees: not offered as duplicates again.
+    public func dismissDuplicate(_ pair: RemoteDuplicatePair, accessToken: String) async throws {
+        let data = (try? JSONSerialization.data(withJSONObject: ["lotA": pair.a.id, "lotB": pair.b.id])) ?? Data()
+        let response = try await transport.send(HTTPRequest(method: .post, path: "/api/v1/admin/duplicates/dismiss", body: data, bearer: accessToken))
+        try Self.checkContract(response)
+    }
+}
