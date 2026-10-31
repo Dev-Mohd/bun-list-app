@@ -9,6 +9,8 @@ public enum QueueKind: String, Sendable, Hashable {
     case pending
     /// Published coffees missing origin, process or notes.
     case incomplete
+    /// Every published coffee, to go over the photos roaster by roaster.
+    case photos
 }
 
 public struct RemoteQueueCounts: Codable, Equatable, Sendable {
@@ -19,6 +21,8 @@ public struct RemoteQueueCounts: Codable, Equatable, Sendable {
     public let noNotes: Int
     public let noPhoto: Int
     public let reports: Int
+    /// Published coffees (older servers leave it out).
+    public let published: Int?
 }
 
 public struct RemoteRoasterGroup: Codable, Equatable, Sendable, Identifiable, Hashable {
@@ -289,10 +293,12 @@ extension CatalogAPIClient {
         try await adminPost(PhotoURL.self, "/api/v1/admin/photos", ["action": "restore", "kind": card.kind.rawValue, "id": card.id], accessToken).imageUrl
     }
 
-    /// Lifts the backdrop off a roaster's waiting photos not edited yet; repeat while `remaining` > 0.
-    public func cutRoasterPhotos(_ roaster: String, sensitivity: Double, accessToken: String) async throws -> RemoteRoasterCut {
+    /// Lifts the backdrop off a roaster's photos not edited yet (its waiting suggestions, or its
+    /// published coffees); repeat while `remaining` > 0.
+    public func cutRoasterPhotos(_ roaster: String, kind: RemoteQueueCard.Kind = .submission, sensitivity: Double,
+                                 accessToken: String) async throws -> RemoteRoasterCut {
         try await adminPost(RemoteRoasterCut.self, "/api/v1/admin/photos",
-                            ["action": "roaster", "roaster": roaster, "sensitivity": sensitivity.rounded()], accessToken)
+                            ["action": "roaster", "roaster": roaster, "kind": kind.rawValue, "sensitivity": sensitivity.rounded()], accessToken)
     }
 
     /// Sets the same details on many cards (all suggestions, or all published coffees); returns how many changed.

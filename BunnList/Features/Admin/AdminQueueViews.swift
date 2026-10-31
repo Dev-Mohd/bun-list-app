@@ -19,6 +19,9 @@ struct AdminTasksSection: View {
                     "منشأ \($0.noOrigin.formatted()) · معالجة \($0.noProcess.formatted()) · نكهات \($0.noNotes.formatted())"
                 } ?? "المنشأ والمعالجة والنكهات", color: .red)
             }
+            NavigationLink { RoasterQueueView(kind: .photos) } label: {
+                task(counts?.published, "مراجعة الصور", detail: "كل القهاوي المنشورة حسب المحمصة: شيل الخلفية، قص، رجّع الأصل", color: Brand.gold)
+            }
             NavigationLink { AdminLotsView(startFilter: .noPhoto) } label: {
                 task(counts?.noPhoto, "قهاوي بدون صورة", detail: "أضف صورة الكيس", color: Brand.olive)
             }
@@ -97,7 +100,7 @@ struct RoasterQueueView: View {
             approveAllSection
             if let groups {
                 if groups.isEmpty {
-                    ContentUnavailableView(kind == .pending ? "ما فيه اقتراحات تنتظر" : "كل القهاوي مكتملة",
+                    ContentUnavailableView(kind == .pending ? "ما فيه اقتراحات تنتظر" : kind == .photos ? "ما فيه قهاوي منشورة" : "كل القهاوي مكتملة",
                                            systemImage: "checkmark.seal")
                 }
                 ForEach(shown) { g in
@@ -112,7 +115,7 @@ struct RoasterQueueView: View {
         .scrollContentBackground(.hidden)
         .background(Brand.background.ignoresSafeArea())
         .brandScreen()
-        .navigationTitle(kind == .pending ? "اقتراحات تنتظر" : "قهاوي ناقصة")
+        .navigationTitle(kind == .pending ? "اقتراحات تنتظر" : kind == .photos ? "مراجعة الصور" : "قهاوي ناقصة")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "اسم المحمصة")
         .task { await load() }
@@ -367,7 +370,7 @@ struct RoasterQueueDetail: View {
         } else {
             Menu {
                 Button { withAnimation { editMode = .active } } label: { Label("تعديل جماعي", systemImage: "checklist") }
-                if kind == .pending {
+                if kind != .incomplete {
                     Button { askCut = true } label: { Label("شيل خلفيات المحمصة كلها", systemImage: "scissors") }
                 }
                 Button { startEnglishName() } label: { Label("الاسم الإنجليزي للمحمصة", systemImage: "character.book.closed") }
@@ -443,7 +446,7 @@ struct RoasterQueueDetail: View {
         do {
             for _ in 0..<20 {
                 cutProgress = "نشيل الخلفيات… انتهى \(done.formatted())"
-                let r = try await auth.withToken { try await client.cutRoasterPhotos(group.roaster, sensitivity: sensitivity, accessToken: $0) }
+                let r = try await auth.withToken { try await client.cutRoasterPhotos(group.roaster, kind: kind == .pending ? .submission : .lot, sensitivity: sensitivity, accessToken: $0) }
                 done += r.done
                 failed += r.failed
                 if r.remaining == 0 { break }
@@ -555,7 +558,7 @@ struct QueueReviewView: View {
         }
         .background(Brand.background.ignoresSafeArea())
         .brandScreen()
-        .navigationTitle(kind == .pending ? "مراجعة" : "إكمال المعلومات")
+        .navigationTitle(kind == .pending ? "مراجعة" : kind == .photos ? "مراجعة الصور" : "إكمال المعلومات")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("إنهاء") { dismiss() } }
