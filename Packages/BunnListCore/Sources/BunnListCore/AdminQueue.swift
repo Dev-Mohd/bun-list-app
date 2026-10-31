@@ -91,7 +91,8 @@ public struct QueueEdit: Equatable, Sendable {
     public init(_ card: RemoteQueueCard) {
         self.card = card
         let origin = card.originCode.flatMap(ReferenceCodes.country) ?? card.originName.flatMap(ApprovalForm.country(matching:))
-        originCode = origin?.code == "XB" ? nil : origin?.code
+        // «مزيج» stays when the coffee really is a blend; when it only stood for "unknown" it starts empty.
+        originCode = origin?.code == "XB" && card.missing.contains(.origin) ? nil : origin?.code
         originNameAr = originCode == nil ? "" : origin?.nameAr ?? card.originName ?? ""
         process = card.process == "OTHER" ? nil : card.process.flatMap { ReferenceCodes.process($0)?.code }
         flavorNotes = card.flavorNotes
@@ -111,7 +112,7 @@ public struct QueueEdit: Equatable, Sendable {
         if let r = s.roastLevel { roastLevel = r }
     }
 
-    /// Still missing after the admin's answers.
+    /// Still missing after the admin's answers (a blend's «مزيج» origin counts as answered).
     public var stillMissing: [RemoteQueueCard.Missing] {
         var out: [RemoteQueueCard.Missing] = []
         if originCode == nil { out.append(.origin) }
@@ -124,7 +125,7 @@ public struct QueueEdit: Equatable, Sendable {
     public func approvalPayload() -> [String: Any] {
         var body: [String: Any] = [
             "nameAr": card.name, "name": card.nameEn ?? "", "roasterNameAr": card.roasterName, "roasterName": card.roasterNameEn ?? "",
-            "originCode": originCode ?? "XB", "originNameAr": originCode == nil ? "مزيج" : originNameAr,
+            "originCode": originCode ?? "XB", "originNameAr": originCode == nil || originCode == "XB" ? "مزيج" : originNameAr,
             "process": process ?? "OTHER", "flavorNotes": flavorNotes,
         ]
         if let roastLevel { body["roastLevel"] = roastLevel.rawValue }

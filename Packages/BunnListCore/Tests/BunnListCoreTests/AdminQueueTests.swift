@@ -91,6 +91,19 @@ final class AdminQueueTests: XCTestCase {
         XCTAssertEqual(p.other(than: p.keepId).slug, "doha-brazil-diamond")
     }
 
+    func testABlendKeepsItsMixedOriginAndProcess() throws {
+        let json = lotJSON.replacingOccurrences(of: #""process":"OTHER""#, with: #""process":"MIXED""#)
+            .replacingOccurrences(of: #""missing":["origin","process"]"#, with: #""missing":[]"#)
+        var edit = QueueEdit(try card(json))
+        XCTAssertEqual(edit.originCode, "XB")
+        XCTAssertEqual(edit.process, "MIXED")
+        XCTAssertEqual(edit.stillMissing, [])
+        XCTAssertTrue(edit.lotChanges().isEmpty)
+        XCTAssertEqual(ReferenceCodes.process("MIXED")?.nameAr, "مزيج")
+        edit.setOrigin(code: "XB")
+        XCTAssertEqual(edit.approvalPayload()["originNameAr"] as? String, "مزيج")
+    }
+
     func testRoasterGroupsDecode() throws {
         let g = try JSONDecoder().decode(RemoteRoasterGroup.self, from: Data(#"{"roaster":"أودن","count":26,"noOrigin":4,"noProcess":9,"noNotes":2,"noPhoto":0,"imageUrl":null}"#.utf8))
         XCTAssertEqual(g.gaps, 9)

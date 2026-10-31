@@ -61,6 +61,7 @@ public enum ReferenceCodes {
         .init("WET_HULLED", "مقشورة رطبة", "Wet-hulled"),
         .init("CARBONIC_MACERATION", "نقع كربوني", "Carbonic maceration"),
         .init("EXPERIMENTAL", "تجريبية", "Experimental"),
+        .init("MIXED", "مزيج", "Mixed", aliases: ["مجفف ومغسول", "مختلطة", "مزيج معالجات"]),
         .init("OTHER", "أخرى", "Other"),
     ]
 

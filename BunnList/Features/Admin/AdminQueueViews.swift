@@ -622,7 +622,8 @@ struct QueueReviewView: View {
                 }
                 Picker("المنشأ", selection: Binding(get: { edit.wrappedValue.originCode ?? "" },
                                                      set: { edit.wrappedValue.setOrigin(code: $0.isEmpty ? nil : $0) })) {
-                    Text("مزيج / غير معروف").tag("")
+                    Text("غير محدد").tag("")
+                    Text("مزيج (بلند)").tag("XB")
                     ForEach(ReferenceCodes.countries.filter { $0.code != "XB" }, id: \.code) { Text($0.nameAr).tag($0.code) }
                 }
                 .pickerStyle(.menu)
@@ -1119,6 +1120,7 @@ struct BulkEditSheet: View {
             Section("المنشأ") {
                 Picker("المنشأ", selection: $edit.originCode) {
                     Text("بدون تغيير").tag(String?.none)
+                    Text("مزيج (بلند)").tag(String?.some("XB"))
                     ForEach(ReferenceCodes.countries.filter { $0.code != "XB" }, id: \.code) { Text($0.nameAr).tag(String?.some($0.code)) }
                 }
             }

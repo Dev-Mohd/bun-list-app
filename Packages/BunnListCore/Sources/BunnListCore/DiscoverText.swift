@@ -49,6 +49,7 @@ public enum DiscoverText {
         case "WET_HULLED": return "تنقشر الحبة وهي رطبة، فيطلع قوام ثقيل ونكهات ترابية وتوابل."
         case "CARBONIC_MACERATION": return "تتخمّر الثمرة في ثاني أكسيد الكربون، فيطلع كوب فواكهي ومعقّد."
         case "EXPERIMENTAL": return "معالجة خاصة جرّبها المزارع، وغالبًا تطلّع نكهات غير متوقعة."
+        case "MIXED": return "مزيج من حبوب بمعالجات مختلفة، فيجمع صفات أكثر من كوب في كوب واحد."
         default: return nil
         }
     }
