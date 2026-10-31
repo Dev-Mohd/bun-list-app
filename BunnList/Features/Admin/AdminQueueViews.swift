@@ -243,13 +243,7 @@ struct RoasterQueueDetail: View {
     // The screen is built in steps: one long modifier chain is too much for the type checker.
     var body: some View {
         withSheets
-            .confirmationDialog("تشيل خلفيات صور \(group.roaster) اللي ما انعدّلت؟", isPresented: $askCut, titleVisibility: .visible) {
-                Button("حساسية خفيفة") { Task { await cutAll(sensitivity: 30) } }
-                Button("حساسية متوسطة") { Task { await cutAll(sensitivity: 50) } }
-                Button("حساسية قوية") { Task { await cutAll(sensitivity: 70) } }
-            } message: {
-                Text("الصور اللي ما تطلع نظيفة (خلفية فيها رسومات أو ظل) تبقى مثل ما هي، وتقدر تعدّلها وحدة وحدة. الأصل محفوظ وتقدر ترجّعه.")
-            }
+            .sheet(isPresented: $askCut) { roasterCutSheet }
             .alert("الاسم الإنجليزي لـ\(group.roaster)", isPresented: $askEnglishName) {
                 englishNameField
             } message: {
@@ -399,6 +393,15 @@ struct RoasterQueueDetail: View {
             .padding(.horizontal).padding(.vertical, 10)
             .background(.bar)
         }
+    }
+
+    private var roasterCutSheet: some View {
+        NavigationStack {
+            RoasterCutSheet(roaster: group.roaster, sample: (items ?? []).first { $0.imageUrl != nil }) { sensitivity in
+                Task { await cutAll(sensitivity: sensitivity) }
+            }
+        }
+        .presentationDetents([.large])
     }
 
     private var bulkEditSheet: some View {
@@ -1338,6 +1341,116 @@ struct DuplicatesView: View {
             pairs?.removeAll { $0.id == pair.id }
         } catch {
             self.error = "ما انحفظ. حاول مرة ثانية."
+        }
+    }
+}
+
+/// The roaster-wide backdrop cut: the exact sensitivity, tried on one of the
+/// roaster's photos first, then run on all of them.
+@MainActor
+struct RoasterCutSheet: View {
+    let roaster: String
+    /// A photo of this roaster to try the setting on.
+    let sample: RemoteQueueCard?
+    var onStart: (Double) -> Void
+
+    @EnvironmentObject private var auth: AuthModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var sensitivity = 50.0
+    @State private var preview: UIImage?
+    @State private var warning: String?
+    @State private var loading = false
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("اختر الحساسية وشوف أثرها على صورة من \(roaster)، وبعدها طبّقها على كل الصور اللي ما انعدّلت.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                comparison
+                if let warning { Label(warning, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange) }
+                sensitivityControl
+                Text("الصور اللي ما تطلع نظيفة تبقى مثل ما هي وتطلع لك أسماؤها. الأصل محفوظ وتقدر ترجّعه.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button {
+                    onStart(sensitivity)
+                    dismiss()
+                } label: {
+                    Label("طبّق \(Int(sensitivity).formatted()) على كل الصور", systemImage: "scissors").font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Brand.olive, in: Capsule()).foregroundStyle(Brand.background)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+        }
+        .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
+        .navigationTitle("شيل خلفيات المحمصة")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } } }
+        .task(id: sensitivity) {
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            await loadPreview()
+        }
+    }
+
+    private var comparison: some View {
+        HStack(spacing: 10) {
+            VStack(spacing: 4) {
+                AdminPhoto(url: sample?.imageUrl).frame(height: 170)
+                Text("قبل").font(.caption2).foregroundStyle(.secondary)
+            }
+            VStack(spacing: 4) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.97))
+                    if let preview { Image(uiImage: preview).resizable().scaledToFit().padding(4) }
+                    if loading { ProgressView() }
+                }
+                .frame(height: 170)
+                Text("بعد").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var sensitivityControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("الحساسية").font(.subheadline.bold())
+                Spacer()
+                Stepper(value: $sensitivity, in: 0...100, step: 1) {
+                    Text(Int(sensitivity).formatted()).font(.title3.monospacedDigit().bold())
+                }
+                .fixedSize()
+            }
+            Slider(value: $sensitivity, in: 0...100, step: 1) {
+                Text("الحساسية")
+            } minimumValueLabel: {
+                Text("أقل").font(.caption)
+            } maximumValueLabel: {
+                Text("أكثر").font(.caption)
+            }
+            .tint(Brand.olive)
+            Text("لو أكلت من الكيس خفّفها، ولو بقى شي من الخلفية زِدها.").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func loadPreview() async {
+        guard let sample else { return }
+        loading = true
+        defer { loading = false }
+        var edit = PhotoEdit()
+        edit.sensitivity = sensitivity
+        do {
+            let p = try await auth.withToken { try await client.previewPhoto(sample, edit, accessToken: $0) }
+            preview = p.imageData.flatMap(UIImage.init(data:))
+            warning = p.warningAr
+        } catch {
+            preview = nil
+            warning = "ما قدرنا نشيل خلفية هالصورة بهالرقم. جرّب رقم ثاني."
         }
     }
 }
