@@ -517,6 +517,8 @@ struct QueueReviewView: View {
     /// Photos changed in this session, by card (nil: deleted).
     @State private var photos: [String: String?] = [:]
     @State private var photoTools: RemoteQueueCard?
+    /// Suggestions already read (the next card's is fetched while this one is open).
+    @State private var suggestions: [String: RemoteDetailSuggestion] = [:]
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private var card: RemoteQueueCard? { cards.indices.contains(index) ? cards[index] : nil }
@@ -599,18 +601,18 @@ struct QueueReviewView: View {
                     withAnimation { edit.wrappedValue.apply(s) }
                     Haptics.tap()
                 } label: {
-                    Label("خذ كل اقتراحات الوصف", systemImage: "text.magnifyingglass")
+                    Label("خذ كل الاقتراحات (من الوصف والصور)", systemImage: "text.magnifyingglass")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 40)
                 }
                 .buttonStyle(.bordered).tint(Brand.olive)
             } else if suggesting {
-                Label("نقرأ الوصف…", systemImage: "text.magnifyingglass").font(.caption).foregroundStyle(.secondary)
+                Label("نقرأ الوصف وصور المنتج…", systemImage: "text.magnifyingglass").font(.caption).foregroundStyle(.secondary)
             }
 
             field("المنشأ", missing: edit.wrappedValue.originCode == nil) {
                 if let code = suggestion?.originCode, code != edit.wrappedValue.originCode {
-                    suggestionChip((ReferenceCodes.country(code)?.nameAr ?? code) + " (من الوصف)") { edit.wrappedValue.setOrigin(code: code) }
+                    suggestionChip((ReferenceCodes.country(code)?.nameAr ?? code) + " (مقترح)") { edit.wrappedValue.setOrigin(code: code) }
                 }
                 Picker("المنشأ", selection: Binding(get: { edit.wrappedValue.originCode ?? "" },
                                                      set: { edit.wrappedValue.setOrigin(code: $0.isEmpty ? nil : $0) })) {
@@ -624,7 +626,7 @@ struct QueueReviewView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         if let p = suggestion?.process, p != edit.wrappedValue.process {
-                            suggestionChip((ReferenceCodes.process(p)?.nameAr ?? p) + " (من الوصف)") { edit.wrappedValue.process = p }
+                            suggestionChip((ReferenceCodes.process(p)?.nameAr ?? p) + " (مقترح)") { edit.wrappedValue.process = p }
                         }
                         ForEach(ReferenceCodes.processes.filter { $0.code != "OTHER" }, id: \.code) { p in
                             ChoiceChip(title: p.nameAr, isSelected: edit.wrappedValue.process == p.code) {
@@ -637,7 +639,7 @@ struct QueueReviewView: View {
 
             field("النكهات", missing: edit.wrappedValue.flavorNotes.isEmpty) {
                 if let notes = suggestion?.flavorNotes, !notes.isEmpty, notes != edit.wrappedValue.flavorNotes {
-                    suggestionChip(notes.joined(separator: " · ") + " (من الوصف)") { edit.wrappedValue.flavorNotes = notes }
+                    suggestionChip(notes.joined(separator: " · ") + " (مقترح)") { edit.wrappedValue.flavorNotes = notes }
                 }
                 if !edit.wrappedValue.flavorNotes.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -662,7 +664,7 @@ struct QueueReviewView: View {
             field("التحميص", missing: false) {
                 HStack(spacing: 6) {
                     if let r = suggestion?.roastLevel, r != edit.wrappedValue.roastLevel {
-                        suggestionChip(r.nameAr + " (من الوصف)") { edit.wrappedValue.roastLevel = r }
+                        suggestionChip(r.nameAr + " (مقترح)") { edit.wrappedValue.roastLevel = r }
                     }
                     ForEach(RoastLevel.allCases, id: \.self) { r in
                         ChoiceChip(title: r.nameAr, isSelected: edit.wrappedValue.roastLevel == r) {
@@ -749,12 +751,27 @@ struct QueueReviewView: View {
         suggestion = nil
         error = nil
         newNote = ""
-        guard !card.missing.filter({ $0 != .photo }).isEmpty, card.descriptionAr?.isEmpty == false else { return }
+        let next = cards.indices.contains(index + 1) ? cards[index + 1] : nil
+        if let next, needsSuggestion(next), suggestions[next.id] == nil {
+            Task { if let s = await fetchSuggestion(next) { suggestions[next.id] = s } }
+        }
+        guard needsSuggestion(card) else { return }
+        if let cached = suggestions[card.id] { suggestion = cached; return }
         suggesting = true
         defer { suggesting = false }
         let id = card.id
-        let s = try? await auth.withToken { try await client.suggestDetails(for: card, accessToken: $0) }
+        let s = await fetchSuggestion(card)
+        if let s { suggestions[id] = s }
         if self.card?.id == id { suggestion = s }
+    }
+
+    /// A card missing origin, process or notes; the server reads its description and its store page's photos.
+    private func needsSuggestion(_ card: RemoteQueueCard) -> Bool {
+        !card.missing.filter { $0 != .photo }.isEmpty
+    }
+
+    private func fetchSuggestion(_ card: RemoteQueueCard) async -> RemoteDetailSuggestion? {
+        try? await auth.withToken { try await client.suggestDetails(for: card, accessToken: $0) }
     }
 
     private func next(counted: Bool) {
