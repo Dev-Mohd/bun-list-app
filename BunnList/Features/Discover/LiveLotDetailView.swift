@@ -1,8 +1,8 @@
 import BunnListCore
 import SwiftUI
 
-/// Full detail for one server lot (GET /api/v1/catalog/lots/[slug]): hero, origin,
-/// process, flavours, description and per-method brew ratings.
+/// Full detail for one server lot (GET /api/v1/catalog/lots/[slug]): the floating bag,
+/// fact tiles, where to buy it, the roaster's recipe and per-method brew ratings.
 @MainActor
 final class LiveLotDetailModel: ObservableObject {
     enum Phase: Equatable {
@@ -156,7 +156,7 @@ struct LiveLotDetailView: View {
     private func detail(_ lot: RemoteLotDetail) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                hero(lot)
+                FloatingBagHero(lot: lot)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(lot.nameAr).font(.title2.bold())
                     Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
@@ -180,7 +180,9 @@ struct LiveLotDetailView: View {
                     }
                 }
 
-                TasteFingerprintCard(notes: lot.flavorNotes, origin: lot.originNameAr, process: lot.processNameAr)
+                // No description: the facts the coffee has, as tiles, and where to buy it.
+                CoffeeFactsGrid(lot: lot)
+                if let buy = lot.buy { BuyButton(link: buy) }
 
                 if auth.isSignedIn {
                     TasteMatchCard(slug: lot.slug)
@@ -190,17 +192,12 @@ struct LiveLotDetailView: View {
                 RatingCard(average: lot.averageRating, count: lot.reviewCount, myRating: myReview?.rating,
                            isSignedIn: auth.isSignedIn) { showReviewForm = true }
 
-                facts(lot)
-
-                if lot.flavorNotes.count > 3 {
+                if lot.flavorNotes.count > 4 {
                     section("كل النكهات") { chips(lot.flavorNotes) }
                 }
                 if let discoverer = lot.discoverer {
                     DiscovererCard(discoverer: discoverer, onReport: auth.isSignedIn && discoverer.note?.isEmpty == false
                         ? { reporting = ReportRef(target: .note, targetID: lot.id) } : nil)
-                }
-                if let description = lot.descriptionAr, !description.isEmpty {
-                    section("الوصف") { Text(description).font(.body).foregroundStyle(.secondary) }
                 }
                 if auth.isSignedIn {
                     section("مجموعتي") { collectionControls }
@@ -215,6 +212,11 @@ struct LiveLotDetailView: View {
 
                 if !lot.brewStats.isEmpty {
                     section("التقييم حسب طريقة التحضير") { brewStats(lot.brewStats) }
+                }
+
+                if let recipes = lot.roasterRecipes, !recipes.isEmpty {
+                    RoasterRecipeCard(recipes: recipes, roasterNameAr: lot.roasterNameAr,
+                                      fromStore: lot.buy.map { !$0.isRoasterStore } ?? false)
                 }
 
                 section("الوصفات") {
@@ -312,29 +314,6 @@ struct LiveLotDetailView: View {
         } catch {
             myReview = nil // no prefill; not fatal
         }
-    }
-
-    private func hero(_ lot: RemoteLotDetail) -> some View {
-        // The whole bag, never cropped, on its main flavor's wash.
-        LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
-                     origin: lot.originNameAr, originCode: lot.originCode, padding: 10)
-        .frame(height: 300)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    private func facts(_ lot: RemoteLotDetail) -> some View {
-        VStack(spacing: 8) {
-            if let origin = lot.originNameAr { factRow("المنشأ", origin) }
-            if let region = lot.regionAr, !region.isEmpty { factRow("المنطقة", region) }
-            if let process = lot.processNameAr { factRow("المعالجة", process) }
-            if let variety = lot.variety, !variety.isEmpty { factRow("الصنف", variety) }
-        }
-    }
-
-    private func factRow(_ label: String, _ value: String) -> some View {
-        HStack { Text(label).foregroundStyle(.secondary); Spacer(); Text(value) }
-            .font(.subheadline)
     }
 
     private func brewStats(_ stats: [RemoteBrewStat]) -> some View {

@@ -79,6 +79,12 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
     public let community: RemoteLotCommunity?
     /// Labels such as "luxury"; missing from older servers.
     public let tags: [RemoteLotTag]?
+    /// Missing from older servers.
+    public let altitudeMeters: Int?
+    /// Where to buy it; missing from older servers.
+    public let buy: RemoteBuyLink?
+    /// The roaster's own recipes, filter first; missing from older servers.
+    public let roasterRecipes: [RemoteRoasterRecipe]?
 }
 
 public struct RemoteLotTag: Codable, Equatable, Sendable, Hashable {
