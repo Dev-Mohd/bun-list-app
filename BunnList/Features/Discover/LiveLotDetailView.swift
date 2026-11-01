@@ -161,7 +161,19 @@ struct LiveLotDetailView: View {
                 FloatingBagHero(lot: lot)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(lot.nameAr).font(.title2.bold())
-                    Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
+                    if let roasterSlug = lot.roasterSlug {
+                        NavigationLink { RoasterPageView(slug: roasterSlug, nameAr: lot.roasterNameAr) } label: {
+                            HStack(spacing: 4) {
+                                Text(lot.roasterNameAr)
+                                Image(systemName: "chevron.left").font(.caption.bold())
+                            }
+                            .font(.headline).foregroundStyle(Brand.olive)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("يفتح صفحة المحمصة")
+                    } else {
+                        Text(lot.roasterNameAr).font(.headline).foregroundStyle(.secondary)
+                    }
                     if let tags = lot.tags, !tags.isEmpty {
                         HStack(spacing: 6) {
                             ForEach(tags, id: \.self) { tag in

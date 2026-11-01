@@ -20,6 +20,8 @@ struct DiscoverView: View {
     @State private var flavorLots: SectionLoad<[RemoteLot]> = .loading
     @State private var showSearch = false
     @State private var searchPreset: SearchPreset?
+    @State private var showRoasters = false
+    @State private var showMap = false
     @State private var showSample = false
     @State private var showScan = false
     @State private var openSlug: String?
@@ -59,6 +61,7 @@ struct DiscoverView: View {
                         filters.origins = [origin.value]
                         searchPreset = SearchPreset(filters: filters)
                     }
+                    ExploreTiles(openRoasters: { showRoasters = true }, openMap: { showMap = true })
                     NewArrivalsSection(lots: arrivals, retry: { Task { await loadNewest() } }) {
                         var filters = BrowseFilters()
                         filters.sort = .newest
@@ -93,6 +96,14 @@ struct DiscoverView: View {
             .navigationDestination(isPresented: $showSample) { SampleCatalogView() }
             .navigationDestination(item: $openSlug) { LiveLotDetailView(slug: $0) }
             .navigationDestination(isPresented: $showSearch) { SearchView(tab: $tab) }
+            .navigationDestination(isPresented: $showRoasters) { RoastersIndexView() }
+            .navigationDestination(isPresented: $showMap) {
+                OriginsMapView { code in
+                    var filters = BrowseFilters()
+                    filters.origins = [code]
+                    searchPreset = SearchPreset(filters: filters)
+                }
+            }
             .navigationDestination(item: $searchPreset) { SearchView(tab: $tab, initial: $0.filters, openFilters: $0.openFilters) }
             .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
             .task { await loadAll() }

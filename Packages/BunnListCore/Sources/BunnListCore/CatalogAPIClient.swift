@@ -10,6 +10,8 @@ public struct RemoteLot: Codable, Equatable, Sendable, Identifiable {
     public let name: String
     public let nameAr: String
     public let roasterNameAr: String
+    /// Opens the roaster page; nil from older servers.
+    public var roasterSlug: String? = nil
     public let originNameAr: String?
     public let originCode: String?
     public let process: String
@@ -55,6 +57,8 @@ public struct RemoteLotDetail: Codable, Equatable, Sendable, Identifiable {
     public let name: String
     public let nameAr: String
     public let roasterNameAr: String
+    /// Opens the roaster page; nil from older servers.
+    public var roasterSlug: String? = nil
     public let originNameAr: String?
     public let originCode: String?
     public let process: String
