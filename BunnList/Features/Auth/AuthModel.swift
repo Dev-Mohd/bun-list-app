@@ -45,16 +45,35 @@ final class AuthModel: ObservableObject {
     /// The current access token, if signed in.
     func currentAccessToken() -> String? { store.load()?.accessToken }
 
+    /// The refresh in flight, so requests that expire together share one refresh
+    /// instead of each spending the same refresh token (the server reads a second
+    /// use as theft and ends the session).
+    private var refreshing: Task<String?, Never>?
+
     /// Rotates the access token using the stored refresh token. Returns a fresh
-    /// access token, or nil if refresh failed (in which case the session is cleared).
+    /// access token, or nil. Only a refusal from the server signs out; a dropped
+    /// connection or a server error keeps the session for the next try.
     func refreshAccessToken() async -> String? {
+        if let refreshing { return await refreshing.value }
+        let task = Task<String?, Never> { await performRefresh() }
+        refreshing = task
+        let token = await task.value
+        refreshing = nil
+        return token
+    }
+
+    private func performRefresh() async -> String? {
         guard let session = store.load() else { return nil }
         do {
             let tokens = try await client.refresh(refreshToken: session.refreshToken)
             store.save(StoredSession(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, accountID: tokens.accountID))
             return tokens.accessToken
-        } catch {
+        } catch APIError.unauthorized {
+            // Another refresh may have won meanwhile (another screen, a widget): use its tokens.
+            if let now = store.load(), now.refreshToken != session.refreshToken { return now.accessToken }
             signOut()
+            return nil
+        } catch {
             return nil
         }
     }
