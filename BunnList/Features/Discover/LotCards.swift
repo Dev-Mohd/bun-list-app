@@ -360,7 +360,11 @@ struct CoffeeFactsGrid: View {
         switch kind {
         case .origin:
             FactTile(minHeight: 104) {
-                OriginTile(country: lot.originNameAr ?? "", code: lot.originCode, region: lot.regionAr, play: appeared)
+                if lot.originCode?.uppercased() == "XB" || (lot.originNameAr ?? "").contains("مزيج") {
+                    BlendTile(region: lot.regionAr, play: appeared)
+                } else {
+                    OriginTile(country: lot.originNameAr ?? "", code: lot.originCode, region: lot.regionAr, play: appeared)
+                }
             }
         case .altitude:
             FactTile(minHeight: 104) { AltitudeTile(meters: lot.altitudeMeters ?? 0, play: appeared) }
@@ -441,6 +445,53 @@ private struct OriginTile: View {
         .onAppear {
             withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false).delay(0.8)) { pulse = true }
         }
+    }
+}
+
+/// A blend has no single farm: three origins drift together into one cup.
+private struct BlendTile: View {
+    let region: String?
+    let play: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var merged = false
+
+    private static let colors: [Color] = [Brand.gold, Brand.olive, Brand.brown]
+
+    var body: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("مزيج").font(.title3.bold())
+                Text(region?.isEmpty == false ? region! : "خلطة من أكثر من منشأ في فنجان واحد")
+                    .font(.footnote).foregroundStyle(Brand.brown)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            ZStack {
+                ForEach(0..<3, id: \.self) { i in
+                    let angle = Double(i) * 2 * .pi / 3 - .pi / 2
+                    Circle().fill(Self.colors[i].opacity(0.75))
+                        .frame(width: 30, height: 30)
+                        .offset(x: merged ? cos(angle) * 9 : cos(angle) * 30, y: merged ? sin(angle) * 9 : sin(angle) * 30)
+                        .blendMode(.multiply)
+                }
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.white)
+                    .opacity(merged ? 1 : 0)
+                    .scaleEffect(merged ? 1 : 0.4)
+            }
+            .frame(width: 96, height: 76)
+            .accessibilityHidden(true)
+        }
+        .onChange(of: play) { if play { animate() } }
+        .onAppear { if play { animate() } }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func animate() {
+        guard !merged else { return }
+        if reduceMotion { merged = true; return }
+        withAnimation(.spring(response: 1.1, dampingFraction: 0.7).delay(0.5)) { merged = true }
     }
 }
 

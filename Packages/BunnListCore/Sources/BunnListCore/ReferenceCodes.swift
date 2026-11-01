@@ -67,7 +67,7 @@ public enum ReferenceCodes {
 
     public static let brewMethods: [ReferenceEntry] = [
         .init("ESPRESSO", "إسبريسو", "Espresso"),
-        .init("V60", "في ٦٠", "V60", aliases: ["V60", "في60"]),
+        .init("V60", "V60", "V60", aliases: ["في ٦٠", "في60", "في 60"]),
         .init("CHEMEX", "كيمكس", "Chemex"),
         .init("AEROPRESS", "إيروبرس", "AeroPress", aliases: ["ايروبرس"]),
         .init("FRENCH_PRESS", "فرنش برس", "French press"),

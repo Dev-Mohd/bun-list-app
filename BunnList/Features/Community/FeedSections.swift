@@ -514,7 +514,8 @@ struct PulsePostCard: View {
             AvatarView(url: item.avatarUrl, name: item.name, size: 38)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name).font(.subheadline.bold()).foregroundStyle(Brand.ink)
-                Text([item.username.map { "@\($0)" }, headline, item.date.map { $0.formatted(.relative(presentation: .named)) }]
+                Text([item.username.flatMap { item.name.contains($0) ? nil : "@\($0)" }, headline,
+                      item.date.map { $0.formatted(.relative(presentation: .named)) }]
                         .compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }

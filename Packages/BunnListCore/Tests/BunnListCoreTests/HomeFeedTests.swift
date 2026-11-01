@@ -28,7 +28,7 @@ final class HomeFeedTests: XCTestCase {
         XCTAssertNil(home.trending.lots[1].moveAr)
         XCTAssertEqual(home.trending.lots[1].reasonsAr, ["+4 أضافوها هالشهر"])
         XCTAssertEqual(home.trending.recipes.first?.likes, 24)
-        XCTAssertEqual(home.pulse.first?.actionAr, "حضّر نردوس بـفي ٦٠")
+        XCTAssertEqual(home.pulse.first?.actionAr, "حضّر نردوس بـV60")
         XCTAssertNil(home.lastBrew)
     }
 

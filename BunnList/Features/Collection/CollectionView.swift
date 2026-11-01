@@ -216,16 +216,20 @@ struct CollectionOverview: View {
                 .buttonStyle(CardPressStyle())
                 .padding(.horizontal)
 
-            if !insights.shares.isEmpty { tasteSpread(insights.shares).padding(.horizontal) }
+            // A spread needs a few coffees to mean anything.
+            if items.filter({ !($0.flavorNotes ?? []).isEmpty }).count >= 3, !insights.shares.isEmpty {
+                tasteSpread(insights.shares).padding(.horizontal)
+            }
 
+            // With only a few coffees the grid below already shows them all.
             let owned = items.filter(\.owned)
-            if !owned.isEmpty {
+            if items.count >= 4, !owned.isEmpty {
                 shelfTitle("على رفّي الحين", count: owned.count)
                 WoodenShelf(items: Array(owned.prefix(12)), play: shown)
             }
 
             let wish = items.filter(\.wantsToTry)
-            if !wish.isEmpty {
+            if items.count >= 4, !wish.isEmpty {
                 shelfTitle("ودّي أجرّب", count: wish.count)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
