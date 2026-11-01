@@ -14,7 +14,6 @@ struct DiscoverView: View {
     @EnvironmentObject private var profile: ProfileStore
     @State private var newest: SectionLoad<[RemoteLot]> = .loading
     @State private var facets: SectionLoad<RemoteFacets> = .loading
-    @State private var featuredMethods: [String] = []
     @State private var owned: Set<String> = []
     @State private var catalogTotal: Int?
     @State private var flavor: FlavorFamily?
@@ -26,11 +25,13 @@ struct DiscoverView: View {
     @State private var openSlug: String?
     @State private var forYou: RemoteForYou?
     @State private var streak: Int?
+    @State private var trending: [RemoteTrendingLot] = []
     @AppStorage("lastBrewMethod") private var brewMethod = "V60"
     @AppStorage("brewFocus") private var brewFocus = ""
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
-    private static let newestCount = 7
+    /// Enough of the newest to find several roasters in them.
+    private static let newestCount = 60
 
     var body: some View {
         NavigationStack {
@@ -44,7 +45,7 @@ struct DiscoverView: View {
                                           openScan: { showScan = true })
                     }
                     if auth.isSignedIn, let forYou { forYouSections(forYou) }
-                    featured
+                    HomeTrendingRow(lots: trending, open: { openSlug = $0 }, showAll: { tab = .community })
                     TasteSection(families: familyFacets, selected: $flavor, results: flavorLots,
                                  retryFamilies: { Task { await loadFacets() } },
                                  retryResults: { Task { await loadFlavor() } },
@@ -69,6 +70,13 @@ struct DiscoverView: View {
                 .padding(.bottom, 24)
             }
             .background(Brand.background.ignoresSafeArea())
+            // The bar is hidden, so a frosted strip keeps scrolled content off the clock.
+            .overlay(alignment: .top) {
+                Rectangle().fill(.ultraThinMaterial)
+                    .frame(height: 0)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+            }
             .brandScreen()
             .navigationTitle("اكتشف")
             .toolbar(.hidden, for: .navigationBar)
@@ -88,6 +96,7 @@ struct DiscoverView: View {
             .navigationDestination(item: $searchPreset) { SearchView(tab: $tab, initial: $0.filters, openFilters: $0.openFilters) }
             .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
             .task { await loadAll() }
+            .task { await loadTrending() }
             .task(id: auth.isSignedIn) { await loadOwned(); await loadForYou() }
             .task(id: flavor) { await loadFlavor() }
             .refreshable { await loadAll(); await loadOwned(); await loadForYou() }
@@ -96,37 +105,17 @@ struct DiscoverView: View {
 
     // MARK: Sections
 
-    @ViewBuilder
-    private var featured: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            DiscoverSectionHeader(title: "أحدث إضافة")
-            switch newest {
-            case .loading:
-                SkeletonBlock(height: 210, corner: 24).padding(.horizontal)
-            case .failed:
-                SectionFailure(message: "ما قدرنا نجيب المحاصيل.") { Task { await loadNewest() } }
-            case let .loaded(lots):
-                if let lot = DiscoverText.split(newest: lots).featured {
-                    FeaturedLotCard(lot: lot, methods: featuredMethods, inCollection: owned.contains(lot.slug),
-                                    open: { openSlug = lot.slug },
-                                    brew: {
-                                        brewFocus = lot.slug
-                                        if let first = featuredMethods.first(where: { BrewPlanner.methods.contains($0) }) { brewMethod = first }
-                                        tab = .brew
-                                    })
-                } else {
-                    Text("ما فيه محاصيل منشورة للحين.").font(.subheadline).foregroundStyle(.secondary).padding(.horizontal)
-                }
-            }
-        }
-    }
-
+    /// The newest coffee of each roaster, so one big import doesn't fill the row.
     private var arrivals: SectionLoad<[RemoteLot]> {
         switch newest {
         case .loading: return .loading
         case .failed: return .failed
-        case let .loaded(lots): return .loaded(Array(DiscoverText.split(newest: lots).rest.prefix(6)))
+        case let .loaded(lots): return .loaded(DiscoverText.onePerRoaster(lots, limit: 6))
         }
+    }
+
+    private func loadTrending() async {
+        trending = (try? await client.fetchHome(accessToken: auth.currentAccessToken()))?.trending.lots ?? []
     }
 
     private var familyFacets: SectionLoad<[RemoteFacets.Facet]> {
@@ -161,9 +150,6 @@ struct DiscoverView: View {
             let page = try await client.browse(filters, limit: Self.newestCount, accessToken: nil)
             newest = .loaded(page.lots)
             catalogTotal = page.total
-            if let first = page.lots.first {
-                featuredMethods = (try? await client.fetchLotDetail(slug: first.slug))?.recommendedBrewMethods ?? []
-            }
         } catch {
             if newest.value == nil { newest = .failed }
         }

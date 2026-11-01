@@ -9,6 +9,14 @@ public struct RemoteForYou: Decodable, Equatable, Sendable {
         /// 0–100 once they rated enough coffees.
         public let score: Int?
         public let reason: String
+        /// Coffees they rated so far (the pick learns their taste at 3); missing from older servers.
+        public var rated: Int? = nil
+
+        /// How many more ratings until the pick follows their taste; nil once it does.
+        public var ratingsToGo: Int? {
+            guard score == nil else { return nil }
+            return max(0, 3 - (rated ?? 0))
+        }
     }
 
     public struct Resume: Decodable, Equatable, Sendable, Identifiable {

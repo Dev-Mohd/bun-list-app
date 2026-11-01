@@ -16,6 +16,24 @@ public enum DiscoverText {
         return first
     }
 
+    /// The newest coffee of each roaster, newest first, so one roaster's big import
+    /// doesn't fill the whole row.
+    public static func onePerRoaster(_ lots: [RemoteLot], limit: Int) -> [RemoteLot] {
+        var seen = Set<String>()
+        var out: [RemoteLot] = []
+        for lot in lots where !seen.contains(lot.roasterNameAr) {
+            seen.insert(lot.roasterNameAr)
+            out.append(lot)
+            if out.count == limit { break }
+        }
+        return out
+    }
+
+    /// "★ ٤٫٥ · ١٢ تقييم", or nil before anyone rated it (cards show its notes instead).
+    public static func ratingLine(_ lot: RemoteLot) -> String? {
+        lot.reviewCount > 0 ? rating(lot) : nil
+    }
+
     /// "★ ٤٫٥ · ١٢ تقييم" from real ratings, or an invitation when there are none.
     public static func rating(_ lot: RemoteLot) -> String {
         guard lot.reviewCount > 0 else { return "كن أول من يقيّمها" }

@@ -464,7 +464,7 @@ struct NewArrivalsSection: View {
         let shown = lots.value ?? []
         let roaster = DiscoverText.sharedRoaster(shown)
         VStack(alignment: .leading, spacing: 10) {
-            DiscoverSectionHeader(title: "وصلت حديثًا", subtitle: roaster.map { "كلها من \($0)" },
+            DiscoverSectionHeader(title: "وصلت حديثًا", subtitle: roaster.map { "كلها من \($0)" } ?? "آخر قهوة من كل محمصة",
                                   actionTitle: "عرض الكل", action: showAll)
             switch lots {
             case .loading:
@@ -520,17 +520,21 @@ struct DiscoverLotCard: View {
                     Text(lot.roasterNameAr).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Text(DiscoverText.originLine(lot)).font(.footnote).foregroundStyle(.secondary).lineLimit(wide ? 2 : 1)
-                HStack(spacing: 4) {
-                    ForEach(FlavorFamily.spectrum(lot.flavorNotes).prefix(3), id: \.self) { family in
-                        Circle().fill(family.color).frame(width: 9, height: 9)
+                if let rating = DiscoverText.ratingLine(lot) {
+                    Text(rating).font(.caption.weight(.semibold)).foregroundStyle(Brand.gold).padding(.top, 2)
+                } else if !lot.flavorNotes.isEmpty {
+                    // No ratings yet: its first notes say more than an invitation on every card.
+                    HStack(spacing: 4) {
+                        ForEach(Array(lot.flavorNotes.prefix(2).enumerated()), id: \.offset) { _, note in
+                            let family = FlavorFamily.of(note)
+                            Text(note).font(.caption2.weight(.bold)).lineLimit(1)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background((family == .other ? Brand.brown : family.color).opacity(0.14), in: Capsule())
+                                .foregroundStyle(Brand.brown)
+                        }
                     }
+                    .padding(.top, 3)
                 }
-                .padding(.top, 2)
-                .accessibilityHidden(true)
-                Text(DiscoverText.rating(lot))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(lot.reviewCount > 0 ? Brand.gold : Brand.olive)
-                    .padding(.top, 2)
             }
             .padding(.horizontal, wide ? 0 : 4)
             .padding(.top, wide ? 0 : 8)
@@ -574,7 +578,9 @@ struct CatalogEntryCard: View {
 
 // MARK: - For you (signed in): today's coffee, carry on, roasters' news, friends
 
-/// Today's coffee for this person: the bag floats, the match ring fills, and why it fits.
+/// Today's coffee for this person: the bag floats on its flavour colours with its
+/// notes drifting around it; under it, the match ring, or how many ratings until
+/// the pick follows their taste.
 struct DailyPickCard: View {
     let pick: RemoteForYou.DailyPick
     var open: () -> Void
@@ -583,45 +589,58 @@ struct DailyPickCard: View {
     @State private var bob = false
 
     private var colors: [Color] {
-        let families = FlavorFamily.spectrum(pick.lot.flavorNotes, limit: 2)
-        let base = families.map(\.color)
-        return base.count >= 2 ? base : (base + [Brand.brown, Brand.gold]).prefix(2).map { $0 }
+        let base = FlavorFamily.spectrum(pick.lot.flavorNotes, limit: 2).map(\.color)
+        return base.count >= 2 ? base : (base + [Brand.gold, Brand.olive]).prefix(2).map { $0 }
     }
+
+    /// Bubble spots around the bag, on the card's left half.
+    private static let spots: [CGPoint] = [CGPoint(x: 0.07, y: 0.12), CGPoint(x: 0.04, y: 0.55), CGPoint(x: 0.33, y: 0.62)]
 
     var body: some View {
         Button(action: open) {
-            ZStack(alignment: .topLeading) {
-                LinearGradient(colors: colors, startPoint: .topTrailing, endPoint: .bottomLeading)
-                LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: .top, endPoint: .bottom)
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
+            GeometryReader { geo in
+                ZStack(alignment: .topTrailing) {
+                    LinearGradient(colors: colors, startPoint: .topTrailing, endPoint: .bottomLeading)
+                    LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: .center, endPoint: .bottom)
+                    RadialGradient(colors: [.white.opacity(0.55), .clear], center: .init(x: 0.25, y: 0.42), startRadius: 4, endRadius: 120)
+                    bag
+                        .frame(width: geo.size.width * 0.36, height: geo.size.height * 0.62)
+                        .position(x: geo.size.width * 0.24, y: geo.size.height * 0.38)
+                        .offset(y: bob ? -7 : 2)
+                        .rotationEffect(.degrees(bob ? -1.5 : 0.5))
+                    ForEach(Array(pick.lot.flavorNotes.prefix(3).enumerated()), id: \.offset) { index, note in
+                        FloatingNote(note: note)
+                            .fixedSize()
+                            .position(x: geo.size.width * Self.spots[index].x + 40, y: geo.size.height * Self.spots[index].y + 14)
+                            .offset(y: bob ? (index.isMultiple(of: 2) ? -5 : 4) : 0)
+                            .scaleEffect(shown ? 1 : 0.2)
+                            .opacity(shown ? 1 : 0)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.55).delay(0.3 + Double(index) * 0.12), value: shown)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("قهوة اليوم لك").font(.caption.weight(.bold)).opacity(0.85)
                         Text(pick.lot.nameAr).font(.title2.bold()).lineLimit(2).minimumScaleFactor(0.8)
                         Text([pick.lot.roasterNameAr, ReferenceCodes.flag(pick.lot.originCode), pick.lot.originNameAr]
                             .compactMap { $0 }.joined(separator: " · "))
                             .font(.footnote).opacity(0.9).lineLimit(1)
-                        Spacer(minLength: 6)
-                        Text(pick.reason)
-                            .font(.caption)
-                            .padding(.horizontal, 9).padding(.vertical, 6)
-                            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
-                            .lineLimit(3)
-                        if let score = pick.score { MatchRing(score: score, play: shown).padding(.top, 4) }
+                        if pick.score != nil {
+                            Text(pick.reason).font(.caption).opacity(0.9).lineLimit(2).padding(.top, 2)
+                        }
                     }
                     .foregroundStyle(.white)
-                    Spacer(minLength: 0)
-                    LotPhotoWell(imageUrl: pick.lot.imageUrl, notes: pick.lot.flavorNotes, roaster: pick.lot.roasterNameAr,
-                                 name: pick.lot.nameAr, origin: pick.lot.originNameAr, originCode: pick.lot.originCode, padding: 6)
-                        .frame(width: 128, height: 150)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .shadow(color: .black.opacity(0.25), radius: 10, y: 8)
-                        .offset(y: bob ? -6 : 2)
-                        .rotationEffect(.degrees(bob ? -1.5 : 0.5))
+                    .frame(width: geo.size.width * 0.5, alignment: .leading)
+                    .padding(16)
+                    .environment(\.layoutDirection, .rightToLeft)
+                    VStack {
+                        Spacer()
+                        footer.padding(12).environment(\.layoutDirection, .rightToLeft)
+                    }
                 }
-                .padding(16)
+                // Laid out left-to-right so the bag sits on the left and the text on the right.
+                .environment(\.layoutDirection, .leftToRight)
             }
-            .frame(height: 240)
-            .clipShape(RoundedRectangle(cornerRadius: 26))
+            .frame(height: 250)
+            .clipShape(RoundedRectangle(cornerRadius: 28))
             .scaleEffect(shown ? 1 : 0.96)
             .opacity(shown ? 1 : 0)
         }
@@ -632,7 +651,73 @@ struct DailyPickCard: View {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true).delay(0.8)) { bob = true }
         }
-        .accessibilityLabel("قهوة اليوم لك: \(pick.lot.nameAr)، \(pick.reason)")
+        .accessibilityLabel("قهوة اليوم لك: \(pick.lot.nameAr)")
+    }
+
+    /// The bag itself on the colours (cut-out photos are on white, so multiply drops the white).
+    @ViewBuilder private var bag: some View {
+        if let url = pick.lot.imageUrl.flatMap(URL.init(string:)) {
+            AsyncImage(url: url) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().scaledToFit().blendMode(.multiply)
+                        .shadow(color: .black.opacity(0.25), radius: 12, y: 10)
+                } else {
+                    Color.clear
+                }
+            }
+        } else {
+            LotPhotoWell(imageUrl: nil, notes: pick.lot.flavorNotes, roaster: pick.lot.roasterNameAr, name: pick.lot.nameAr,
+                         origin: pick.lot.originNameAr, originCode: pick.lot.originCode)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    @ViewBuilder private var footer: some View {
+        if let score = pick.score {
+            HStack {
+                Spacer()
+                MatchRing(score: score, play: shown, size: 58)
+            }
+        } else if let toGo = pick.ratingsToGo {
+            let done = 3 - toGo
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("قيّم ٣ قهاوي ونختار لك على ذوقك").font(.caption)
+                    Spacer()
+                    Text("\(done) من ٣").font(.caption.bold())
+                }
+                GeometryReader { bar in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.25))
+                        Capsule().fill(Color(red: 0.95, green: 0.83, blue: 0.54))
+                            .frame(width: shown ? bar.size.width * CGFloat(done) / 3 : 0)
+                            .animation(.easeOut(duration: 1.1).delay(0.8), value: shown)
+                    }
+                }
+                .frame(height: 6)
+                .environment(\.layoutDirection, .rightToLeft)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 16))
+        }
+    }
+}
+
+private struct FloatingNote: View {
+    let note: String
+
+    var body: some View {
+        let family = FlavorFamily.of(note)
+        HStack(spacing: 4) {
+            Circle().fill(family == .other ? Brand.gold : family.color).frame(width: 7, height: 7)
+            Text(note).lineLimit(1)
+        }
+        .font(.caption.weight(.bold))
+        .foregroundStyle(Brand.brown)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(.white.opacity(0.93), in: Capsule())
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
     }
 }
 
@@ -735,6 +820,61 @@ struct RoasterNewsRow: View {
     }
 
     var body: some View {
+        if news.count <= 2 { coffeeCards } else { rings }
+    }
+
+    /// One or two roasters: their new coffees themselves, not a lonely ring.
+    private var coffeeCards: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            DiscoverSectionHeader(title: "جديد من محامصك")
+            Text(news.map { "\($0.roasterNameAr) نزّلت \(Self.coffees($0.lots.count)) هالشهر" }.joined(separator: " · "))
+                .font(.footnote).foregroundStyle(.secondary)
+                .padding(.horizontal)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(news) { roaster in
+                        let lastSeen = ISODate.parse(seen[roaster.roasterNameAr])
+                        ForEach(roaster.lots) { lot in
+                            Button {
+                                Haptics.tap()
+                                markSeen(roaster.roasterNameAr)
+                                open(lot.slug)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    LotPhotoWell(imageUrl: lot.imageUrl, notes: [], roaster: roaster.roasterNameAr, name: lot.nameAr,
+                                                 origin: nil, originCode: nil, padding: 6)
+                                        .frame(width: 128, height: 112)
+                                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                                        .overlay(alignment: .topTrailing) {
+                                            if (ISODate.parse(lot.publishedAt) ?? .distantPast) > (lastSeen ?? .distantPast) {
+                                                Text("جديد").font(.caption2.bold()).foregroundStyle(.white)
+                                                    .padding(.horizontal, 7).padding(.vertical, 2)
+                                                    .background(Color(red: 0.76, green: 0.27, blue: 0.35), in: Capsule())
+                                                    .padding(6)
+                                            }
+                                        }
+                                    Text(lot.nameAr).font(.subheadline.bold()).foregroundStyle(Brand.ink).lineLimit(1)
+                                    Text(ISODate.parse(lot.publishedAt).map { ISODate.ago($0) } ?? "")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                .frame(width: 128, alignment: .leading)
+                                .padding(8)
+                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                            }
+                            .buttonStyle(CardPressStyle())
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private static func coffees(_ n: Int) -> String {
+        n == 1 ? "قهوة وحدة" : n == 2 ? "قهوتين" : "\(n) قهاوي"
+    }
+
+    private var rings: some View {
         VStack(alignment: .leading, spacing: 10) {
             DiscoverSectionHeader(title: "جديد من محامصك", subtitle: "آخر ٣٠ يوم من المحامص اللي في مجموعتك")
             ScrollView(.horizontal, showsIndicators: false) {
@@ -873,5 +1013,55 @@ struct StreakBadge: View {
             withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { flick = true }
         }
         .accessibilityLabel("سلسلة \(days) أيام متتالية")
+    }
+}
+
+/// «ترند هالأسبوع» on the home: the week's top coffees, numbered, with why.
+struct HomeTrendingRow: View {
+    let lots: [RemoteTrendingLot]
+    var open: (String) -> Void
+    var showAll: () -> Void
+
+    var body: some View {
+        if !lots.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                DiscoverSectionHeader(title: "🔥 ترند هالأسبوع", actionTitle: "الكل", action: showAll)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(lots.prefix(8)) { item in
+                            Button { open(item.lot.slug) } label: { card(item) }
+                                .buttonStyle(CardPressStyle())
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+    }
+
+    private func card(_ item: RemoteTrendingLot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            LotPhotoWell(imageUrl: item.lot.imageUrl, notes: item.lot.flavorNotes, roaster: item.lot.roasterNameAr,
+                         name: item.lot.nameAr, origin: item.lot.originNameAr, originCode: item.lot.originCode, padding: 8)
+                .frame(width: 150, height: 120)
+                .overlay(alignment: .topLeading) {
+                    Text("\(item.rank)").font(.system(size: 34, weight: .heavy)).foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+                        .padding(.horizontal, 10)
+                }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.lot.nameAr).font(.subheadline.bold()).foregroundStyle(Brand.ink).lineLimit(1)
+                Text(item.lot.roasterNameAr).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let why = item.reasonsAr.first {
+                    Text(why).font(.caption2.bold()).foregroundStyle(Brand.olive)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(Brand.olive.opacity(0.12), in: Capsule())
+                }
+            }
+            .padding(10)
+        }
+        .frame(width: 150, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }

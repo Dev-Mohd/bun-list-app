@@ -53,7 +53,7 @@ struct LiveLotDetailView: View {
         Group {
             switch model.phase {
             case .loading:
-                ProgressView("جارٍ الجلب…")
+                LotDetailSkeleton()
             case let .failed(message):
                 ContentUnavailableView {
                     Label("تعذّر الجلب", systemImage: "wifi.exclamationmark")
@@ -467,5 +467,51 @@ private struct FlexibleWrap<Data: RandomAccessCollection, Content: View>: View w
                 HStack(spacing: 8) { ForEach(Array(data), id: \.self) { content($0) } }
             }
         }
+    }
+}
+
+
+/// The coffee page's shape, shimmering, while it loads.
+private struct LotDetailSkeleton: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: CGFloat = -1
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                block(height: 300, corner: 24)
+                block(height: 26, corner: 10).frame(width: 200)
+                block(height: 16, corner: 8).frame(width: 120)
+                block(height: 110, corner: 20)
+                HStack(spacing: 10) {
+                    block(height: 100, corner: 20)
+                    block(height: 100, corner: 20)
+                }
+                block(height: 64, corner: 18)
+            }
+            .padding()
+        }
+        .scrollDisabled(true)
+        .background(Brand.background.ignoresSafeArea())
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) { phase = 1 }
+        }
+        .accessibilityLabel("جارٍ التحميل")
+    }
+
+    private func block(height: CGFloat, corner: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: corner)
+            .fill(Brand.brown.opacity(0.08))
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .overlay {
+                GeometryReader { geo in
+                    LinearGradient(colors: [.clear, .white.opacity(0.45), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geo.size.width * 0.6)
+                        .offset(x: phase * geo.size.width * 1.4)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: corner))
+            }
     }
 }
