@@ -80,6 +80,9 @@ struct CollectionView: View {
                     CollectionOverview(items: items, catalogCountries: catalogCountries)
                         .padding(.bottom, 6)
                 }
+                if shelf == .all, query.isEmpty, auth.isSignedIn {
+                    MyListsStrip().padding(.bottom, 6)
+                }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(Shelf.allCases) { option in

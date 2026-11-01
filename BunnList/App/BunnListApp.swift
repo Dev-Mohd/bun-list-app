@@ -12,6 +12,7 @@ struct BunnListApp: App {
     @Environment(\.scenePhase) private var scenePhase
     /// A coffee opened from a shared bunnlist.com link.
     @State private var sharedCoffee: SharedCoffee?
+    @State private var sharedList: SharedCoffee?
 
     init() { BrandAppearance.configure() }
 
@@ -41,9 +42,23 @@ struct BunnListApp: App {
                 .onOpenURL { url in
                     if let slug = SharedLink.coffeeSlug(from: url) {
                         sharedCoffee = SharedCoffee(slug: slug)
+                    } else if let listID = SharedLink.listID(from: url) {
+                        sharedList = SharedCoffee(slug: listID)
                     } else {
                         _ = GIDSignIn.sharedInstance.handle(url)
                     }
+                }
+                .sheet(item: $sharedList) { shared in
+                    NavigationStack {
+                        ListDetailView(id: shared.slug)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { sharedList = nil } }
+                            }
+                    }
+                    .environmentObject(model)
+                    .environmentObject(auth)
+                    .environmentObject(profile)
+                    .environment(\.layoutDirection, .rightToLeft)
                 }
                 .sheet(item: $sharedCoffee) { coffee in
                     NavigationStack {

@@ -43,6 +43,10 @@ struct LiveLotDetailView: View {
     @State private var helpful: [String: RemoteLikeState] = [:]
     @State private var showRecipes = false
     @State private var showShareCard = false
+    @State private var showAddToList = false
+    /// Review comments: the thread open, and counts changed this visit.
+    @State private var commentsFor: RemoteReview?
+    @State private var commentCounts: [String: Int] = [:]
     @State private var similar: RemoteSimilarLots?
 
     init(slug: String) {
@@ -244,7 +248,10 @@ struct LiveLotDetailView: View {
                                         ?? RemoteLikeState(count: review.helpfulCount ?? 0, liked: review.markedHelpful ?? false),
                                     canMark: auth.isSignedIn && review.isMine != true && review.helpfulCount != nil,
                                     onReport: auth.isSignedIn && review.isMine != true
-                                        ? { reporting = ReportRef(target: .review, targetID: review.id) } : nil
+                                        ? { reporting = ReportRef(target: .review, targetID: review.id) } : nil,
+                                    commentCount: commentCounts[review.id] ?? review.commentCount,
+                                    onComments: review.commentCount != nil && (review.authorUsername != nil || review.isMine == true)
+                                        ? { commentsFor = review } : nil
                                 ) { Task { await toggleHelpful(review) } }
                             }
                         }
@@ -274,6 +281,11 @@ struct LiveLotDetailView: View {
                     }
                     .accessibilityLabel(flags.favorite ? "إزالة من المفضلة" : "أضف للمفضلة")
                 }
+                if auth.isSignedIn {
+                    Button { showAddToList = true } label: { Image(systemName: "text.badge.plus") }
+                        .accessibilityLabel("أضف لقائمة")
+                        .accessibilityIdentifier("lot-add-to-list")
+                }
                 Button { showShareCard = true } label: { Image(systemName: "square.and.arrow.up") }
                     .accessibilityLabel("مشاركة")
                     .accessibilityIdentifier("lot-share")
@@ -281,6 +293,14 @@ struct LiveLotDetailView: View {
         }
         .tint(Brand.olive)
         .sheet(item: $reporting) { ReportSheet(ref: $0) }
+        .sheet(isPresented: $showAddToList) {
+            AddToListSheet(slug: lot.slug, lotName: lot.nameAr)
+        }
+        .sheet(item: $commentsFor) { review in
+            CommentsSheet(target: .review, id: review.id, title: "تقييم \(review.authorName)") { count in
+                commentCounts[review.id] = count
+            }
+        }
         .sheet(isPresented: $showShareCard) {
             ShareCardSheet(lot: lot, myRating: myReview?.rating).environmentObject(auth)
         }
@@ -375,6 +395,9 @@ private struct PublicReviewRow: View {
     let helpful: RemoteLikeState
     let canMark: Bool
     var onReport: (() -> Void)?
+    var commentCount: Int? = nil
+    /// Opens the review's comments; nil when it can't have any (older server, hidden author).
+    var onComments: (() -> Void)? = nil
     var onHelpful: () -> Void
 
     var body: some View {
@@ -412,6 +435,18 @@ private struct PublicReviewRow: View {
                     Text(date).font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if let onComments {
+                    Button(action: onComments) {
+                        Label((commentCount ?? 0) > 0 ? (commentCount ?? 0).formatted() : "علّق", systemImage: "bubble.left")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Color.secondary.opacity(0.08), in: Capsule())
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel((commentCount ?? 0) > 0 ? "التعليقات، \(commentCount ?? 0)" : "علّق على التقييم")
+                    .accessibilityIdentifier("review-comments-\(review.id)")
+                }
                 if canMark {
                     Button(action: onHelpful) {
                         Label(helpful.count > 0 ? "مفيد · \(helpful.count.formatted())" : "مفيد",

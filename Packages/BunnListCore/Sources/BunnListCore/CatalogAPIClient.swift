@@ -346,6 +346,8 @@ public struct RemoteReview: Codable, Equatable, Sendable, Identifiable {
     public let markedHelpful: Bool?
     public let isMine: Bool?
     public let authorUsername: String?
+    /// Comments on it; nil from older servers (no comments button then).
+    public var commentCount: Int? = nil
 }
 
 /// The caller's review of a lot.

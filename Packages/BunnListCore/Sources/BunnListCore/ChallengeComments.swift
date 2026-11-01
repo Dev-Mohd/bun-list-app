@@ -138,7 +138,7 @@ public struct ChallengeDraft: Encodable, Equatable, Sendable {
     }
 }
 
-public enum CommentTarget: String, Sendable { case brew, recipe }
+public enum CommentTarget: String, Sendable { case brew, recipe, review }
 
 public struct RemoteComment: Codable, Equatable, Sendable, Identifiable {
     public let id: String
