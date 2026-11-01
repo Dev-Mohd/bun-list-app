@@ -114,6 +114,7 @@ struct BrowseFilterSheet: View {
             }
             .brandScreen()
             .navigationTitle("النكهات")
+            .modifier(PickerDone(count: draft.flavors.count))
         } label: {
             rowLabel("النكهات", summary: draft.flavors.isEmpty ? "الكل" : draft.flavors.map(\.nameAr).sorted().joined(separator: "، "))
         }
@@ -190,6 +191,21 @@ private struct FacetPicker: View {
         .brandScreen()
         .navigationTitle(title)
         .searchable(text: $query, prompt: "ابحث")
+        .modifier(PickerDone(count: selection.count))
+    }
+}
+
+/// «تم» on a filter's list, so choosing doesn't need the back button to be found.
+private struct PickerDone: ViewModifier {
+    let count: Int
+    @Environment(\.dismiss) private var dismiss
+
+    func body(content: Content) -> some View {
+        content.toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button(count > 0 ? "تم (\(count))" : "تم") { dismiss() }.bold()
+            }
+        }
     }
 }
 

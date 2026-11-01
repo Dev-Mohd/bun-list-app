@@ -65,7 +65,7 @@ struct CommunityView: View {
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(item: $searchPreset) { SearchView(tab: .constant(.community), initial: $0.filters) }
             .sheet(isPresented: $showRules) { PointRulesView() }
-            .sheet(isPresented: $showChallenges) { JourneysView() }
+            .sheet(isPresented: $showChallenges) { JourneysView().presentationDragIndicator(.visible) }
             .sheet(isPresented: $showSignIn) { SignInView() }
         }
     }

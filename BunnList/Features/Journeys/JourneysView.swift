@@ -8,6 +8,7 @@ struct JourneysView: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var items: [RemoteCollectionItem] = []
     @State private var showSignIn = false
+    @Environment(\.dismiss) private var dismiss
 
     private var quests: [Quest] {
         let owned = items.filter(\.owned).count
@@ -41,6 +42,7 @@ struct JourneysView: View {
             }
             .brandScreen()
             .navigationTitle("رحلتك")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
             .task { await load() }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
             .refreshable { await load() }
