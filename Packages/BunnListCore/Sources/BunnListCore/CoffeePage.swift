@@ -23,8 +23,13 @@ public struct RemoteBuyLink: Codable, Equatable, Sendable {
 /// A roaster's own brew recipe, read from its product page.
 public struct RemoteRoasterRecipe: Codable, Equatable, Sendable, Hashable {
     public let method: String
+    /// "HOT" or "ICED"; missing from older servers (hot).
+    public let serve: String?
+    /// An xBloom recipe's share link; its numbers live on xBloom's page.
+    public let link: String?
     public let tool: String?
-    public let doseG: Double
+    /// Nil only for an xBloom link.
+    public let doseG: Double?
     public let waterMl: Int?
     public let tempC: Int?
     public let timeSec: Int?
@@ -32,9 +37,11 @@ public struct RemoteRoasterRecipe: Codable, Equatable, Sendable, Hashable {
     public let ratio: Double?
     public let steps: [String]
 
-    public init(method: String, tool: String?, doseG: Double, waterMl: Int?, tempC: Int?, timeSec: Int?,
-                grind: String?, ratio: Double?, steps: [String]) {
+    public init(method: String, serve: String? = nil, link: String? = nil, tool: String?, doseG: Double?, waterMl: Int?,
+                tempC: Int?, timeSec: Int?, grind: String?, ratio: Double?, steps: [String]) {
         self.method = method
+        self.serve = serve
+        self.link = link
         self.tool = tool
         self.doseG = doseG
         self.waterMl = waterMl
@@ -45,8 +52,15 @@ public struct RemoteRoasterRecipe: Codable, Equatable, Sendable, Hashable {
         self.steps = steps
     }
 
+    public var isIced: Bool { serve == "ICED" }
+    public var isMachineLink: Bool { method == "XBLOOM" && link != nil }
+
+    /// The tab label: "عين تايمور V60", "xBloom · بارد".
+    public var label: String { (tool ?? methodNameAr) + (isIced ? " · بارد" : "") }
+
     public var methodNameAr: String {
         switch method {
+        case "XBLOOM": return "xBloom"
         case "ESPRESSO": return "إسبريسو"
         case "CHEMEX": return "كيمكس"
         case "AEROPRESS": return "إيروبرس"

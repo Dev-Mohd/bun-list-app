@@ -641,6 +641,7 @@ struct RoasterRecipeCard: View {
     @State private var running = false
     @State private var done: Set<Int> = []
     @State private var ticker: Task<Void, Never>?
+    @Environment(\.openURL) private var openURL
 
     private var recipe: RemoteRoasterRecipe { recipes[min(picked, recipes.count - 1)] }
 
@@ -653,22 +654,80 @@ struct RoasterRecipeCard: View {
                     .background(Brand.gold.opacity(0.15), in: Capsule())
                 Spacer(minLength: 0)
                 if recipes.count == 1 {
-                    Text(recipe.tool ?? recipe.methodNameAr).font(.caption).foregroundStyle(.secondary)
+                    Text(recipe.label).font(.caption).foregroundStyle(.secondary)
                 }
             }
             if recipes.count > 1 {
-                Picker("الطريقة", selection: $picked) {
-                    ForEach(Array(recipes.enumerated()), id: \.offset) { index, r in
-                        Text(r.tool ?? r.methodNameAr).tag(index)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(recipes.enumerated()), id: \.offset) { index, r in
+                            Button {
+                                Haptics.tap()
+                                withAnimation(.spring(response: 0.35)) { picked = index }
+                            } label: {
+                                Label(r.tool ?? r.methodNameAr, systemImage: r.isIced ? "snowflake" : "flame.fill")
+                                    .font(.footnote.weight(.semibold))
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(picked == index ? Brand.olive : Brand.brown.opacity(0.08), in: Capsule())
+                                    .foregroundStyle(picked == index ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(r.label)
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
                 .onChange(of: picked) { reset() }
             }
+            if recipe.isMachineLink {
+                machineRecipe
+            } else {
+                handRecipe
+            }
+            Text(fromStore ? "المصدر: صفحة المنتج في المتجر" : "المصدر: صفحة المنتج في موقع المحمصة")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Brand.brown.opacity(0.12)))
+        .onDisappear { ticker?.cancel(); running = false }
+    }
+
+    /// An xBloom recipe: the machine runs it, so only a way to open it there.
+    private var machineRecipe: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: recipe.isIced ? "snowflake" : "flame.fill")
+                    .font(.title2)
+                    .foregroundStyle(recipe.isIced ? Color.cyan : Brand.gold)
+                    .symbolEffect(.pulse, options: .repeating)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(recipe.isIced ? "وصفة باردة لجهاز xBloom" : "وصفة حارة لجهاز xBloom").font(.subheadline.weight(.bold))
+                    Text("المحمصة جهّزتها، والجهاز يحضّرها لك بالضبط").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let link = recipe.link, let url = URL(string: link) {
+                Button {
+                    Haptics.tap()
+                    openURL(url)
+                } label: {
+                    Label("افتح الوصفة في xBloom", systemImage: "arrow.up.forward.app")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Brand.olive, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var handRecipe: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 14) {
                 if let total = recipe.timeSec { ring(total: total) }
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
-                    stat(RemoteRoasterRecipe.grams(recipe.doseG), "جرام قهوة")
+                    if let dose = recipe.doseG { stat(RemoteRoasterRecipe.grams(dose), "جرام قهوة") }
                     if let water = recipe.waterMl { stat("\(water)", recipe.method == "ESPRESSO" ? "مل في الفنجان" : "مل ماء") }
                     if let temp = recipe.tempC { stat("\(temp)°", "الحرارة") }
                     if let grind = recipe.grind { stat(grind, "الطحنة") }
@@ -721,13 +780,7 @@ struct RoasterRecipeCard: View {
                 }
                 .buttonStyle(.plain)
             }
-            Text(fromStore ? "المصدر: صفحة المنتج في المتجر" : "المصدر: صفحة المنتج في موقع المحمصة")
-                .font(.caption2).foregroundStyle(.secondary)
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Brand.brown.opacity(0.12)))
-        .onDisappear { ticker?.cancel(); running = false }
     }
 
     private func ring(total: Int) -> some View {

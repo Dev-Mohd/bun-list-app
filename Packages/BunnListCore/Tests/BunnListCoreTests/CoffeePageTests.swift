@@ -63,6 +63,21 @@ final class CoffeePageTests: XCTestCase {
         XCTAssertNil(TasteLean.position(["قوام ممتلئ"]))
     }
 
+    func testHotIcedAndMachineRecipes() throws {
+        let json = """
+        [{"method":"V60","serve":"HOT","link":null,"tool":null,"doseG":19,"waterMl":285,"tempC":91,"timeSec":160,"grind":null,"ratio":15,"steps":[]},
+         {"method":"XBLOOM","serve":"ICED","link":"https://share-h5.xbloom.com/?id=x","tool":"xBloom","doseG":null,"waterMl":null,"tempC":null,"timeSec":null,"grind":null,"ratio":null,"steps":[]},
+         {"method":"CHEMEX","tool":"كيمكس","doseG":18,"waterMl":270,"tempC":93,"timeSec":130,"grind":null,"ratio":15,"steps":[]}]
+        """
+        let recipes = try JSONDecoder().decode([RemoteRoasterRecipe].self, from: Data(json.utf8))
+        XCTAssertEqual(recipes.map(\.label), ["تقطير V60", "xBloom · بارد", "كيمكس"])
+        XCTAssertFalse(recipes[0].isIced)
+        XCTAssertTrue(recipes[1].isIced)
+        XCTAssertTrue(recipes[1].isMachineLink)
+        XCTAssertNil(recipes[1].doseG)
+        XCTAssertFalse(recipes[2].isIced) // older servers: no serve, hot
+    }
+
     func testRecipeText() {
         XCTAssertEqual(RemoteRoasterRecipe.clock(135), "2:15")
         XCTAssertEqual(RemoteRoasterRecipe.clock(30), "30 ث")
