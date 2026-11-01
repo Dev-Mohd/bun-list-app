@@ -15,6 +15,8 @@ public struct RemoteRoasterCard: Codable, Equatable, Sendable, Identifiable {
     public let nameAr: String
     public let name: String
     public let cityAr: String?
+    /// From the roaster's own site; nil without one or from older servers.
+    public var logoUrl: String? = nil
     public let lots: Int
     /// Reviews-weighted; 0 without reviews.
     public let averageRating: Double

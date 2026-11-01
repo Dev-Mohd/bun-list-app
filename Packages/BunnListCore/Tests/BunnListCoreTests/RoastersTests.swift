@@ -13,12 +13,13 @@ final class RoastersTests: XCTestCase {
     }
 
     private let lot = #"{"id":"1","slug":"guji","name":"Guji","nameAr":"قوجي","roasterNameAr":"ر","roasterSlug":"r","originNameAr":"إثيوبيا","originCode":"ET","process":"NATURAL","processLabel":null,"flavorNotes":["توت"],"roastLevel":null,"averageRating":4.5,"reviewCount":2,"imageUrl":null}"#
-    private var card: String { #"{"slug":"r","nameAr":"ر","name":"R","cityAr":null,"lots":3,"averageRating":4.4,"reviews":9,"images":[],"followers":2}"# }
+    private var card: String { #"{"slug":"r","nameAr":"ر","name":"R","cityAr":null,"logoUrl":"https://bunnlist.com/roasters/r.png","lots":3,"averageRating":4.4,"reviews":9,"images":[],"followers":2}"# }
 
     func testDecodesRoasterPageAndShares() throws {
         let json = #"{"roaster":\#(card),"isFollowing":true,"origins":[{"key":"إثيوبيا","count":2}],"processes":[],"families":[{"key":"berry","count":3},{"key":"floral","count":1},{"key":"nope","count":5}],"topRated":[\#(lot)],"newest":[],"lots":[\#(lot)]}"#
         let page = try JSONDecoder().decode(RemoteRoasterPage.self, from: Data(json.utf8))
         XCTAssertTrue(page.isFollowing)
+        XCTAssertEqual(page.roaster.logoUrl, "https://bunnlist.com/roasters/r.png")
         XCTAssertEqual(page.lots.first?.roasterSlug, "r")
         XCTAssertEqual(page.familyShares.map(\.family), [.berry, .floral])
         XCTAssertEqual(page.familyShares.map(\.percent), [75, 25])

@@ -59,9 +59,11 @@ struct RoastersIndexView: View {
     }
 }
 
-/// A roaster's initials on a warm disc, standing in for a logo.
+/// The roaster's logo on a white disc; its initial on a warm disc until it loads
+/// or when we don't have one.
 struct RoasterBadge: View {
     let nameAr: String
+    var logoUrl: String? = nil
     var size: CGFloat = 52
 
     private var initials: String {
@@ -69,13 +71,34 @@ struct RoasterBadge: View {
         return String(words.first?.prefix(1) ?? "☕")
     }
 
-    var body: some View {
+    private var fallback: some View {
         Text(initials)
             .font(.system(size: size * 0.42, weight: .bold))
             .foregroundStyle(Brand.background)
             .frame(width: size, height: size)
             .background(LinearGradient(colors: [Brand.brown, Brand.olive], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
-            .accessibilityHidden(true)
+    }
+
+    var body: some View {
+        Group {
+            if let url = logoUrl.flatMap(URL.init(string:)) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFit()
+                            .padding(size * 0.1)
+                            .frame(width: size, height: size)
+                            .background(Color.white, in: Circle())
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.black.opacity(0.06)))
+                    } else {
+                        fallback
+                    }
+                }
+            } else {
+                fallback
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -85,7 +108,7 @@ private struct RoasterRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoasterBadge(nameAr: roaster.nameAr)
+            RoasterBadge(nameAr: roaster.nameAr, logoUrl: roaster.logoUrl)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(roaster.nameAr).font(.headline).foregroundStyle(Brand.ink).lineLimit(1)
@@ -215,11 +238,11 @@ struct RoasterPageView: View {
                 }
                 .environment(\.layoutDirection, .leftToRight)
                 .frame(height: 140)
-                RoasterBadge(nameAr: r.nameAr, size: 58)
+                RoasterBadge(nameAr: r.nameAr, logoUrl: r.logoUrl, size: 72)
                     .overlay(Circle().stroke(Brand.background, lineWidth: 4))
                     .offset(y: 70)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 34)
             VStack(spacing: 4) {
                 Text(r.nameAr).font(.title2.bold())
                 if r.name.lowercased() != r.nameAr.lowercased() {
