@@ -291,7 +291,7 @@ struct RoasterPageView: View {
             Text("وش تميل له قهاويها").font(.headline)
             GeometryReader { geo in
                 HStack(spacing: 2) {
-                    ForEach(page.familyShares, id: \.family) { share in
+                    ForEach(Array(page.familyShares.enumerated()), id: \.offset) { _, share in
                         share.family.color.frame(width: max(4, geo.size.width * CGFloat(share.percent) / 100 - 2))
                     }
                 }

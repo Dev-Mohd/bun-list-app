@@ -22,13 +22,19 @@ struct OriginsMapView: View {
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
-    private var points: [(origin: RemoteOrigin, point: OriginCentroids.Point)] {
-        (data?.origins ?? []).compactMap { o in o.coordinate.map { (o, $0) } }
+    private struct MapPoint: Identifiable {
+        let origin: RemoteOrigin
+        let point: OriginCentroids.Point
+        var id: String { origin.code }
+    }
+
+    private var points: [MapPoint] {
+        (data?.origins ?? []).compactMap { o in o.coordinate.map { MapPoint(origin: o, point: $0) } }
     }
 
     var body: some View {
         Map(position: $position) {
-            ForEach(points, id: \.origin.code) { item in
+            ForEach(points) { item in
                 Annotation(item.origin.nameAr, coordinate: CLLocationCoordinate2D(latitude: item.point.lat, longitude: item.point.lon), anchor: .center) {
                     Button {
                         Haptics.tap()
