@@ -23,6 +23,9 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     public let isPrivate: Bool?
     /// «مطحنتي» (a guide grinder id). Missing from older servers.
     public let grinderId: String?
+    /// Signup taste picks («وش تحب في قهوتك؟»); nil from older servers.
+    public var tastePrefs: [String]? = nil
+    public var brewPrefs: [String]? = nil
 
     public var isOnboarded: Bool { onboarded ?? true }
 

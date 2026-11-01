@@ -3,10 +3,13 @@ import Foundation
 /// The search tab's filters, sent to GET /api/v1/catalog/browse.
 public struct BrowseFilters: Equatable, Sendable {
     public enum Sort: String, CaseIterable, Sendable {
+        /// The server's «لك» order: their taste picks and collection first, mixed daily.
+        case forYou = "for_you"
         case ratingDesc = "rating_desc", ratingAsc = "rating_asc", newest, oldest, nameAsc = "name_asc", nameDesc = "name_desc"
 
         public var nameAr: String {
             switch self {
+            case .forYou: return "لك"
             case .ratingDesc: return "الأعلى تقييمًا"
             case .ratingAsc: return "الأقل تقييمًا"
             case .newest: return "الأحدث أولًا"
@@ -21,7 +24,7 @@ public struct BrowseFilters: Equatable, Sendable {
     public enum Shelf: String, CaseIterable, Sendable { case all, owned, missing }
 
     public var text = ""
-    public var sort = Sort.ratingDesc
+    public var sort = Sort.forYou
     public var origins: Set<String> = []
     public var roasters: Set<String> = []
     public var processes: Set<String> = []

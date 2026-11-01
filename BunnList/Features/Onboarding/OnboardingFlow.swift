@@ -1,7 +1,8 @@
 import BunnListCore
 import SwiftUI
 
-/// First run after signing in: set up the profile, then pick the coffees at home.
+/// First run after signing in: set up the profile, say what you like, then pick
+/// the coffees at home.
 /// Finishing or skipping records it on the server so it shows once per account.
 @MainActor
 struct OnboardingFlow: View {
@@ -17,6 +18,8 @@ struct OnboardingFlow: View {
             Group {
                 if step == 0 {
                     ProfileSetupView(mode: .firstRun) { withAnimation { step = 1 } }
+                } else if step == 1 {
+                    TastePrefsView { withAnimation { step = 2 } }
                 } else {
                     FirstCoffeesView { Task { await finish() } }
                 }
@@ -24,12 +27,12 @@ struct OnboardingFlow: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 6) {
-                        ForEach(0..<2) { i in
+                        ForEach(0..<3) { i in
                             Capsule().fill(i <= step ? Brand.olive : Color.secondary.opacity(0.25))
                                 .frame(width: i == step ? 24 : 8, height: 8)
                         }
                     }
-                    .accessibilityLabel("الخطوة \((step + 1).formatted()) من ٢")
+                    .accessibilityLabel("الخطوة \((step + 1).formatted()) من ٣")
                 }
             }
         }

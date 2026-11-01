@@ -81,7 +81,7 @@ struct BrowseFilterSheet: View {
                         draft.text = text
                         draft.shelf = shelf
                     }
-                    .disabled(draft.activeCount == 0 && draft.sort == .ratingDesc)
+                    .disabled(draft.activeCount == 0 && draft.sort == .forYou)
                 }
             }
             .onAppear { draft = filters }

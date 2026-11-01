@@ -9,6 +9,31 @@ public struct RemoteProfile: Codable, Equatable, Sendable {
     public let avatarUrl: String?
     public let onboarded: Bool
     public let hideFromLeaderboard: Bool?
+    /// What they picked at signup («وش تحب في قهوتك؟»); nil from older servers.
+    public var tastePrefs: [String]? = nil
+    public var brewPrefs: [String]? = nil
+}
+
+/// The signup taste question: flavour families and how they brew. The catalog's
+/// «لك» order puts coffees close to these first.
+public enum TastePrefs {
+    public static let families: [FlavorFamily] = [.berry, .citrus, .stoneFruit, .tropical, .floral, .chocolate, .caramel, .nutty, .spice, .tea, .honey, .driedFruit]
+
+    public struct Brew: Equatable, Sendable, Identifiable {
+        public var id: String { code }
+        public let code: String
+        public let nameAr: String
+        public let symbol: String
+    }
+
+    public static let brews: [Brew] = [
+        .init(code: "V60", nameAr: "V60", symbol: "drop.fill"),
+        .init(code: "ESPRESSO", nameAr: "إسبريسو", symbol: "cup.and.saucer.fill"),
+        .init(code: "CHEMEX", nameAr: "كيمكس", symbol: "flask.fill"),
+        .init(code: "AEROPRESS", nameAr: "إيروبرس", symbol: "arrow.down.to.line"),
+        .init(code: "FRENCH_PRESS", nameAr: "فرنش برس", symbol: "mug.fill"),
+        .init(code: "COLD_BREW", nameAr: "كولد برو", symbol: "snowflake"),
+    ]
 }
 
 public enum ProfileRules {
@@ -24,6 +49,19 @@ extension CatalogAPIClient {
         if let hideFromLeaderboard { body["hideFromLeaderboard"] = hideFromLeaderboard }
         if let displayName { body["displayName"] = displayName }
         if let bio { body["bio"] = bio }
+        let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .patch, path: "/api/v1/me/profile", body: data, bearer: accessToken)
+        )
+        return try Self.decodeProfile(response)
+    }
+
+    /// Saves the signup taste picks (flavour family codes and brew method codes).
+    public func updateTastePrefs(families: [FlavorFamily], brews: [String], accessToken: String) async throws -> RemoteProfile {
+        let body: [String: Any] = [
+            "tastePrefs": families.filter { $0 != .other }.map(\.rawValue),
+            "brewPrefs": brews,
+        ]
         let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
         let response = try await transport.send(
             HTTPRequest(method: .patch, path: "/api/v1/me/profile", body: data, bearer: accessToken)

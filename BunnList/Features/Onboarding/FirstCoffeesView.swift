@@ -81,7 +81,14 @@ struct FirstCoffeesView: View {
             .padding(.horizontal).padding(.vertical, 10)
             .background(.bar)
         }
-        .task { lots = (try? await client.fetchLots()) ?? [] }
+        .task {
+            // The «لك» order, so the coffees they just said they like come first.
+            if let page = try? await auth.withToken({ try await client.browse(BrowseFilters(), limit: 40, accessToken: $0) }) {
+                lots = page.lots
+            } else {
+                lots = (try? await client.fetchLots()) ?? []
+            }
+        }
     }
 
     private func toggle(_ lot: RemoteLot) {

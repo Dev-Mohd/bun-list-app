@@ -42,6 +42,15 @@ final class ProfileAPITests: XCTestCase {
         XCTAssertEqual(transport.requests[1].path, "/api/v1/me/avatar")
         XCTAssertEqual(transport.requests[1].method, .put)
 
+        let prefs = try await client.updateTastePrefs(families: [.citrus, .floral, .other], brews: ["V60"], accessToken: "a")
+        XCTAssertNil(prefs.tastePrefs) // older server
+        let sentPrefs = (try? JSONSerialization.jsonObject(with: transport.requests[2].body ?? Data())) as? [String: Any]
+        XCTAssertEqual(sentPrefs?["tastePrefs"] as? [String], ["citrus", "floral"])
+        XCTAssertEqual(sentPrefs?["brewPrefs"] as? [String], ["V60"])
+        XCTAssertEqual(transport.requests[2].method, .patch)
+        let withPrefs = try JSONDecoder().decode(RemoteProfile.self, from: Data(#"{"username":null,"displayName":null,"bio":null,"avatarUrl":null,"onboarded":true,"hideFromLeaderboard":false,"tastePrefs":["berry"],"brewPrefs":[]}"#.utf8))
+        XCTAssertEqual(withPrefs.tastePrefs, ["berry"])
+
         let suggestion = try await client.suggestUsername(accessToken: "a")
         XCTAssertEqual(suggestion, "mohd42")
         try await client.markOnboarded(accessToken: "a")

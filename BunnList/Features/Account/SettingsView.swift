@@ -47,6 +47,8 @@ struct SettingsView: View {
                     Section("أدواتي") {
                         NavigationLink { GrinderGuideView() } label: { Label("مطحنتي", systemImage: "dial.medium.fill") }
                             .accessibilityIdentifier("open-grinders")
+                        NavigationLink { TastePrefsView(mode: .settings) } label: { Label("ذوقي", systemImage: "heart.text.square.fill") }
+                            .accessibilityIdentifier("open-taste-prefs")
                         NavigationLink { PassportView() } label: { Label("جوازي", systemImage: "globe.europe.africa.fill") }
                             .accessibilityIdentifier("open-passport")
                         // The recipes hub has its own navigation stack, so it opens as a sheet.
