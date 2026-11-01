@@ -119,7 +119,7 @@ struct CommunityView: View {
     private var guestCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("انضم للمجتمع").font(.title3.bold())
-            Text("سجّل دخولك وابدأ تجمع نقاط من تقييماتك ووصفاتك واكتشافاتك، وتطلع في قائمة المتصدرين.")
+            Text("سجّل دخولك وابدأ تجمع نقاط من تقييماتك ووصفاتك وتجاربك، وتطلع في قائمة المتصدرين.")
                 .font(.callout).foregroundStyle(.secondary)
             Button("سجّل دخولك") { showSignIn = true }.buttonStyle(.borderedProminent).tint(Brand.olive)
         }
@@ -296,7 +296,7 @@ private struct LeaderboardRow: View {
             }
             Spacer()
             Label(kind == .points ? entry.points.formatted() : "\(entry.points.formatted()) \(kind.unitAr)",
-                  systemImage: kind == .discoverers ? "sparkles" : kind == .raters ? "star.bubble.fill" : "star.fill")
+                  systemImage: kind == .raters ? "star.bubble.fill" : "star.fill")
                 .font(.subheadline.bold().monospacedDigit()).foregroundStyle(Brand.gold)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)

@@ -175,11 +175,6 @@ struct LiveLotDetailView: View {
                             }
                         }
                     }
-                    if lot.discoverer == nil, let discoverer = lot.discoveredBy {
-                        // Older servers: the name only.
-                        Label("اكتشفها: \(discoverer)", systemImage: "star.circle.fill")
-                            .font(.subheadline).foregroundStyle(Brand.gold)
-                    }
                 }
 
                 // No description: the facts the coffee has, as tiles, and where to buy it.
@@ -196,10 +191,6 @@ struct LiveLotDetailView: View {
 
                 if lot.flavorNotes.count > 4 {
                     section("كل النكهات") { chips(lot.flavorNotes) }
-                }
-                if let discoverer = lot.discoverer {
-                    DiscovererCard(discoverer: discoverer, onReport: auth.isSignedIn && discoverer.note?.isEmpty == false
-                        ? { reporting = ReportRef(target: .note, targetID: lot.id) } : nil)
                 }
                 if auth.isSignedIn {
                     section("مجموعتي") { collectionControls }

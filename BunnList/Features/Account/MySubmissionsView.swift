@@ -16,7 +16,7 @@ struct MySubmissionsView: View {
             if let items {
                 if items.isEmpty {
                     ContentUnavailableView("ما اقترحت قهوة بعد", systemImage: "sparkles",
-                                           description: Text("امسح كيس قهوة من تبويب «مسح» واقترحها، وإذا انقبلت يظهر اسمك كمكتشف لها."))
+                                           description: Text("ما لقيت قهوة في الدليل؟ امسح كيسها من زر الكاميرا واقترحها، ونضيفها بعد المراجعة."))
                 }
                 ForEach(items) { item in
                     if let slug = item.lotSlug {

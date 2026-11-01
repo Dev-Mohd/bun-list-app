@@ -102,7 +102,6 @@ struct PublicProfileView<Extra: View>: View {
                     switch tab {
                     case .coffees: coffeesTab
                     case .recipes: recipesTab(p)
-                    case .activity: activityTab(p)
                     }
                 }
             }
@@ -347,13 +346,12 @@ extension PublicProfileView where Extra == EmptyView {
 }
 
 enum ProfileTab: CaseIterable {
-    case coffees, recipes, activity
+    case coffees, recipes
 
     var nameAr: String {
         switch self {
         case .coffees: return "القهوات"
         case .recipes: return "الوصفات"
-        case .activity: return "النشاط"
         }
     }
 }

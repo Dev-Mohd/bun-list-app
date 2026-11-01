@@ -144,7 +144,7 @@ struct AdminUserDetailView: View {
                 LabeledContent("تقييمات", value: u.counts.reviews.formatted())
                 LabeledContent("وصفات منشورة", value: u.counts.recipes.formatted())
                 LabeledContent("تحضيرات", value: u.counts.brews.formatted())
-                LabeledContent("اكتشافات", value: u.counts.discoveries.formatted())
+                LabeledContent("اقتراحات انضافت", value: u.counts.discoveries.formatted())
                 LabeledContent("متابِعون / يتابع", value: "\(u.counts.followers.formatted()) / \(u.counts.following.formatted())")
                 if u.counts.reports > 0 {
                     LabeledContent("بلاغات على حسابه", value: u.counts.reports.formatted()).foregroundStyle(.red)

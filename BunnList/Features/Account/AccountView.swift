@@ -243,7 +243,7 @@ struct AccountView: View {
     private var signInCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("سجّل دخولك").font(.title3.bold())
-            Text("احفظ مجموعتك على كل أجهزتك، وسوّ وصفاتك، واقترح قهوة ويطلع اسمك كمكتشف لها.")
+            Text("احفظ مجموعتك على كل أجهزتك، وسوّ وصفاتك، واقترح القهاوي اللي ناقصة في الدليل.")
                 .font(.callout).foregroundStyle(.secondary)
             QuickSignInButtons()
             Button("كمّل بالإيميل") { showSignIn = true }
@@ -355,8 +355,6 @@ private struct ProfileHeader: View {
 
                 HStack(spacing: 0) {
                     count(summary?.collection.owned, "مجموعتي")
-                    divider
-                    count(summary?.discoveries, "اكتشافات")
                     divider
                     count(summary?.ratings, "تقييمات")
                     divider

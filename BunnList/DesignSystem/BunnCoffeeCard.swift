@@ -34,17 +34,6 @@ struct BunnCoffeeCard: View {
                 .font(.caption2)
                 .foregroundStyle(Brand.olive)
                 .padding(.top, 2)
-                if let by = lot.discoveredBy {
-                    Divider().padding(.vertical, 4)
-                    HStack(spacing: 6) {
-                        Text(String(by.trimmingCharacters(in: CharacterSet(charactersIn: "@")).prefix(1)).uppercased())
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Brand.background)
-                            .frame(width: 18, height: 18)
-                            .background(Brand.gold, in: Circle())
-                        Text("اكتشفها \(by)").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                }
             }
             .padding(.horizontal, 10)
             .padding(.top, 8)

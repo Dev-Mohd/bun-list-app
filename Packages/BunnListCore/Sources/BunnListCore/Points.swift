@@ -37,11 +37,10 @@ public struct RemoteLeaderboard: Codable, Equatable, Sendable {
 
 /// What a leaderboard ranks by. The score comes back in `Entry.points` for every kind.
 public enum LeaderboardKind: String, CaseIterable, Sendable {
-    case discoverers, helpful, raters, points
+    case helpful, raters, points
 
     public var titleAr: String {
         switch self {
-        case .discoverers: return "أكثر مكتشف"
         case .helpful: return "أفضل تعليق"
         case .raters: return "أكثر مقيّم"
         case .points: return "الأكثر نشاطًا"
@@ -50,7 +49,6 @@ public enum LeaderboardKind: String, CaseIterable, Sendable {
 
     public var unitAr: String {
         switch self {
-        case .discoverers: return "اكتشاف"
         case .helpful: return "مفيد"
         case .raters: return "تقييم"
         case .points: return "نقطة"
@@ -65,12 +63,12 @@ public enum PointRules {
         ("rate", "تقيّم قهوة", 10, "مرة لكل قهوة"),
         ("experience", "تسجّل تجربة تحضير", 5, "٣ مرات باليوم"),
         ("recipe", "تنشر وصفة", 20, "مرة لكل وصفة"),
-        ("discovery", "اقتراحك ينقبل (اكتشاف)", 50, ""),
         ("streak7", "سلسلة ٧ أيام", 25, "كل أسبوع متواصل"),
     ]
 
     public static func titleAr(_ kind: String) -> String {
-        table.first { $0.kind == kind }?.titleAr ?? kind
+        if kind == "discovery" { return "اقتراح انقبل" } // earlier rewards
+        return table.first { $0.kind == kind }?.titleAr ?? kind
     }
 }
 

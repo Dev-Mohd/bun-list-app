@@ -26,12 +26,12 @@ final class PointsTests: XCTestCase {
         XCTAssertEqual(board.me?.rank, 1)
         XCTAssertEqual(transport.requests[1].path, "/api/v1/community/leaderboard?period=all&kind=points&limit=50")
         XCTAssertNil(transport.requests[1].bearer)
-        _ = try await client.fetchLeaderboard(allTime: true, kind: .discoverers, limit: 3, accessToken: nil)
-        XCTAssertEqual(transport.requests[2].path, "/api/v1/community/leaderboard?period=all&kind=discoverers&limit=3")
+        _ = try await client.fetchLeaderboard(allTime: true, kind: .raters, limit: 3, accessToken: nil)
+        XCTAssertEqual(transport.requests[2].path, "/api/v1/community/leaderboard?period=all&kind=raters&limit=3")
     }
 
     func testRulesTableMatchesTheServer() {
         let byKind = Dictionary(uniqueKeysWithValues: PointRules.table.map { ($0.kind, $0.points) })
-        XCTAssertEqual(byKind, ["collect": 5, "rate": 10, "experience": 5, "recipe": 20, "discovery": 50, "streak7": 25])
+        XCTAssertEqual(byKind, ["collect": 5, "rate": 10, "experience": 5, "recipe": 20, "streak7": 25])
     }
 }

@@ -63,7 +63,7 @@ public enum PrivacyPart: String, CaseIterable, Sendable {
         switch self {
         case .followers: return "من يشوف متابعيني"
         case .following: return "من يشوف اللي أتابعهم"
-        case .activity: return "من يشوف اكتشافاتي ووصفاتي"
+        case .activity: return "من يشوف نشاطي ووصفاتي"
         }
     }
 
