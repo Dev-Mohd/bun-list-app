@@ -390,6 +390,10 @@ public struct RemoteCollectionItem: Codable, Equatable, Sendable, Identifiable {
     public let favorite: Bool
     public let wantsToTry: Bool
     public let tried: Bool
+    /// For the taste spread; missing from older servers.
+    public var flavorNotes: [String]? = nil
+    /// When it first went into the collection (ISO 8601); missing from older servers.
+    public var savedAt: String? = nil
 }
 
 /// One of the caller's brew experiences on a server lot. Its stars rate this

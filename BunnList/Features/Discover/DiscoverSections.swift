@@ -80,6 +80,7 @@ struct DiscoverHeader: View {
     let name: String?
     let avatarUrl: String?
     let isSignedIn: Bool
+    var streak: Int? = nil
     var openAccount: () -> Void
 
     var body: some View {
@@ -93,6 +94,7 @@ struct DiscoverHeader: View {
                     .accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: 8)
+            if let streak, streak > 0 { StreakBadge(days: streak) }
             Button(action: openAccount) {
                 AvatarView(url: avatarUrl, name: name, size: 44)
             }
@@ -567,5 +569,309 @@ struct CatalogEntryCard: View {
         .buttonStyle(CardPressStyle())
         .padding(.horizontal)
         .accessibilityIdentifier("open-catalog")
+    }
+}
+
+// MARK: - For you (signed in): today's coffee, carry on, roasters' news, friends
+
+/// Today's coffee for this person: the bag floats, the match ring fills, and why it fits.
+struct DailyPickCard: View {
+    let pick: RemoteForYou.DailyPick
+    var open: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var bob = false
+
+    private var colors: [Color] {
+        let families = FlavorFamily.spectrum(pick.lot.flavorNotes, limit: 2)
+        let base = families.map(\.color)
+        return base.count >= 2 ? base : (base + [Brand.brown, Brand.gold]).prefix(2).map { $0 }
+    }
+
+    var body: some View {
+        Button(action: open) {
+            ZStack(alignment: .topLeading) {
+                LinearGradient(colors: colors, startPoint: .topTrailing, endPoint: .bottomLeading)
+                LinearGradient(colors: [.clear, .black.opacity(0.28)], startPoint: .top, endPoint: .bottom)
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("قهوة اليوم لك").font(.caption.weight(.bold)).opacity(0.85)
+                        Text(pick.lot.nameAr).font(.title2.bold()).lineLimit(2).minimumScaleFactor(0.8)
+                        Text([pick.lot.roasterNameAr, ReferenceCodes.flag(pick.lot.originCode), pick.lot.originNameAr]
+                            .compactMap { $0 }.joined(separator: " · "))
+                            .font(.footnote).opacity(0.9).lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text(pick.reason)
+                            .font(.caption)
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
+                            .lineLimit(3)
+                        if let score = pick.score { MatchRing(score: score, play: shown).padding(.top, 4) }
+                    }
+                    .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    LotPhotoWell(imageUrl: pick.lot.imageUrl, notes: pick.lot.flavorNotes, roaster: pick.lot.roasterNameAr,
+                                 name: pick.lot.nameAr, origin: pick.lot.originNameAr, originCode: pick.lot.originCode, padding: 6)
+                        .frame(width: 128, height: 150)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .shadow(color: .black.opacity(0.25), radius: 10, y: 8)
+                        .offset(y: bob ? -6 : 2)
+                        .rotationEffect(.degrees(bob ? -1.5 : 0.5))
+                }
+                .padding(16)
+            }
+            .frame(height: 240)
+            .clipShape(RoundedRectangle(cornerRadius: 26))
+            .scaleEffect(shown ? 1 : 0.96)
+            .opacity(shown ? 1 : 0)
+        }
+        .buttonStyle(CardPressStyle())
+        .padding(.horizontal)
+        .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) { shown = true }
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true).delay(0.8)) { bob = true }
+        }
+        .accessibilityLabel("قهوة اليوم لك: \(pick.lot.nameAr)، \(pick.reason)")
+    }
+}
+
+/// "92٪ تناسبك" as a ring that fills.
+struct MatchRing: View {
+    let score: Int
+    let play: Bool
+    var size: CGFloat = 60
+    var tint: Color = .white
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(tint.opacity(0.25), lineWidth: 6)
+            Circle()
+                .trim(from: 0, to: play ? CGFloat(score) / 100 : 0)
+                .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 1.4).delay(0.5), value: play)
+            VStack(spacing: -1) {
+                Text("\(score)٪").font(.system(size: size * 0.27, weight: .bold))
+                Text("تناسبك").font(.system(size: size * 0.15))
+            }
+            .foregroundStyle(tint)
+        }
+        .frame(width: size, height: size)
+        .environment(\.layoutDirection, .leftToRight)
+    }
+}
+
+/// A bag they own but haven't rated: rate it or brew it.
+struct ResumeCard: View {
+    let item: RemoteForYou.Resume
+    var open: () -> Void
+    var brew: () -> Void
+    @State private var lit = 0
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: open) {
+                HStack(spacing: 12) {
+                    LotPhotoWell(imageUrl: item.lot.imageUrl, notes: item.lot.flavorNotes, roaster: item.lot.roasterNameAr,
+                                 name: item.lot.nameAr, origin: item.lot.originNameAr, originCode: item.lot.originCode, padding: 3)
+                        .frame(width: 58, height: 58)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.lot.nameAr).font(.subheadline.bold()).foregroundStyle(Brand.ink).lineLimit(1)
+                        Text("عندك \(ISODate.parse(item.since).map { ISODate.ago($0) } ?? "") · كيف كانت؟")
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        HStack(spacing: 3) {
+                            ForEach(0..<5, id: \.self) { i in
+                                Image(systemName: "star.fill").font(.caption)
+                                    .foregroundStyle(i < lit ? Brand.gold : Brand.brown.opacity(0.2))
+                                    .scaleEffect(i < lit ? 1.12 : 1)
+                            }
+                        }
+                        .accessibilityHidden(true)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(item.lot.nameAr): قيّمها")
+            Button(action: brew) {
+                Label("حضّرها", systemImage: "cup.and.saucer.fill")
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 11).padding(.vertical, 8)
+                    .background(Brand.olive, in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+        .padding(.horizontal)
+        .task {
+            // The stars light up one by one: an invitation to rate.
+            for i in 1...4 {
+                try? await Task.sleep(for: .milliseconds(450 + i * 140))
+                withAnimation(.spring(response: 0.3)) { lit = i }
+            }
+        }
+    }
+}
+
+/// Roasters they collect, as rings that turn while they hold coffees not seen yet.
+struct RoasterNewsRow: View {
+    let news: [RemoteForYou.RoasterNews]
+    var open: (String) -> Void
+    @AppStorage("roasterNewsSeen") private var seenJSON = "{}"
+    @State private var showing: RemoteForYou.RoasterNews?
+
+    private var seen: [String: String] {
+        (try? JSONDecoder().decode([String: String].self, from: Data(seenJSON.utf8))) ?? [:]
+    }
+
+    private func markSeen(_ roaster: String) {
+        var all = seen
+        all[roaster] = ISO8601DateFormatter().string(from: Date())
+        if let data = try? JSONEncoder().encode(all), let text = String(data: data, encoding: .utf8) { seenJSON = text }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            DiscoverSectionHeader(title: "جديد من محامصك", subtitle: "آخر ٣٠ يوم من المحامص اللي في مجموعتك")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(news) { roaster in
+                        let unseen = roaster.unseen(since: ISODate.parse(seen[roaster.roasterNameAr]))
+                        Button {
+                            Haptics.tap()
+                            markSeen(roaster.roasterNameAr)
+                            showing = roaster
+                        } label: {
+                            VStack(spacing: 5) {
+                                StoryRing(imageUrl: roaster.lots.first?.imageUrl, fresh: unseen > 0)
+                                Text(roaster.roasterNameAr).font(.caption).foregroundStyle(Brand.ink).lineLimit(1)
+                                Text(unseen > 0 ? (unseen == 1 ? "جديد" : "\(unseen) جديد") : " ")
+                                    .font(.caption2.bold()).foregroundStyle(Color(red: 0.76, green: 0.27, blue: 0.35))
+                            }
+                            .frame(width: 70)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(roaster.roasterNameAr)، \(unseen) جديد")
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+        .sheet(item: $showing) { roaster in
+            NavigationStack {
+                List(roaster.lots) { lot in
+                    Button {
+                        showing = nil
+                        open(lot.slug)
+                    } label: {
+                        HStack(spacing: 12) {
+                            LotPhotoWell(imageUrl: lot.imageUrl, notes: [], roaster: roaster.roasterNameAr, name: lot.nameAr,
+                                         origin: nil, originCode: nil, padding: 2)
+                                .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 10))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(lot.nameAr).foregroundStyle(Brand.ink)
+                                Text("نزلت \(ISODate.parse(lot.publishedAt).map { ISODate.ago($0) } ?? "")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("جديد \(roaster.roasterNameAr)")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { showing = nil } } }
+            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+}
+
+/// A story-style ring: turning colors while it holds something new.
+struct StoryRing: View {
+    let imageUrl: String?
+    let fresh: Bool
+    var size: CGFloat = 62
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var spin = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(fresh
+                      ? AnyShapeStyle(AngularGradient(colors: [Brand.gold, Color(red: 0.76, green: 0.27, blue: 0.35), Brand.olive, Brand.gold], center: .center))
+                      : AnyShapeStyle(Brand.brown.opacity(0.18)))
+                .rotationEffect(.degrees(spin ? 360 : 0))
+            Circle().fill(Brand.background).padding(3)
+            LotPhotoWell(imageUrl: imageUrl, notes: [], roaster: "", name: "", origin: nil, originCode: nil, padding: 4)
+                .clipShape(Circle())
+                .padding(5)
+        }
+        .frame(width: size, height: size)
+        .onAppear {
+            guard fresh, !reduceMotion else { return }
+            withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { spin = true }
+        }
+    }
+}
+
+/// What the people they follow brewed most this week.
+struct FriendsDrinkingCard: View {
+    let item: RemoteForYou.FriendsDrinking
+    var open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 12) {
+                HStack(spacing: -10) {
+                    ForEach(Array(item.names.prefix(3).enumerated()), id: \.offset) { index, name in
+                        Text(String(name.prefix(1)))
+                            .font(.caption.bold())
+                            .frame(width: 32, height: 32)
+                            .background([Brand.brown.opacity(0.22), Brand.olive.opacity(0.25), Brand.gold.opacity(0.28)][index % 3], in: Circle())
+                            .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+                            .foregroundStyle(Brand.brown)
+                    }
+                }
+                .environment(\.layoutDirection, .leftToRight)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.lot.nameAr).font(.subheadline.bold()).foregroundStyle(Brand.ink).lineLimit(1)
+                    Text(item.line).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.backward").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+        }
+        .buttonStyle(CardPressStyle())
+        .padding(.horizontal)
+    }
+}
+
+/// The streak flame next to the greeting.
+struct StreakBadge: View {
+    let days: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var flick = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flame.fill")
+                .scaleEffect(flick ? 1.18 : 1)
+                .rotationEffect(.degrees(flick ? -8 : 0))
+            Text(days == 1 ? "يوم" : days == 2 ? "يومين" : "\(days) أيام")
+        }
+        .font(.footnote.bold())
+        .foregroundStyle(Color(red: 0.71, green: 0.38, blue: 0.10))
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(Color(red: 0.98, green: 0.91, blue: 0.82), in: Capsule())
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { flick = true }
+        }
+        .accessibilityLabel("سلسلة \(days) أيام متتالية")
     }
 }

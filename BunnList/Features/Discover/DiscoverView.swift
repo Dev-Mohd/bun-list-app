@@ -24,6 +24,8 @@ struct DiscoverView: View {
     @State private var showSample = false
     @State private var showScan = false
     @State private var openSlug: String?
+    @State private var forYou: RemoteForYou?
+    @State private var streak: Int?
     @AppStorage("lastBrewMethod") private var brewMethod = "V60"
     @AppStorage("brewFocus") private var brewFocus = ""
 
@@ -36,11 +38,12 @@ struct DiscoverView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 14) {
                         DiscoverHeader(name: profile.me?.displayName, avatarUrl: profile.me?.avatarUrl,
-                                       isSignedIn: auth.isSignedIn) { tab = .account }
+                                       isSignedIn: auth.isSignedIn, streak: auth.isSignedIn ? streak : nil) { tab = .account }
                         DiscoverSearchBar(openSearch: { showSearch = true },
                                           openFilters: { searchPreset = SearchPreset(filters: BrowseFilters(), openFilters: true) },
                                           openScan: { showScan = true })
                     }
+                    if auth.isSignedIn, let forYou { forYouSections(forYou) }
                     featured
                     TasteSection(families: familyFacets, selected: $flavor, results: flavorLots,
                                  retryFamilies: { Task { await loadFacets() } },
@@ -85,9 +88,9 @@ struct DiscoverView: View {
             .navigationDestination(item: $searchPreset) { SearchView(tab: $tab, initial: $0.filters, openFilters: $0.openFilters) }
             .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
             .task { await loadAll() }
-            .task(id: auth.isSignedIn) { await loadOwned() }
+            .task(id: auth.isSignedIn) { await loadOwned(); await loadForYou() }
             .task(id: flavor) { await loadFlavor() }
-            .refreshable { await loadAll(); await loadOwned() }
+            .refreshable { await loadAll(); await loadOwned(); await loadForYou() }
         }
     }
 
@@ -187,6 +190,43 @@ struct DiscoverView: View {
     }
 
     /// Which coffees you own, for «حضّرها» on the newest one.
+    /// Today's coffee, carry on, roasters' news and friends; silent when it can't load.
+    private func loadForYou() async {
+        guard auth.isSignedIn else { forYou = nil; streak = nil; return }
+        let home = try? await auth.withToken { try await client.fetchForYou(accessToken: $0) }
+        withAnimation(.spring(response: 0.5)) { forYou = home }
+        streak = (try? await auth.withToken { try await client.fetchPoints(accessToken: $0) })?.streak
+    }
+
+    @ViewBuilder
+    private func forYouSections(_ home: RemoteForYou) -> some View {
+        if let pick = home.dailyPick {
+            DailyPickCard(pick: pick) { openSlug = pick.lot.slug }
+        }
+        if !home.resume.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                DiscoverSectionHeader(title: "كمّل من حيث وقفت")
+                ForEach(home.resume) { item in
+                    ResumeCard(item: item, open: { openSlug = item.lot.slug }, brew: {
+                        brewFocus = item.lot.slug
+                        tab = .brew
+                    })
+                }
+            }
+        }
+        if !home.roasterNews.isEmpty {
+            RoasterNewsRow(news: home.roasterNews) { openSlug = $0 }
+        }
+        if !home.friendsDrinking.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                DiscoverSectionHeader(title: "اللي تتابعهم يشربون")
+                ForEach(home.friendsDrinking) { item in
+                    FriendsDrinkingCard(item: item) { openSlug = item.lot.slug }
+                }
+            }
+        }
+    }
+
     private func loadOwned() async {
         guard auth.isSignedIn else { owned = []; return }
         let items = (try? await auth.withToken { try await client.fetchCollection(accessToken: $0) }) ?? []

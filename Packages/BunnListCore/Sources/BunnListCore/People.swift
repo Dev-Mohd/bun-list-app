@@ -31,6 +31,8 @@ public struct RemotePersonCard: Codable, Equatable, Sendable, Hashable, Identifi
     public let requested: Bool
     /// Why they're suggested ("جربتوا ٤ قهاوي نفسها"); nil in search.
     public let reasonAr: String?
+    /// Taste twins: the share of your coffees they have too (0–100); missing from older servers.
+    public var sharedPercent: Int? = nil
 
     public var followState: FollowState { FollowState(following: isFollowing, requested: requested) }
 }

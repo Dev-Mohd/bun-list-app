@@ -123,6 +123,14 @@ public struct RemotePulseItem: Decodable, Equatable, Sendable, Identifiable {
     public let methodCode: String?
     public let stars: Int?
     public let note: String?
+    /// The coffee's bag, roaster and origin, for a post card; missing from older servers.
+    public var imageUrl: String? = nil
+    public var roasterNameAr: String? = nil
+    public var originCode: String? = nil
+    /// A brew's own numbers, when logged.
+    public var doseGrams: Double? = nil
+    public var waterGrams: Double? = nil
+    public var brewSeconds: Int? = nil
 
     public var id: String { "\(kind.rawValue)|\(username ?? name)|\(lotSlug ?? recipeId ?? "")|\(at)" }
 
