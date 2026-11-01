@@ -401,3 +401,213 @@ struct PulseSection: View {
         }
     }
 }
+
+// MARK: - Posts: the pulse as cards with the bag, the numbers and «ودّي أجرّبها»
+
+/// The pulse as posts, newest first.
+struct PulsePostList: View {
+    let items: [RemotePulseItem]
+    var limit = 20
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ForEach(Array(items.prefix(limit).enumerated()), id: \.element.id) { index, item in
+                PulsePostCard(item: item)
+                    .modifier(RiseIn(order: index))
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+private struct RiseIn: ViewModifier {
+    let order: Int
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: shown ? 0 : 20)
+            .opacity(shown ? 1 : 0)
+            .onAppear {
+                withAnimation(.spring(response: 0.55, dampingFraction: 0.78).delay(Double(min(order, 6)) * 0.07)) { shown = true }
+            }
+    }
+}
+
+/// One person's brew, recipe or discovery, with the coffee's bag and a way to save it.
+struct PulsePostCard: View {
+    let item: RemotePulseItem
+    @EnvironmentObject private var auth: AuthModel
+    @State private var wanted = false
+    @State private var beat = false
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    private var numbers: [String] {
+        var out: [String] = []
+        if let method = item.methodCode.flatMap({ ReferenceCodes.brewMethod($0)?.nameAr }) { out.append(method) }
+        if let dose = item.doseGrams { out.append("\(RemoteRoasterRecipe.grams(dose)) جم") }
+        if let dose = item.doseGrams, let water = item.waterGrams, dose > 0 {
+            out.append("1:\(RemoteRoasterRecipe.grams((water / dose * 10).rounded() / 10))")
+        }
+        if let seconds = item.brewSeconds { out.append(RemoteRoasterRecipe.clock(seconds)) }
+        return out
+    }
+
+    private var headline: String {
+        switch item.kind {
+        case .brew: return "حضّرت"
+        case .recipe: return "نشرت وصفة"
+        case .discovery: return "اكتشفت محصول جديد 🏅"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            if let slug = item.lotSlug, item.lotNameAr != nil {
+                NavigationLink(value: slug) { coffee }.buttonStyle(.plain)
+            }
+            if let title = item.recipeTitle, item.kind == .recipe {
+                Label("«\(title)»", systemImage: "book.closed.fill").font(.subheadline.weight(.semibold)).foregroundStyle(Brand.olive)
+            }
+            if let note = item.note, !note.isEmpty {
+                Text(note).font(.subheadline).foregroundStyle(Brand.ink).fixedSize(horizontal: false, vertical: true)
+            }
+            if auth.isSignedIn, let slug = item.lotSlug {
+                HStack {
+                    Spacer()
+                    Button { Task { await wantToTry(slug) } } label: {
+                        Label(wanted ? "انضافت لـ«ودّي أجرّب»" : "ودّي أجرّبها", systemImage: wanted ? "bookmark.fill" : "bookmark")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(wanted ? Brand.olive : Brand.ink, in: RoundedRectangle(cornerRadius: 11))
+                            .foregroundStyle(Brand.background)
+                            .scaleEffect(beat ? 1.08 : 1)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(wanted)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    @ViewBuilder private var header: some View {
+        let row = HStack(spacing: 10) {
+            AvatarView(url: item.avatarUrl, name: item.name, size: 38)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.name).font(.subheadline.bold()).foregroundStyle(Brand.ink)
+                Text([item.username.map { "@\($0)" }, headline, item.date.map { $0.formatted(.relative(presentation: .named)) }]
+                        .compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            if let stars = item.stars {
+                Label("\(stars)", systemImage: "star.fill").font(.subheadline.bold()).foregroundStyle(Brand.gold)
+            }
+        }
+        if let username = item.username {
+            NavigationLink { PublicProfileView(username: username) } label: { row }.buttonStyle(.plain)
+        } else {
+            row
+        }
+    }
+
+    private var coffee: some View {
+        HStack(spacing: 11) {
+            LotPhotoWell(imageUrl: item.imageUrl, notes: [], roaster: item.roasterNameAr ?? "", name: item.lotNameAr ?? "",
+                         origin: nil, originCode: item.originCode, padding: 4)
+                .frame(width: 74, height: 74)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.lotNameAr ?? "").font(.subheadline.bold()).foregroundStyle(Brand.ink).lineLimit(2)
+                Text([item.roasterNameAr, ReferenceCodes.flag(item.originCode)].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary)
+                if !numbers.isEmpty {
+                    HStack(spacing: 5) {
+                        ForEach(numbers, id: \.self) { n in
+                            Text(n).font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Color(.systemBackground), in: Capsule())
+                                .foregroundStyle(Brand.brown)
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(9)
+        .background(Brand.brown.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func wantToTry(_ slug: String) async {
+        Haptics.tap()
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.4)) { beat = true }
+        defer { withAnimation(.spring(response: 0.3)) { beat = false } }
+        do {
+            let current = try await auth.withToken { try await client.fetchCollectionFlags(slug: slug, accessToken: $0) }
+            _ = try await auth.withToken {
+                try await client.updateCollectionFlags(slug: slug, accessToken: $0, owned: current.owned, favorite: current.favorite,
+                                                       wantsToTry: true, tried: current.tried)
+            }
+            withAnimation(.spring(response: 0.35)) { wanted = true }
+        } catch {
+            // Left as is; they can try again.
+        }
+    }
+}
+
+/// «توأم ذوقك»: people whose coffees overlap yours most, with the share as a ring.
+struct TasteTwinsRow: View {
+    let people: [RemotePersonCard]
+    @State private var shown = false
+
+    var body: some View {
+        if !people.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("توأم ذوقك", systemImage: "person.2.wave.2.fill").font(.title3.bold())
+                    Spacer()
+                    NavigationLink("الكل") { FindPeopleView() }.font(.subheadline.bold()).tint(Brand.olive)
+                }
+                .padding(.horizontal)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(people.prefix(10)) { person in
+                            NavigationLink { PublicProfileView(username: person.username) } label: { twin(person) }
+                                .buttonStyle(CardPressStyle())
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .onAppear { shown = true }
+        }
+    }
+
+    private func twin(_ person: RemotePersonCard) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle().stroke(Brand.brown.opacity(0.12), lineWidth: 5)
+                Circle()
+                    .trim(from: 0, to: shown ? CGFloat(person.sharedPercent ?? 0) / 100 : 0)
+                    .stroke(Brand.olive, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 1.3).delay(0.4), value: shown)
+                AvatarView(url: person.avatarUrl, name: person.displayName ?? person.username, size: 48)
+            }
+            .frame(width: 60, height: 60)
+            .environment(\.layoutDirection, .leftToRight)
+            Text(person.displayName ?? person.username).font(.caption.weight(.semibold)).foregroundStyle(Brand.ink).lineLimit(1)
+            if let percent = person.sharedPercent, percent > 0 {
+                Text("\(percent)٪").font(.caption.bold()).foregroundStyle(Brand.olive)
+            } else if let reason = person.reasonAr {
+                Text(reason).font(.caption2).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
+            }
+        }
+        .frame(width: 96)
+        .padding(.vertical, 10)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }
+}

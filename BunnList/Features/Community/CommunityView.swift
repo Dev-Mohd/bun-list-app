@@ -21,8 +21,9 @@ struct CommunityView: View {
     @State private var feedFailed = false
     @State private var trendTab = TrendTab.coffee
     @State private var searchPreset: SearchPreset?
-    @State private var pulseScope = PulseScope.everyone
     @State private var followingFeed: [RemotePulseItem]?
+    @State private var section = CommunitySection.forYou
+    @State private var twins: [RemotePersonCard] = []
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -30,46 +31,25 @@ struct CommunityView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    if auth.isSignedIn { myCard } else { guestCard }
-
-                    HStack(spacing: 10) {
-                        Button { showRules = true } label: {
-                            Label("كيف أجمع النقاط؟", systemImage: "questionmark.circle")
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
-                        Button { showChallenges = true } label: {
-                            Label("التحديات", systemImage: "flag.checkered")
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
+                    Picker("القسم", selection: $section) {
+                        Text("لك").tag(CommunitySection.forYou)
+                        Text("أتابعهم").tag(CommunitySection.following)
+                        Text("المتصدرين").tag(CommunitySection.leaders)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(Brand.olive)
+                    .pickerStyle(.segmented)
                     .padding(.horizontal)
 
-                    TrendingSection(trending: feed?.trending, failed: feedFailed, tab: $trendTab) { roaster in
-                        var filters = BrowseFilters()
-                        filters.roasters = [roaster.slug]
-                        searchPreset = SearchPreset(filters: filters)
+                    switch section {
+                    case .forYou: forYouSection
+                    case .following:
+                        if auth.isSignedIn { followingSection } else { guestCard }
+                    case .leaders:
+                        if auth.isSignedIn { myCard } else { guestCard }
+                        rulesButtons
+                        leaderboardSection
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if auth.isSignedIn {
-                        Picker("النبض", selection: $pulseScope) {
-                            Text("الكل").tag(PulseScope.everyone)
-                            Text("أتابعهم").tag(PulseScope.following)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal)
-                    }
-                    if pulseScope == .following && auth.isSignedIn {
-                        followingSection
-                    } else {
-                        PulseSection(items: feed?.pulse ?? [])
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    leaderboardSection
                 }
+                .animation(.easeInOut(duration: 0.25), value: section)
                 .padding(.vertical)
             }
             .background(Brand.background.ignoresSafeArea())
@@ -77,8 +57,9 @@ struct CommunityView: View {
             .navigationTitle("المجتمع")
             .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
             .task(id: auth.isSignedIn) { await loadFeed() }
-            .task(id: pulseScope) { if pulseScope == .following { await loadFollowing() } }
-            .refreshable { await load(); await loadFeed(); if pulseScope == .following { await loadFollowing() } }
+            .task(id: section) { if section == .following { await loadFollowing() } }
+            .task(id: auth.isSignedIn) { await loadTwins() }
+            .refreshable { await load(); await loadFeed(); await loadTwins(); if section == .following { await loadFollowing() } }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(item: $searchPreset) { SearchView(tab: .constant(.community), initial: $0.filters) }
@@ -166,12 +147,48 @@ struct CommunityView: View {
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
                 .padding(.horizontal)
             } else {
-                PulseSection(items: followingFeed, title: "أتابعهم", icon: "person.2.fill", limit: 30)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                PulsePostList(items: followingFeed, limit: 30)
             }
         } else {
             ProgressView().frame(maxWidth: .infinity).padding()
         }
+    }
+
+    /// «لك»: what's trending, taste twins, and everyone's latest as posts.
+    @ViewBuilder
+    private var forYouSection: some View {
+        TrendingSection(trending: feed?.trending, failed: feedFailed, tab: $trendTab) { roaster in
+            var filters = BrowseFilters()
+            filters.roasters = [roaster.slug]
+            searchPreset = SearchPreset(filters: filters)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        if auth.isSignedIn { TasteTwinsRow(people: twins) }
+        if let pulse = feed?.pulse, !pulse.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("نبض المجتمع", systemImage: "waveform.path.ecg").font(.title3.bold()).padding(.horizontal)
+                PulsePostList(items: pulse)
+            }
+        }
+    }
+
+    private var rulesButtons: some View {
+        HStack(spacing: 10) {
+            Button { showRules = true } label: {
+                Label("كيف أجمع النقاط؟", systemImage: "questionmark.circle").frame(maxWidth: .infinity, minHeight: 44)
+            }
+            Button { showChallenges = true } label: {
+                Label("التحديات", systemImage: "flag.checkered").frame(maxWidth: .infinity, minHeight: 44)
+            }
+        }
+        .buttonStyle(.bordered)
+        .tint(Brand.olive)
+        .padding(.horizontal)
+    }
+
+    private func loadTwins() async {
+        guard auth.isSignedIn else { twins = []; return }
+        twins = (try? await auth.withToken { try await client.suggestedPeople(accessToken: $0) })?.similar ?? []
     }
 
     private func loadFollowing() async {
@@ -325,3 +342,4 @@ struct PointRulesView: View {
 
 /// The community pulse: everyone, or only people you follow.
 enum PulseScope: Hashable { case everyone, following }
+enum CommunitySection: Hashable { case forYou, following, leaders }
