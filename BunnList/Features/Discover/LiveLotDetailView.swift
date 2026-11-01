@@ -43,6 +43,7 @@ struct LiveLotDetailView: View {
     @State private var helpful: [String: RemoteLikeState] = [:]
     @State private var showRecipes = false
     @State private var showShareCard = false
+    @State private var similar: RemoteSimilarLots?
 
     init(slug: String) {
         self.slug = slug
@@ -74,6 +75,7 @@ struct LiveLotDetailView: View {
             await loadMyReview()
             await loadCollection()
             await loadReviews()
+            similar = try? await CatalogAPIClient(transport: URLSessionTransport()).fetchSimilar(slug: slug)
         }
     }
 
@@ -244,6 +246,15 @@ struct LiveLotDetailView: View {
                             }
                         }
                     }
+                }
+
+                if let similar, !similar.similar.isEmpty {
+                    SimilarRow(title: "قهاوي تشبهها", subtitle: "من محامص ثانية",
+                               items: similar.similar.map { SimilarItem(lot: $0.lot, reason: $0.reason) })
+                }
+                if let similar, !similar.sameRoaster.isEmpty {
+                    SimilarRow(title: "من نفس المحمصة", subtitle: lot.roasterNameAr,
+                               items: similar.sameRoaster.map { SimilarItem(lot: $0, reason: nil) })
                 }
             }
             .padding()
@@ -513,5 +524,59 @@ private struct LotDetailSkeleton: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: corner))
             }
+    }
+}
+
+
+/// A row of coffees under the page: «قهاوي تشبهها» (with why) or «من نفس المحمصة».
+private struct SimilarItem: Identifiable {
+    let lot: RemoteLot
+    let reason: String?
+    var id: String { lot.id }
+}
+
+private struct SimilarRow: View {
+    let title: String
+    let subtitle: String
+    let items: [SimilarItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(subtitle).font(.footnote).foregroundStyle(.secondary)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(items) { item in
+                        NavigationLink { LiveLotDetailView(slug: item.lot.slug) } label: { card(item.lot, item.reason) }
+                            .buttonStyle(CardPressStyle())
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private func card(_ lot: RemoteLot, _ reason: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
+                         origin: lot.originNameAr, originCode: lot.originCode, padding: 6)
+                .frame(width: 140, height: 124)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            Text(lot.nameAr).font(.subheadline.bold()).foregroundStyle(Brand.ink).lineLimit(1)
+            Text([lot.roasterNameAr, ReferenceCodes.flag(lot.originCode)].compactMap { $0 }.joined(separator: " · "))
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            if let reason {
+                Text(reason).font(.caption2.bold()).foregroundStyle(Brand.olive).lineLimit(1)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Brand.olive.opacity(0.12), in: Capsule())
+            } else if let rating = DiscoverText.ratingLine(lot) {
+                Text(rating).font(.caption2.weight(.semibold)).foregroundStyle(Brand.gold)
+            }
+        }
+        .frame(width: 140, alignment: .leading)
+        .padding(8)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
     }
 }

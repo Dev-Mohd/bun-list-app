@@ -78,6 +78,16 @@ final class CoffeePageTests: XCTestCase {
         XCTAssertFalse(recipes[2].isIced) // older servers: no serve, hot
     }
 
+    func testDecodesSimilarCoffees() throws {
+        let lot = #"{"id":"l","slug":"s","name":"n","nameAr":"ن","roasterNameAr":"شفل","originNameAr":"إثيوبيا","originCode":"ET","process":"NATURAL","processLabel":null,"flavorNotes":["توت"],"roastLevel":null,"averageRating":0,"reviewCount":0,"imageUrl":null}"#
+        let json = "{\"similar\":[{\"lot\":\(lot),\"reason\":\"نفس النكهات: توت\"}],\"sameRoaster\":[\(lot)]}"
+        let result = try JSONDecoder().decode(RemoteSimilarLots.self, from: Data(json.utf8))
+        XCTAssertEqual(result.similar.first?.reason, "نفس النكهات: توت")
+        XCTAssertEqual(result.sameRoaster.count, 1)
+        XCTAssertFalse(result.isEmpty)
+        XCTAssertEqual(FlavorFamily.of("زهور"), .floral)
+    }
+
     func testRecipeText() {
         XCTAssertEqual(RemoteRoasterRecipe.clock(135), "2:15")
         XCTAssertEqual(RemoteRoasterRecipe.clock(30), "30 ث")

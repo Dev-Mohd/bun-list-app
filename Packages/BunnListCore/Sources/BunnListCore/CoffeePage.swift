@@ -144,3 +144,26 @@ extension RemoteLotDetail {
         community?.methods.filter { $0.count > 0 }.max { $0.count < $1.count }
     }
 }
+
+/// Under a coffee: others that taste alike (with why) and more from its roaster.
+public struct RemoteSimilarLots: Decodable, Equatable, Sendable {
+    public struct Item: Decodable, Equatable, Sendable, Identifiable {
+        public var id: String { lot.id }
+        public let lot: RemoteLot
+        public let reason: String
+    }
+    public let similar: [Item]
+    public let sameRoaster: [RemoteLot]
+
+    public var isEmpty: Bool { similar.isEmpty && sameRoaster.isEmpty }
+}
+
+extension CatalogAPIClient {
+    /// GET /api/v1/catalog/lots/[slug]/similar.
+    public func fetchSimilar(slug: String) async throws -> RemoteSimilarLots {
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/catalog/lots/\(slug)/similar"))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteSimilarLots.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
+    }
+}

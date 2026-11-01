@@ -32,7 +32,7 @@ public enum FlavorFamily: String, CaseIterable, Sendable {
         case .stoneFruit: return ["خوخ", "مشمش", "دراق", "نكتارين", "برقوق", "peach", "apricot", "nectarine", "plum", "stone fruit"]
         case .tropical: return ["مانجو", "أناناس", "اناناس", "استوائ", "باشن", "بابايا", "جوافة", "ليتشي", "mango", "pineapple", "tropical", "passion", "papaya", "guava", "lychee"]
         case .driedFruit: return ["زبيب", "تمر", "تين", "مجفف", "raisin", "date", "fig", "dried", "prune"]
-        case .floral: return ["زهر", "ياسمين", "ورد", "لافند", "بنفسج", "floral", "jasmine", "rose", "lavender", "violet", "hibiscus", "blossom"]
+        case .floral: return ["زهر", "زهور", "ياسمين", "ورد", "لافند", "بنفسج", "floral", "jasmine", "rose", "lavender", "violet", "hibiscus", "blossom"]
         case .chocolate: return ["شوكولا", "كاكاو", "chocolate", "cocoa", "cacao"]
         case .caramel: return ["كراميل", "سكر", "توفي", "فانيل", "caramel", "sugar", "toffee", "vanilla", "molasses", "butterscotch"]
         case .nutty: return ["مكسرات", "لوز", "بندق", "جوز", "فستق", "nut", "almond", "hazelnut", "walnut", "pistachio", "peanut"]
