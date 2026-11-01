@@ -29,6 +29,7 @@ struct ReportSheet: View {
         case .recipe: return "هذي الوصفة"
         case .note: return "ملاحظة المكتشف"
         case .profile: return "هذا الحساب"
+        case .comment: return "هذا التعليق"
         }
     }
 

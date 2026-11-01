@@ -126,7 +126,7 @@ public struct AdminLotForm: Equatable, Sendable {
     }
 }
 
-public enum ReportTarget: String, Sendable { case review, recipe, note, profile }
+public enum ReportTarget: String, Sendable { case review, recipe, note, profile, comment }
 
 public enum ReportReason: String, CaseIterable, Sendable, Identifiable {
     case spam, offensive, wrong, other

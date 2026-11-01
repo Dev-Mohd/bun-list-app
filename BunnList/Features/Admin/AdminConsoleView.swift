@@ -116,6 +116,9 @@ struct AdminConsoleView: View {
             NavigationLink { AdminUsersView() } label: {
                 row("المستخدمين", detail: "البحث، الإيقاف، صلاحية الأدمن", icon: "person.2.fill", count: nil)
             }
+            NavigationLink { AdminChallengesView() } label: {
+                row("تحدي الأسبوع", detail: "تحدي جديد، المدة، النقاط، أي قهوة تحسب", icon: "flag.checkered", count: nil)
+            }
             NavigationLink { AdminBroadcastView() } label: {
                 row("إرسال إشعار", detail: "للكل أو للنشطين، مع تجربة على جوالك", icon: "megaphone.fill", count: nil)
             }

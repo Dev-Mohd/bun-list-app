@@ -45,6 +45,7 @@ struct NotificationSettingsView: View {
                     toggle("متابع جديد", "أحد صار يتابعك", icon: "person.badge.plus", \.newFollower)
                     toggle("تقييمات مفيدة", "أحد شاف تقييمك مفيد", icon: "hand.thumbsup.fill", \.reviewHelpful)
                     toggle("إعجابات الوصفات", "أحد عجبته وصفة نشرتها", icon: "heart.fill", \.recipeLiked)
+                    toggle("التعليقات", "أحد علّق على تحضيرك أو وصفتك", icon: "bubble.left.fill", \.comments)
                 }
                 Section("اقتراحاتك") {
                     toggle("انقبل اقتراحك", "قهوة اقترحتها صارت في الدليل", icon: "checkmark.seal.fill", \.submissionApproved)

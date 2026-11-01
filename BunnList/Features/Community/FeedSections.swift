@@ -440,6 +440,8 @@ struct PulsePostCard: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var wanted = false
     @State private var beat = false
+    @State private var showComments = false
+    @State private var comments: Int?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     private var numbers: [String] {
@@ -473,9 +475,23 @@ struct PulsePostCard: View {
             if let note = item.note, !note.isEmpty {
                 Text(note).font(.subheadline).foregroundStyle(Brand.ink).fixedSize(horizontal: false, vertical: true)
             }
-            if auth.isSignedIn, let slug = item.lotSlug {
-                HStack {
-                    Spacer()
+            HStack {
+                if let ref = item.commentTarget {
+                    Button { showComments = true } label: {
+                        Label("\(comments ?? item.commentCount ?? 0)", systemImage: "bubble.left")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(minHeight: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("التعليقات")
+                    .sheet(isPresented: $showComments) {
+                        CommentsSheet(target: ref.0, id: ref.1, title: "التعليقات") { comments = $0 }
+                            .environmentObject(auth)
+                    }
+                }
+                Spacer()
+                if auth.isSignedIn, let slug = item.lotSlug {
                     Button { Task { await wantToTry(slug) } } label: {
                         Label(wanted ? "انضافت لـ«ودّي أجرّب»" : "ودّي أجرّبها", systemImage: wanted ? "bookmark.fill" : "bookmark")
                             .font(.footnote.weight(.semibold))
@@ -609,5 +625,248 @@ struct TasteTwinsRow: View {
         .frame(width: 96)
         .padding(.vertical, 10)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+// MARK: - Weekly challenge
+
+/// «تحدي الأسبوع»: what to do, time left, my progress filling up, how many joined.
+struct WeeklyChallengeCard: View {
+    let state: RemoteChallengeState
+    var showCoffees: (BrowseFilters) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var bob = false
+    @State private var celebrate = false
+
+    var body: some View {
+        if let c = state.challenge {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("تحدي الأسبوع · \(c.timeLeftAr())").font(.caption.weight(.bold)).opacity(0.85)
+                        Text(c.titleAr).font(.title3.bold()).fixedSize(horizontal: false, vertical: true)
+                        if let sub = c.subtitleAr, !sub.isEmpty { Text(sub).font(.footnote).opacity(0.9) }
+                    }
+                    Spacer(minLength: 8)
+                    if let emoji = c.emoji, !emoji.isEmpty {
+                        Text(emoji).font(.system(size: 44))
+                            .offset(y: bob ? -5 : 2)
+                            .rotationEffect(.degrees(bob ? -6 : 3))
+                    }
+                }
+                if let me = state.me {
+                    VStack(alignment: .leading, spacing: 5) {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(.white.opacity(0.22))
+                                Capsule().fill(Color(red: 0.91, green: 0.76, blue: 0.48))
+                                    .frame(width: shown ? geo.size.width * CGFloat(me.progress) / CGFloat(max(c.target, 1)) : 0)
+                                    .animation(.spring(response: 1, dampingFraction: 0.8).delay(0.4), value: shown)
+                            }
+                        }
+                        .frame(height: 9)
+                        .environment(\.layoutDirection, .rightToLeft)
+                        Text(me.completed ? "خلّصت التحدي 🎉 +\(c.points) نقطة" : "\(me.progress) من \(c.target) · \(c.actionAr) \(c.target == 1 ? "قهوة وحدة" : "\(c.target) قهاوي مختلفة")")
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+                HStack {
+                    Text(state.participants == 0 ? "كن أول واحد يشارك" : "\(state.participants) شخص شاركوا · \(state.finished) خلّصوه")
+                    Spacer()
+                    Text("+\(c.points) نقطة وشارة")
+                }
+                .font(.caption).opacity(0.9)
+                if !c.filters.isEmpty {
+                    Button { showCoffees(c.browseFilters) } label: {
+                        Label("القهاوي اللي تحسب", systemImage: "cup.and.saucer.fill")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(.white.opacity(0.18), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+            .background(LinearGradient(colors: [Brand.olive, Color(red: 0.18, green: 0.23, blue: 0.15)], startPoint: .topTrailing, endPoint: .bottomLeading),
+                        in: RoundedRectangle(cornerRadius: 24))
+            .overlay(alignment: .topLeading) {
+                if celebrate {
+                    Text("🎉").font(.system(size: 60)).transition(.scale.combined(with: .opacity)).padding(8)
+                }
+            }
+            .scaleEffect(celebrate ? 1.03 : 1)
+            .padding(.horizontal)
+            .onAppear {
+                shown = true
+                if !reduceMotion { withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) { bob = true } }
+                if state.me?.justCompleted == true {
+                    Haptics.tap()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.5).delay(0.6)) { celebrate = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { withAnimation { celebrate = false } }
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+// MARK: - Comments
+
+/// A post's comments, with a box to add one; long-press to delete or report.
+@MainActor
+struct CommentsSheet: View {
+    let target: CommentTarget
+    let id: String
+    let title: String
+    var onCount: (Int) -> Void = { _ in }
+
+    @EnvironmentObject private var auth: AuthModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var comments: [RemoteComment]?
+    @State private var failed = false
+    @State private var draft = ""
+    @State private var sending = false
+    @State private var error: String?
+    @State private var reporting: ReportRef?
+    @FocusState private var focused: Bool
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Group {
+                    if let comments {
+                        if comments.isEmpty {
+                            ContentUnavailableView("ما فيه تعليقات للحين", systemImage: "bubble.left.and.bubble.right",
+                                                   description: Text("كن أول من يعلّق."))
+                        } else {
+                            ScrollViewReader { proxy in
+                                List {
+                                    ForEach(comments) { comment in row(comment).id(comment.id) }
+                                }
+                                .listStyle(.plain)
+                                .onChange(of: comments.count) { if let last = comments.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } } }
+                            }
+                        }
+                    } else if failed {
+                        ContentUnavailableView {
+                            Label("ما قدرنا نجيب التعليقات", systemImage: "wifi.exclamationmark")
+                        } actions: {
+                            Button("إعادة المحاولة") { Task { await load() } }
+                        }
+                    } else {
+                        ProgressView().frame(maxHeight: .infinity)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+                composer
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
+            .task { await load() }
+            .sheet(item: $reporting) { ReportSheet(ref: $0) }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func row(_ c: RemoteComment) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            AvatarView(url: c.avatarUrl, name: c.name, size: 34)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(c.name).font(.subheadline.bold())
+                    if let date = ISODate.parse(c.createdAt) {
+                        Text(date.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+                Text(c.body).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .listRowSeparator(.hidden)
+        .contextMenu {
+            if c.canDelete {
+                Button(role: .destructive) { Task { await remove(c) } } label: { Label("حذف", systemImage: "trash") }
+            }
+            if auth.isSignedIn && !c.isMine {
+                Button { reporting = ReportRef(target: .comment, targetID: c.id) } label: { Label("بلّغ", systemImage: "flag") }
+            }
+        }
+        .swipeActions {
+            if c.canDelete {
+                Button(role: .destructive) { Task { await remove(c) } } label: { Label("حذف", systemImage: "trash") }
+            }
+        }
+    }
+
+    @ViewBuilder private var composer: some View {
+        if auth.isSignedIn {
+            VStack(spacing: 4) {
+                if let error { Text(error).font(.caption).foregroundStyle(.red) }
+                HStack(spacing: 8) {
+                    TextField("اكتب تعليق…", text: $draft, axis: .vertical)
+                        .lineLimit(1...4)
+                        .focused($focused)
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                    Button { Task { await send() } } label: {
+                        Image(systemName: sending ? "ellipsis" : "arrow.up.circle.fill").font(.system(size: 30))
+                    }
+                    .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .tint(Brand.olive)
+                }
+                Text("\(draft.count)/500").font(.caption2).foregroundStyle(draft.count > 500 ? .red : .secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal).padding(.vertical, 8)
+            .background(.bar)
+        } else {
+            Text("سجّل دخولك عشان تعلّق").font(.footnote).foregroundStyle(.secondary).padding()
+        }
+    }
+
+    private func load() async {
+        failed = false
+        do {
+            let result = try await client.fetchComments(target, id: id, accessToken: auth.currentAccessToken())
+            comments = result.comments
+            onCount(result.count)
+        } catch {
+            if comments == nil { failed = true }
+        }
+    }
+
+    private func send() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 500 else { return }
+        sending = true
+        error = nil
+        defer { sending = false }
+        do {
+            let comment = try await auth.withToken { try await client.postComment(target, id: id, body: text, accessToken: $0) }
+            Haptics.tap()
+            withAnimation(.spring(response: 0.35)) { comments = (comments ?? []) + [comment] }
+            draft = ""
+            onCount(comments?.count ?? 0)
+        } catch APIError.rateLimited {
+            error = "على هونك 🙂 جرّب بعد دقيقة."
+        } catch APIError.forbidden {
+            error = "حسابك موقوف عن النشر حاليًا."
+        } catch {
+            self.error = "ما انرسل التعليق، جرّب مرة ثانية."
+        }
+    }
+
+    private func remove(_ c: RemoteComment) async {
+        do {
+            try await auth.withToken { try await client.deleteComment(id: c.id, accessToken: $0) }
+            withAnimation { comments?.removeAll { $0.id == c.id } }
+            onCount(comments?.count ?? 0)
+        } catch {
+            self.error = "ما انحذف التعليق."
+        }
     }
 }

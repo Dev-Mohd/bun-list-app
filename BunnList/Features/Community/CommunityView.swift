@@ -24,6 +24,7 @@ struct CommunityView: View {
     @State private var followingFeed: [RemotePulseItem]?
     @State private var section = CommunitySection.forYou
     @State private var twins: [RemotePersonCard] = []
+    @State private var challenge: RemoteChallengeState?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -58,8 +59,8 @@ struct CommunityView: View {
             .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
             .task(id: auth.isSignedIn) { await loadFeed() }
             .task(id: section) { if section == .following { await loadFollowing() } }
-            .task(id: auth.isSignedIn) { await loadTwins() }
-            .refreshable { await load(); await loadFeed(); await loadTwins(); if section == .following { await loadFollowing() } }
+            .task(id: auth.isSignedIn) { await loadTwins(); await loadChallenge() }
+            .refreshable { await load(); await loadFeed(); await loadTwins(); await loadChallenge(); if section == .following { await loadFollowing() } }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(item: $searchPreset) { SearchView(tab: .constant(.community), initial: $0.filters) }
@@ -157,6 +158,9 @@ struct CommunityView: View {
     /// «لك»: what's trending, taste twins, and everyone's latest as posts.
     @ViewBuilder
     private var forYouSection: some View {
+        if let challenge, challenge.challenge != nil {
+            WeeklyChallengeCard(state: challenge) { searchPreset = SearchPreset(filters: $0) }
+        }
         TrendingSection(trending: feed?.trending, failed: feedFailed, tab: $trendTab) { roaster in
             var filters = BrowseFilters()
             filters.roasters = [roaster.slug]
@@ -184,6 +188,10 @@ struct CommunityView: View {
         .buttonStyle(.bordered)
         .tint(Brand.olive)
         .padding(.horizontal)
+    }
+
+    private func loadChallenge() async {
+        challenge = try? await client.fetchChallenge(accessToken: auth.isSignedIn ? auth.currentAccessToken() : nil)
     }
 
     private func loadTwins() async {

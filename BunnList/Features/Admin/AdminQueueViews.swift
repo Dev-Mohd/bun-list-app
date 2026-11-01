@@ -1456,3 +1456,174 @@ struct RoasterCutSheet: View {
         }
     }
 }
+
+// MARK: - Weekly challenges
+
+/// Admins: the challenges, newest first; add, edit or delete one.
+@MainActor
+struct AdminChallengesView: View {
+    @EnvironmentObject private var auth: AuthModel
+    @State private var challenges: [RemoteChallenge]?
+    @State private var failed = false
+    @State private var editing: ChallengeEdit?
+    @State private var facets: RemoteFacets?
+    private let client = CatalogAPIClient(transport: URLSessionTransport())
+
+    struct ChallengeEdit: Identifiable {
+        let id = UUID()
+        var existingID: String?
+        var draft: ChallengeDraft
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Button { editing = ChallengeEdit(existingID: nil, draft: ChallengeDraft()) } label: {
+                    Label("تحدي جديد", systemImage: "plus.circle.fill")
+                }
+            }
+            if let challenges {
+                Section("التحديات") {
+                    if challenges.isEmpty { Text("ما فيه تحديات للحين").foregroundStyle(.secondary) }
+                    ForEach(challenges) { c in
+                        Button { editing = ChallengeEdit(existingID: c.id, draft: ChallengeDraft(c)) } label: {
+                            HStack(spacing: 10) {
+                                Text(c.emoji ?? "🏁").font(.title2)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(c.titleAr).font(.headline).foregroundStyle(Brand.ink)
+                                    Text("\(c.actionAr) \(c.target) · +\(c.points) نقطة · \(c.timeLeftAr())").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("\(c.finished ?? 0) خلّصوه").font(.caption).foregroundStyle(Brand.olive)
+                            }
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) { Task { await delete(c) } } label: { Label("حذف", systemImage: "trash") }
+                        }
+                    }
+                }
+            } else if failed {
+                Button("إعادة المحاولة") { Task { await load() } }
+            } else {
+                ProgressView()
+            }
+        }
+        .navigationTitle("تحدي الأسبوع")
+        .task { await load() }
+        .refreshable { await load() }
+        .sheet(item: $editing) { edit in
+            ChallengeEditor(edit: edit, facets: facets) { draft in
+                await save(draft, id: edit.existingID)
+            }
+        }
+    }
+
+    private func load() async {
+        failed = false
+        do {
+            challenges = try await auth.withToken { try await client.adminChallenges(accessToken: $0) }
+            if facets == nil { facets = try? await client.fetchFacets() }
+        } catch {
+            if challenges == nil { failed = true }
+        }
+    }
+
+    private func save(_ draft: ChallengeDraft, id: String?) async -> Bool {
+        do {
+            if let id {
+                _ = try await auth.withToken { try await client.updateChallenge(id: id, draft, accessToken: $0) }
+            } else {
+                _ = try await auth.withToken { try await client.createChallenge(draft, accessToken: $0) }
+            }
+            await load()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func delete(_ c: RemoteChallenge) async {
+        try? await auth.withToken { try await client.deleteChallenge(id: c.id, accessToken: $0) }
+        await load()
+    }
+}
+
+private struct ChallengeEditor: View {
+    let edit: AdminChallengesView.ChallengeEdit
+    let facets: RemoteFacets?
+    var save: (ChallengeDraft) async -> Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: ChallengeDraft
+    @State private var saving = false
+    @State private var failed = false
+
+    init(edit: AdminChallengesView.ChallengeEdit, facets: RemoteFacets?, save: @escaping (ChallengeDraft) async -> Bool) {
+        self.edit = edit
+        self.facets = facets
+        self.save = save
+        _draft = State(initialValue: edit.draft)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("التحدي") {
+                    TextField("العنوان (مثل: جرّب قهوة يمنية وقيّمها)", text: $draft.titleAr)
+                    TextField("سطر توضيحي (اختياري)", text: $draft.subtitleAr)
+                    TextField("إيموجي (مثل 🇾🇪)", text: $draft.emoji)
+                }
+                Section("المطلوب") {
+                    Picker("الفعل", selection: $draft.action) {
+                        Text("يحضّر").tag("brew")
+                        Text("يقيّم").tag("rate")
+                        Text("يضيف لمجموعته").tag("collect")
+                    }
+                    Stepper("عدد القهاوي المختلفة: \(draft.target)", value: $draft.target, in: 1...20)
+                    Stepper("النقاط: \(draft.points)", value: $draft.points, in: 0...500, step: 10)
+                }
+                Section {
+                    filterPicker("الدولة", selection: $draft.originCode, options: facets?.origins ?? [])
+                    filterPicker("المعالجة", selection: $draft.process, options: facets?.processes ?? [])
+                    filterPicker("المحمصة", selection: $draft.roasterSlug, options: facets?.roasters ?? [])
+                    filterPicker("النكهة", selection: $draft.flavorFamily, options: facets?.flavors ?? [])
+                } header: {
+                    Text("أي قهوة تحسب؟")
+                } footer: {
+                    Text("اترك الكل «أي» عشان أي قهوة تحسب.")
+                }
+                Section("المدة") {
+                    DatePicker("يبدأ", selection: $draft.startsAt)
+                    DatePicker("ينتهي", selection: $draft.endsAt, in: draft.startsAt...)
+                }
+                if failed {
+                    Text("ما انحفظ. تأكد من العنوان والتواريخ.").foregroundStyle(.red)
+                }
+            }
+            .navigationTitle(edit.existingID == nil ? "تحدي جديد" : "تعديل التحدي")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "…" : "حفظ") {
+                        Task {
+                            saving = true
+                            failed = !(await save(draft))
+                            saving = false
+                            if !failed { dismiss() }
+                        }
+                    }
+                    .disabled(!draft.isValid || saving)
+                }
+            }
+        }
+    }
+
+    private func filterPicker(_ title: String, selection: Binding<String?>, options: [RemoteFacets.Facet]) -> some View {
+        Picker(title, selection: selection) {
+            Text("أي").tag(String?.none)
+            ForEach(options) { option in
+                Text("\(option.labelAr) (\(option.count))").tag(Optional(option.value))
+            }
+        }
+    }
+}
