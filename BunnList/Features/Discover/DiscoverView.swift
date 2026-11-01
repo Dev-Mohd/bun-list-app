@@ -22,6 +22,7 @@ struct DiscoverView: View {
     @State private var searchPreset: SearchPreset?
     @State private var showRoasters = false
     @State private var showMap = false
+    @State private var showAdvisor = false
     @State private var showSample = false
     @State private var showScan = false
     @State private var openSlug: String?
@@ -46,6 +47,7 @@ struct DiscoverView: View {
                                           openFilters: { searchPreset = SearchPreset(filters: BrowseFilters(), openFilters: true) },
                                           openScan: { showScan = true })
                     }
+                    AdvisorCard { showAdvisor = true }
                     if auth.isSignedIn, let forYou { forYouSections(forYou) }
                     HomeTrendingRow(lots: trending, open: { openSlug = $0 }, showAll: { tab = .community })
                     TasteSection(families: familyFacets, selected: $flavor, results: flavorLots,
@@ -106,6 +108,7 @@ struct DiscoverView: View {
             }
             .navigationDestination(item: $searchPreset) { SearchView(tab: $tab, initial: $0.filters, openFilters: $0.openFilters) }
             .sheet(isPresented: $showScan) { AIBagScanView().environmentObject(auth) }
+            .fullScreenCover(isPresented: $showAdvisor) { AdvisorFlow().environmentObject(auth).environmentObject(profile).environment(\.layoutDirection, .rightToLeft) }
             .task { await loadAll() }
             .task { await loadTrending() }
             .task(id: auth.isSignedIn) { await loadOwned(); await loadForYou() }
