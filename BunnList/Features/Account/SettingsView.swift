@@ -97,38 +97,53 @@ struct SettingsView: View {
                     } footer: {
                         Text("«متابعيني» يعني اللي يتابعونك بس. وإذا أخفيت نفسك من المتصدرين، تبقى نقاطك وسلسلتك لك.")
                     }
+                }
 
-                    Section("الحساب") {
-                        Button("تسجيل الخروج") { auth.signOut() }
+                if !auth.isSignedIn {
+                    // A guest's way to an account: back to the welcome screen's sign-in.
+                    Section {
+                        Button {
+                            continuedAsGuest = false
+                            dismiss()
+                        } label: {
+                            Label("سجّل دخولك أو أنشئ حساب", systemImage: "person.crop.circle.badge.plus")
+                        }
+                    } footer: {
+                        Text("تحفظ مجموعتك وتقييماتك، وتتابع الناس، وتجمع نقاط.")
                     }
                 }
 
                 Section {
-                    Button {
-                        auth.signOut()
-                        continuedAsGuest = false
-                        dismiss()
-                    } label: {
-                        Label("العودة لشاشة الترحيب", systemImage: "arrow.uturn.backward")
-                    }
-                } footer: {
-                    Text("تخرج من الحساب (إن كنت مسجّلًا) وترجع لشاشة البداية.")
-                }
-
-                Section("عن التطبيق") {
                     NavigationLink { UpdatesView() } label: { Label("تحديثات BunnList", systemImage: "megaphone.fill") }
                     if auth.isSignedIn {
-                        NavigationLink { FeedbackView() } label: { Label("تواصل معنا: اقتراح أو تجربة", systemImage: "envelope.open.fill") }
+                        NavigationLink { FeedbackView() } label: { Label("تواصل معنا", systemImage: "envelope.open.fill") }
                     }
-                    LabeledContent("الإصدار", value: versionText)
-                    Text("بن لست — اكتشف القهوة، بطاقة بطاقة.")
-                        .font(.callout).foregroundStyle(.secondary)
+                    Link(destination: ServerConfig.baseURL.appendingPathComponent("terms")) {
+                        Label("الشروط والأحكام", systemImage: "doc.text.fill")
+                    }
+                    Link(destination: ServerConfig.baseURL.appendingPathComponent("privacy")) {
+                        Label("سياسة الخصوصية", systemImage: "hand.raised.fill")
+                    }
+                } header: {
+                    Text("عن التطبيق")
+                } footer: {
+                    Text("BunnList \(versionText)")
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 6)
                 }
 
                 if auth.isSignedIn {
-                    Section("منطقة خطر") {
+                    // Leaving goes last: sign out, then (apart) deleting the account.
+                    Section {
+                        Button("تسجيل الخروج") { auth.signOut() }
+                            .frame(maxWidth: .infinity)
+                    }
+                    Section {
                         Button("حذف الحساب", role: .destructive) { confirmDelete = true }
+                            .frame(maxWidth: .infinity)
                             .accessibilityIdentifier("settings-delete")
+                    } footer: {
+                        Text("يحذف حسابك وكل بياناته نهائيًا.")
                     }
                 }
             }

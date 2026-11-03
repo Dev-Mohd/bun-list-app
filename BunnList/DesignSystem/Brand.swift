@@ -143,7 +143,9 @@ enum BrandAppearance {
 
     private static func configureControls(olive: UIColor, ink: UIColor) {
         UISegmentedControl.appearance().selectedSegmentTintColor = olive
-        UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        // White on olive in light mode; in dark mode olive is lighter, so the label goes dark to stay readable.
+        let selectedText = UIColor { $0.userInterfaceStyle == .dark ? UIColor(named: "Background") ?? .black : .white }
+        UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: selectedText], for: .selected)
         UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: ink], for: .normal)
         UISwitch.appearance().onTintColor = olive
         UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = olive
