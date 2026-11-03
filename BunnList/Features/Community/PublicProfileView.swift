@@ -25,6 +25,7 @@ struct PublicProfileView<Extra: View>: View {
     @State private var coffees: RemotePersonCoffees?
     @State private var coffeesHidden = false
     @State private var requests = 0
+    @State private var confirmBlock = false
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -57,12 +58,22 @@ struct PublicProfileView<Extra: View>: View {
                         Button(role: .destructive) { reporting = ReportRef(target: .profile, targetID: p.username) } label: {
                             Label("بلّغ عن الحساب", systemImage: "flag")
                         }
+                        if p.isBlocked == true {
+                            Button { Task { await setBlocked(false) } } label: { Label("إلغاء الحظر", systemImage: "hand.raised.slash") }
+                        } else {
+                            Button(role: .destructive) { confirmBlock = true } label: { Label("حظر الحساب", systemImage: "hand.raised.fill") }
+                        }
                     } label: { Image(systemName: "ellipsis.circle") }
                     .accessibilityLabel("خيارات الحساب")
                 }
             }
         }
         .sheet(item: $reporting) { ReportSheet(ref: $0) }
+        .confirmationDialog("تحظر @\(username)؟", isPresented: $confirmBlock, titleVisibility: .visible) {
+            Button("حظر", role: .destructive) { Task { await setBlocked(true) } }
+        } message: {
+            Text("ما بتشوفون نشاط وتعليقات بعض، وتنلغي المتابعة بينكم. تقدر تلغي الحظر من الإعدادات.")
+        }
         .task { if profile == nil { await load() } }
         .task(id: "\(shelf.rawValue)|\(profile?.isFollowing ?? false)") { await loadCoffees() }
         .refreshable { await load(); await loadCoffees() }
@@ -81,7 +92,18 @@ struct PublicProfileView<Extra: View>: View {
             VStack(spacing: 16) {
                 header(p)
                 extra()
-                if locked(p) {
+                if p.isBlocked == true {
+                    VStack(spacing: 10) {
+                        Image(systemName: "hand.raised.fill").font(.largeTitle).foregroundStyle(.secondary)
+                        Text("حظرت هذا الحساب").font(.headline)
+                        Text("ما تشوف نشاطه وتعليقاته، وهو ما يشوف حقك.").font(.subheadline).foregroundStyle(.secondary)
+                        Button("إلغاء الحظر") { Task { await setBlocked(false) } }.buttonStyle(.bordered).tint(Brand.olive)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(28)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                    .padding(.horizontal)
+                } else if locked(p) {
                     VStack(spacing: 8) {
                         Image(systemName: "lock.fill").font(.largeTitle).foregroundStyle(Brand.gold)
                         Text("هذا الحساب خاص").font(.headline)
@@ -167,7 +189,7 @@ struct PublicProfileView<Extra: View>: View {
                     }
                     .buttonStyle(.plain)
                 }
-            } else {
+            } else if p.isBlocked != true {
                 let state = FollowState(following: p.isFollowing, requested: p.requested ?? false)
                 Button { Task { await toggleFollow(p) } } label: {
                     pill(state.buttonAr, filled: state == .none)
@@ -300,6 +322,14 @@ struct PublicProfileView<Extra: View>: View {
     }
 
     // MARK: Loading
+
+    private func setBlocked(_ blocked: Bool) async {
+        do {
+            try await auth.withToken { try await client.setBlocked(blocked, username: username, accessToken: $0) }
+            Haptics.tap()
+            await load()
+        } catch {}
+    }
 
     private func load() async {
         failed = false

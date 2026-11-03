@@ -26,6 +26,8 @@ public struct RemotePublicProfile: Codable, Equatable, Sendable {
     /// A private account; `requested` means you asked to follow. Missing from older servers.
     public let isPrivate: Bool?
     public let requested: Bool?
+    /// You blocked this person. Missing from older servers.
+    public let isBlocked: Bool?
     public let discoveries: [RemoteLot]
     public let recipes: [RemotePublicRecipe]
 }
@@ -91,6 +93,22 @@ extension CatalogAPIClient {
 
     /// Follows (a private account: asks to) or unfollows (withdraws the request).
     @discardableResult
+    /// Blocks (or unblocks) someone: you stop seeing each other and can't follow or comment.
+    public func setBlocked(_ blocked: Bool, username: String, accessToken: String) async throws {
+        let response = try await transport.send(
+            HTTPRequest(method: blocked ? .post : .delete, path: Self.userPath(username) + "/block", bearer: accessToken)
+        )
+        try Self.checkContract(response)
+    }
+
+    public func blockedPeople(accessToken: String) async throws -> [RemotePerson] {
+        struct Wrapper: Decodable { let people: [RemotePerson] }
+        let response = try await transport.send(HTTPRequest(method: .get, path: "/api/v1/me/blocks", bearer: accessToken))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(Wrapper.self, from: response.body).people }
+        catch { throw AuthClientError.malformedResponse }
+    }
+
     public func setFollowing(_ follow: Bool, username: String, accessToken: String) async throws -> FollowState {
         let response = try await transport.send(
             HTTPRequest(method: follow ? .post : .delete, path: Self.userPath(username) + "/follow", bearer: accessToken)

@@ -731,6 +731,7 @@ struct CommentsSheet: View {
     @State private var sending = false
     @State private var error: String?
     @State private var reporting: ReportRef?
+    @State private var blocking: RemoteComment?
     @FocusState private var focused: Bool
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -769,8 +770,26 @@ struct CommentsSheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } } }
             .task { await load() }
             .sheet(item: $reporting) { ReportSheet(ref: $0) }
+            .confirmationDialog("تحظر @\(blocking?.username ?? "")؟", isPresented: Binding(get: { blocking != nil }, set: { if !$0 { blocking = nil } }), titleVisibility: .visible) {
+                Button("حظر", role: .destructive) { if let c = blocking { Task { await block(c) } } }
+            } message: {
+                Text("ما بتشوفون نشاط وتعليقات بعض. تقدر تلغي الحظر من الإعدادات.")
+            }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func block(_ c: RemoteComment) async {
+        guard let username = c.username else { return }
+        do {
+            try await auth.withToken { try await client.setBlocked(true, username: username, accessToken: $0) }
+            Haptics.tap()
+            withAnimation { comments?.removeAll { $0.username == username } }
+            onCount(comments?.count ?? 0)
+        } catch {
+            error = "ما قدرنا نحظره، جرّب مرة ثانية."
+        }
+        blocking = nil
     }
 
     private func row(_ c: RemoteComment) -> some View {
@@ -794,6 +813,9 @@ struct CommentsSheet: View {
             }
             if auth.isSignedIn && !c.isMine {
                 Button { reporting = ReportRef(target: .comment, targetID: c.id) } label: { Label("بلّغ", systemImage: "flag") }
+            }
+            if auth.isSignedIn && !c.isMine && !c.official, let username = c.username {
+                Button(role: .destructive) { blocking = c } label: { Label("حظر @\(username)", systemImage: "hand.raised.fill") }
             }
         }
         .swipeActions {

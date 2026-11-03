@@ -76,6 +76,9 @@ struct SettingsView: View {
                                 Label("طلبات المتابعة", systemImage: "person.badge.clock")
                             }
                         }
+                        NavigationLink { BlockedPeopleView() } label: {
+                            Label("المحظورين", systemImage: "hand.raised.fill")
+                        }
                     } footer: {
                         Text("الحساب الخاص: أي أحد يبي يتابعك يرسل طلب وأنت تقبله أو ترفضه، وقهاويك ووصفاتك ونشاطك لمتابعينك بس. اسمك وصورتك ونبذتك تبقى ظاهرة. وإذا طفيته تنقبل الطلبات اللي تنتظر.")
                     }
