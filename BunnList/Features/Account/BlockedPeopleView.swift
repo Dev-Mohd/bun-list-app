@@ -49,7 +49,7 @@ struct BlockedPeopleView: View {
 
     private func unblock(_ person: RemotePerson) async {
         do {
-            try await auth.withToken { try await client.setBlocked(false, username: person.username, accessToken: $0) }
+            _ = try await auth.withToken { try await client.setBlocked(false, username: person.username, accessToken: $0) }
             withAnimation { people?.removeAll { $0.username == person.username } }
         } catch {}
     }

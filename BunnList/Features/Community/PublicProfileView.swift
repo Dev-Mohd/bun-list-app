@@ -325,7 +325,7 @@ struct PublicProfileView<Extra: View>: View {
 
     private func setBlocked(_ blocked: Bool) async {
         do {
-            try await auth.withToken { try await client.setBlocked(blocked, username: username, accessToken: $0) }
+            _ = try await auth.withToken { try await client.setBlocked(blocked, username: username, accessToken: $0) }
             Haptics.tap()
             await load()
         } catch {}

@@ -782,12 +782,12 @@ struct CommentsSheet: View {
     private func block(_ c: RemoteComment) async {
         guard let username = c.username else { return }
         do {
-            try await auth.withToken { try await client.setBlocked(true, username: username, accessToken: $0) }
+            _ = try await auth.withToken { try await client.setBlocked(true, username: username, accessToken: $0) }
             Haptics.tap()
             withAnimation { comments?.removeAll { $0.username == username } }
             onCount(comments?.count ?? 0)
         } catch {
-            error = "ما قدرنا نحظره، جرّب مرة ثانية."
+            self.error = "ما قدرنا نحظره، جرّب مرة ثانية."
         }
         blocking = nil
     }
