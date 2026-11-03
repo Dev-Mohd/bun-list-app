@@ -775,10 +775,10 @@ struct CommentsSheet: View {
 
     private func row(_ c: RemoteComment) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            AvatarView(url: c.avatarUrl, name: c.name, size: 34)
+            if c.official { OfficialAvatar(size: 34) } else { AvatarView(url: c.avatarUrl, name: c.name, size: 34) }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(c.name).font(.subheadline.bold())
+                    if c.official { OfficialName() } else { Text(c.name).font(.subheadline.bold()) }
                     if let date = ISODate.parse(c.createdAt) {
                         Text(date.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(.secondary)
                     }

@@ -25,6 +25,7 @@ struct CommunityView: View {
     @State private var section = CommunitySection.forYou
     @State private var twins: [RemotePersonCard] = []
     @State private var challenge: RemoteChallengeState?
+    @State private var latestUpdate: RemoteUpdate?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -60,7 +61,8 @@ struct CommunityView: View {
             .task(id: auth.isSignedIn) { await loadFeed() }
             .task(id: section) { if section == .following { await loadFollowing() } }
             .task(id: auth.isSignedIn) { await loadTwins(); await loadChallenge() }
-            .refreshable { await load(); await loadFeed(); await loadTwins(); await loadChallenge(); if section == .following { await loadFollowing() } }
+            .task { await loadLatestUpdate() }
+            .refreshable { await load(); await loadFeed(); await loadTwins(); await loadChallenge(); await loadLatestUpdate(); if section == .following { await loadFollowing() } }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
             .navigationDestination(for: String.self) { LiveLotDetailView(slug: $0) }
             .navigationDestination(item: $searchPreset) { SearchView(tab: .constant(.community), initial: $0.filters) }
@@ -68,6 +70,10 @@ struct CommunityView: View {
             .sheet(isPresented: $showChallenges) { JourneysView().presentationDragIndicator(.visible) }
             .sheet(isPresented: $showSignIn) { SignInView() }
         }
+    }
+
+    private func loadLatestUpdate() async {
+        if let updates = try? await client.fetchUpdates(accessToken: auth.currentAccessToken()) { latestUpdate = updates.first }
     }
 
     // MARK: Cards
@@ -158,6 +164,7 @@ struct CommunityView: View {
     /// «لك»: what's trending, taste twins, and everyone's latest as posts.
     @ViewBuilder
     private var forYouSection: some View {
+        UpdatesCard(latest: latestUpdate)
         if let challenge, challenge.challenge != nil {
             WeeklyChallengeCard(state: challenge) { searchPreset = SearchPreset(filters: $0) }
         }

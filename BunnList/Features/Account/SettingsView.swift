@@ -116,6 +116,10 @@ struct SettingsView: View {
                 }
 
                 Section("عن التطبيق") {
+                    NavigationLink { UpdatesView() } label: { Label("تحديثات BunnList", systemImage: "megaphone.fill") }
+                    if auth.isSignedIn {
+                        NavigationLink { FeedbackView() } label: { Label("تواصل معنا: اقتراح أو تجربة", systemImage: "envelope.open.fill") }
+                    }
                     LabeledContent("الإصدار", value: versionText)
                     Text("بن لست — اكتشف القهوة، بطاقة بطاقة.")
                         .font(.callout).foregroundStyle(.secondary)

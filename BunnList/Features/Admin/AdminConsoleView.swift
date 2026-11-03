@@ -119,6 +119,12 @@ struct AdminConsoleView: View {
             NavigationLink { AdminChallengesView() } label: {
                 row("تحدي الأسبوع", detail: "تحدي جديد، المدة، النقاط، أي قهوة تحسب", icon: "flag.checkered", count: nil)
             }
+            NavigationLink { AdminFeedbackView() } label: {
+                row("صندوق الاقتراحات", detail: "اقتراحات المستخدمين وتجاربهم، والرد عليهم", icon: "tray.full.fill", count: nil)
+            }
+            NavigationLink { AdminUpdatesView() } label: {
+                row("تحديثات BunnList", detail: "انشر خبر أو ميزة جديدة، والناس يعلّقون تحته", icon: "text.bubble.fill", count: nil)
+            }
             NavigationLink { AdminBroadcastView() } label: {
                 row("إرسال إشعار", detail: "للكل أو للنشطين، مع تجربة على جوالك", icon: "megaphone.fill", count: nil)
             }

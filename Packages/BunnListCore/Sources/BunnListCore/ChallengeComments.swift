@@ -138,7 +138,7 @@ public struct ChallengeDraft: Encodable, Equatable, Sendable {
     }
 }
 
-public enum CommentTarget: String, Sendable { case brew, recipe, review }
+public enum CommentTarget: String, Sendable { case brew, recipe, review, update }
 
 public struct RemoteComment: Codable, Equatable, Sendable, Identifiable {
     public let id: String
@@ -149,6 +149,10 @@ public struct RemoteComment: Codable, Equatable, Sendable, Identifiable {
     public let avatarUrl: String?
     public let isMine: Bool
     public let canDelete: Bool
+    /// Written by the BunnList team (older servers leave it out).
+    public let isOfficial: Bool?
+
+    public var official: Bool { isOfficial ?? false }
 }
 
 public struct RemoteComments: Codable, Equatable, Sendable {
