@@ -216,6 +216,8 @@ struct CollectionOverview: View {
             .padding(.horizontal)
 
             NavigationLink { PassportView() } label: { passport(insights) }
+                .simultaneousGesture(TapGesture().onEnded { PassportTip().invalidate(reason: .actionPerformed) })
+                .appTip(PassportTip())
                 .buttonStyle(CardPressStyle())
                 .padding(.horizontal)
 

@@ -47,7 +47,12 @@ struct DiscoverView: View {
                                           openFilters: { searchPreset = SearchPreset(filters: BrowseFilters(), openFilters: true) },
                                           openScan: { showScan = true })
                     }
-                    AdvisorCard { showAdvisor = true }
+                    AdvisorCard {
+                        AdvisorTip.done = true
+                        AdvisorTip().invalidate(reason: .actionPerformed)
+                        showAdvisor = true
+                    }
+                    .appTip(AdvisorTip(), arrowEdge: .bottom) { AdvisorTip.done = true }
                     if auth.isSignedIn, let forYou { forYouSections(forYou) }
                     HomeTrendingRow(lots: trending, open: { openSlug = $0 }, showAll: { tab = .community })
                     TasteSection(families: familyFacets, selected: $flavor, results: flavorLots,

@@ -165,6 +165,7 @@ struct CommunityView: View {
     @ViewBuilder
     private var forYouSection: some View {
         UpdatesCard(latest: latestUpdate)
+            .appTip(UpdatesTip())
         if let challenge, challenge.challenge != nil {
             WeeklyChallengeCard(state: challenge) { searchPreset = SearchPreset(filters: $0) }
         }

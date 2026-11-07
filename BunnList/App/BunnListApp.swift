@@ -14,7 +14,10 @@ struct BunnListApp: App {
     @State private var sharedCoffee: SharedCoffee?
     @State private var sharedList: SharedCoffee?
 
-    init() { BrandAppearance.configure() }
+    init() {
+        BrandAppearance.configure()
+        AppTips.configure()
+    }
 
     var body: some Scene {
         WindowGroup {

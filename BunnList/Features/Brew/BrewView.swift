@@ -280,6 +280,7 @@ struct BrewView: View {
     private var startButton: some View {
         if let plan, let coffee = selected {
             Button {
+                BrewTip().invalidate(reason: .actionPerformed)
                 session = BrewSessionRef(slug: coffee.slug, coffeeName: coffee.nameAr, plan: plan,
                                          grinder: guideGrinder, grindSetting: grindSetting, roasterName: coffee.roasterNameAr)
             } label: {
@@ -290,6 +291,7 @@ struct BrewView: View {
                     .foregroundStyle(Brand.background)
                     .shadow(color: Brand.olive.opacity(0.3), radius: 12, y: 6)
             }
+            .appTip(BrewTip(), arrowEdge: .bottom)
             .buttonStyle(CardPressStyle())
             .padding(.horizontal)
             .padding(.bottom, 8)

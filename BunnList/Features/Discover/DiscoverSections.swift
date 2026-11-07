@@ -129,8 +129,12 @@ struct DiscoverSearchBar: View {
 
             iconButton("line.3.horizontal.decrease", label: "الفلاتر", filled: false, action: openFilters)
                 .accessibilityIdentifier("open-filters")
-            iconButton("camera.viewfinder", label: "امسح كيس", filled: true, action: openScan)
-                .accessibilityIdentifier("open-scan")
+            iconButton("camera.viewfinder", label: "امسح كيس", filled: true) {
+                ScanTip().invalidate(reason: .actionPerformed)
+                openScan()
+            }
+            .accessibilityIdentifier("open-scan")
+            .appTip(ScanTip())
         }
         .buttonStyle(.plain)
         .padding(.horizontal)

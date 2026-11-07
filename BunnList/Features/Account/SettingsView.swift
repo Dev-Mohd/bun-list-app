@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var auth: AuthModel
     @EnvironmentObject private var profile: ProfileStore
     @Environment(\.dismiss) private var dismiss
+    @State private var tipsReset = false
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @AppStorage("appearance") private var appearance = AppAppearance.system
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
@@ -36,6 +37,13 @@ struct SettingsView: View {
                     Toggle(isOn: $hapticsEnabled) {
                         Label("الاهتزاز", systemImage: "hand.tap")
                     }
+                    Button {
+                        AppTips.showAgainNextLaunch()
+                        tipsReset = true
+                    } label: {
+                        Label(tipsReset ? "بتطلع لك من جديد أول ما تفتح التطبيق" : "اعرض التلميحات من جديد", systemImage: "lightbulb")
+                    }
+                    .disabled(tipsReset)
                     LabeledContent {
                         Text("العربية").foregroundStyle(.secondary)
                     } label: {

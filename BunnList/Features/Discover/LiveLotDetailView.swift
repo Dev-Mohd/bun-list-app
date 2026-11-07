@@ -203,7 +203,11 @@ struct LiveLotDetailView: View {
                 }
 
                 RatingCard(average: lot.averageRating, count: lot.reviewCount, myRating: myReview?.rating,
-                           isSignedIn: auth.isSignedIn) { showReviewForm = true }
+                           isSignedIn: auth.isSignedIn) {
+                    RateTip().invalidate(reason: .actionPerformed)
+                    showReviewForm = true
+                }
+                .appTip(RateTip(), arrowEdge: .bottom)
 
                 if lot.flavorNotes.count > 4 {
                     section("كل النكهات") { chips(lot.flavorNotes) }
@@ -272,9 +276,14 @@ struct LiveLotDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 if auth.isSignedIn {
-                    Button { apply(wantsToTry: !flags.wantsToTry) } label: {
+                    Button {
+                        SaveTip.done = true
+                        SaveTip().invalidate(reason: .actionPerformed)
+                        apply(wantsToTry: !flags.wantsToTry)
+                    } label: {
                         Image(systemName: flags.wantsToTry ? "bookmark.fill" : "bookmark")
                     }
+                    .appTip(SaveTip()) { SaveTip.done = true }
                     .accessibilityLabel(flags.wantsToTry ? "إزالة من ودّي أجرّب" : "ودّي أجرّبها")
                     Button { apply(favorite: !flags.favorite) } label: {
                         Image(systemName: flags.favorite ? "heart.fill" : "heart")
