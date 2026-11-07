@@ -40,7 +40,7 @@ targets:
       path: BunnList/Support/Info.plist
       properties:
         CFBundleDevelopmentRegion: ar
-        CFBundleDisplayName: بن لست
+        CFBundleDisplayName: BunnList
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [ar, en]

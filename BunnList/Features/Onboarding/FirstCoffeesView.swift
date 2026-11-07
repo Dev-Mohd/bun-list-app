@@ -133,15 +133,10 @@ struct CoffeeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ZStack {
-                Brand.gold.opacity(0.12)
-                if let url = lot.imageUrl.flatMap(URL.init(string:)) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFit().padding(10) } placeholder: { ProgressView() }
-                } else {
-                    CoffeeArtCard(roaster: lot.roasterNameAr, name: lot.nameAr, origin: lot.originNameAr, originCode: lot.originCode)
-                }
-            }
-            .frame(height: 140)
+            // The same photo well as everywhere: a wash from the coffee's notes, the bag multiplied onto it.
+            LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes, roaster: lot.roasterNameAr, name: lot.nameAr,
+                         origin: lot.originNameAr, originCode: lot.originCode, padding: 10)
+                .frame(height: 140)
             .clipped()
             VStack(alignment: .leading, spacing: 3) {
                 Text(lot.nameAr).font(.subheadline.bold()).lineLimit(1)

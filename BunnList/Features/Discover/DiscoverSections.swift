@@ -655,15 +655,20 @@ struct DailyPickCard: View {
     }
 
     /// The bag itself on the colours (cut-out photos are on white, so multiply drops the white).
+    /// No `.shadow` on the image: it renders the image in its own layer, where multiply has nothing
+    /// to blend with and the white square shows. A soft ground shadow sits under the bag instead.
     @ViewBuilder private var bag: some View {
         if let url = pick.lot.imageUrl.flatMap(URL.init(string:)) {
-            AsyncImage(url: url) { phase in
-                if case let .success(image) = phase {
-                    image.resizable().scaledToFit().blendMode(.multiply)
-                        .shadow(color: .black.opacity(0.25), radius: 12, y: 10)
-                } else {
-                    Color.clear
+            ZStack(alignment: .bottom) {
+                Ellipse().fill(.black.opacity(0.22)).frame(height: 14).padding(.horizontal, 18).blur(radius: 7).offset(y: 4)
+                AsyncImage(url: url) { phase in
+                    if case let .success(image) = phase {
+                        image.resizable().scaledToFit()
+                    } else {
+                        Color.clear
+                    }
                 }
+                .blendMode(.multiply)
             }
         } else {
             LotPhotoWell(imageUrl: nil, notes: pick.lot.flavorNotes, roaster: pick.lot.roasterNameAr, name: pick.lot.nameAr,
@@ -841,7 +846,7 @@ struct RoasterNewsRow: View {
                                 open(lot.slug)
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    LotPhotoWell(imageUrl: lot.imageUrl, notes: [], roaster: roaster.roasterNameAr, name: lot.nameAr,
+                                    LotPhotoWell(imageUrl: lot.imageUrl, notes: lot.flavorNotes ?? [], roaster: roaster.roasterNameAr, name: lot.nameAr,
                                                  origin: nil, originCode: nil, padding: 6)
                                         .frame(width: 128, height: 112)
                                         .clipShape(RoundedRectangle(cornerRadius: 14))

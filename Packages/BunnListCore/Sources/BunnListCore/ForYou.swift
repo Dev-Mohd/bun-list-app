@@ -32,6 +32,8 @@ public struct RemoteForYou: Decodable, Equatable, Sendable {
             public let nameAr: String
             public let imageUrl: String?
             public let publishedAt: String
+            /// Colours the card's photo well; older servers leave it out.
+            public let flavorNotes: [String]?
         }
         public var id: String { roasterNameAr }
         public let roasterNameAr: String
