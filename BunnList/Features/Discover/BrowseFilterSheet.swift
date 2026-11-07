@@ -13,6 +13,7 @@ struct BrowseFilterSheet: View {
     @EnvironmentObject private var auth: AuthModel
     @Environment(\.dismiss) private var dismiss
     @State private var draft = BrowseFilters()
+    @State private var loaded = false
     @State private var count: Int?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
@@ -84,7 +85,13 @@ struct BrowseFilterSheet: View {
                     .disabled(draft.activeCount == 0 && draft.sort == .forYou)
                 }
             }
-            .onAppear { draft = filters }
+            // Copy the filters in once. onAppear fires again every time a facet list pops back,
+            // and copying then threw away what was just picked there.
+            .onAppear {
+                guard !loaded else { return }
+                draft = filters
+                loaded = true
+            }
             .task(id: draft) {
                 count = nil
                 try? await Task.sleep(for: .milliseconds(250))
