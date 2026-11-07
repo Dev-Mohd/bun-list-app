@@ -22,6 +22,7 @@ struct BunnListApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .updateGate()
                 .environmentObject(model)
                 .environmentObject(auth)
                 .environmentObject(profile)
