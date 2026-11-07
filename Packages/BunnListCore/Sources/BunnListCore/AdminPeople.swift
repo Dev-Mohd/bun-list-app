@@ -101,12 +101,15 @@ public enum AdminUserAction: Sendable, Equatable {
     case suspend(reason: String, days: Int?)
     case unsuspend
     case setAdmin(Bool)
+    /// For someone gaming the points: wipes their points, streak and level back to zero.
+    case resetPoints(reason: String)
 
     var payload: [String: Any] {
         switch self {
         case let .suspend(reason, days): return ["action": "suspend", "reason": reason, "days": days.map { $0 as Any } ?? NSNull()]
         case .unsuspend: return ["action": "unsuspend"]
         case let .setAdmin(on): return ["action": "setAdmin", "admin": on]
+        case let .resetPoints(reason): return ["action": "resetPoints", "reason": reason]
         }
     }
 }

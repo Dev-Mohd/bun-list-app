@@ -74,6 +74,8 @@ struct AdminUserDetailView: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var user: RemoteAdminUser?
     @State private var message: String?
+    @State private var showResetPoints = false
+    @State private var resetReason = ""
     @State private var showSuspend = false
     @State private var confirmAdmin = false
     @State private var isBusy = false
@@ -91,6 +93,17 @@ struct AdminUserDetailView: View {
         .task { await load() }
         .sheet(isPresented: $showSuspend) {
             SuspendSheet { reason, days in Task { await act(.suspend(reason: reason, days: days)) } }
+        }
+        .alert("تصفير النقاط", isPresented: $showResetPoints) {
+            TextField("السبب (ما يشوفه إلا الأدمن)", text: $resetReason)
+            Button("صفّر", role: .destructive) {
+                let reason = resetReason.trimmingCharacters(in: .whitespacesAndNewlines)
+                resetReason = ""
+                Task { await act(.resetPoints(reason: reason.count >= 2 ? reason : "تلاعب بالنقاط")) }
+            }
+            Button("إلغاء", role: .cancel) { resetReason = "" }
+        } message: {
+            Text("تنمسح نقاطه كلها وسلسلته ومستواه، ويرجع من الصفر. ما ينمسح شي من تقييماته أو وصفاته.")
         }
     }
 
@@ -178,6 +191,9 @@ struct AdminUserDetailView: View {
                     Button("رفع الإيقاف") { Task { await act(.unsuspend) } }.tint(Brand.olive)
                 } else if !u.isAdmin {
                     Button("إيقاف عن النشر…", role: .destructive) { showSuspend = true }
+                }
+                if u.points > 0 {
+                    Button("تصفير النقاط…", role: .destructive) { showResetPoints = true }
                 }
                 Button(u.isAdmin ? "سحب صلاحية الأدمن" : "إعطاء صلاحية أدمن") { confirmAdmin = true }
                     .confirmationDialog(u.isAdmin ? "تسحب صلاحية الأدمن؟" : "تعطيه صلاحية أدمن؟", isPresented: $confirmAdmin,

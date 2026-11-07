@@ -100,6 +100,25 @@ struct CommunityView: View {
                 Rectangle().fill(.white.opacity(0.25)).frame(width: 1, height: 36)
                 stat("+\((points?.week ?? 0).formatted())", "هذا الأسبوع", "chart.line.uptrend.xyaxis")
             }
+            if let level = points?.level {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("\(level.emoji) \(level.nameAr)").font(.subheadline.bold()).foregroundStyle(.white)
+                        Spacer()
+                        if let next = level.next, let nextName = level.nextNameAr {
+                            Text("باقي \((next - (points?.total ?? 0)).formatted()) على «\(nextName)»").font(.caption).foregroundStyle(.white.opacity(0.85))
+                        }
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.22))
+                            Capsule().fill(Brand.gold).frame(width: geo.size.width * level.progress)
+                        }
+                    }
+                    .frame(height: 6)
+                    .environment(\.layoutDirection, .rightToLeft)
+                }
+            }
             if let streak = points?.streak, streak > 0 {
                 let toBonus = 7 - streak % 7
                 Text(toBonus == 7 ? "أكملت أسبوع! كمّل عشان المكافأة الجاية 🔥"
@@ -297,9 +316,14 @@ private struct LeaderboardRow: View {
             AvatarView(url: entry.avatarUrl, name: entry.name, size: 40)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.isMe ? "\(entry.name) (أنت)" : entry.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                if let username = entry.username {
-                    Text("@\(username)").font(.caption).foregroundStyle(.secondary)
-                        .environment(\.layoutDirection, .leftToRight)
+                HStack(spacing: 6) {
+                    if let level = entry.levelAr {
+                        Text("\(entry.levelEmoji ?? "") \(level)").font(.caption2.bold()).foregroundStyle(Brand.olive)
+                    }
+                    if let username = entry.username {
+                        Text("@\(username)").font(.caption).foregroundStyle(.secondary)
+                            .environment(\.layoutDirection, .leftToRight)
+                    }
                 }
             }
             Spacer()
@@ -344,7 +368,7 @@ struct PointRulesView: View {
                         }
                     }
                 } footer: {
-                    Text("السلسلة تزيد يوم كل ما سويت نشاط واحد على الأقل (بتوقيت السعودية). لو حذفت شي، تنسحب نقاطه. ما تبي تطلع في المتصدرين؟ من الإعدادات.")
+                    Text("السلسلة تزيد يوم كل ما سويت نشاط واحد على الأقل (بتوقيت السعودية)، ويوم واحد يفوتك بالأسبوع ما يكسرها. بعد الحد اليومي تنحسب أفعالك بس بدون نقاط. لو حذفت شي، تنسحب نقاطه. ما تبي تطلع في المتصدرين؟ من الإعدادات.")
                 }
             }
             .brandScreen()

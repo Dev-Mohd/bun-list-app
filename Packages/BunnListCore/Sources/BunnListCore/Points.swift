@@ -10,10 +10,22 @@ public struct RemotePoints: Codable, Equatable, Sendable {
         public let createdAt: String
     }
 
+    /// A level by all-time points («ذوّاق»), with how far to the next.
+    public struct Level: Codable, Equatable, Sendable {
+        public let nameAr: String
+        public let emoji: String
+        public let min: Int
+        public let next: Int?
+        public let nextNameAr: String?
+        public let progress: Double
+    }
+
     public let total: Int
     public let week: Int
     public let streak: Int
     public let recent: [Reward]
+    /// Older servers leave it out.
+    public let level: Level?
 }
 
 public struct RemoteLeaderboard: Codable, Equatable, Sendable {
@@ -24,6 +36,8 @@ public struct RemoteLeaderboard: Codable, Equatable, Sendable {
         public let avatarUrl: String?
         public let points: Int
         public let isMe: Bool
+        public let levelAr: String?
+        public let levelEmoji: String?
     }
 
     public struct Me: Codable, Equatable, Sendable {
@@ -59,11 +73,14 @@ public enum LeaderboardKind: String, CaseIterable, Sendable {
 public enum PointRules {
     /// What each reward is called, and how many points it gives, for "كيف أجمع النقاط؟".
     public static let table: [(kind: String, titleAr: String, points: Int, noteAr: String)] = [
-        ("collect", "تضيف قهوة لمجموعتك", 5, "مرة لكل قهوة"),
-        ("rate", "تقيّم قهوة", 10, "مرة لكل قهوة"),
+        ("collect", "تضيف قهوة لمجموعتك", 5, "أول ٥ قهاوي باليوم"),
+        ("rate", "تقيّم قهوة", 5, "أول ٥ تقييمات باليوم"),
+        ("rateNote", "تكتب ملاحظة مع تقييمك", 5, "٢٠ حرف أو أكثر"),
         ("experience", "تسجّل تجربة تحضير", 5, "٣ مرات باليوم"),
         ("recipe", "تنشر وصفة", 20, "مرة لكل وصفة"),
-        ("streak7", "سلسلة ٧ أيام", 25, "كل أسبوع متواصل"),
+        ("helpful", "أحد يشوف تقييمك مفيد", 2, "لين ٥ باليوم"),
+        ("recipeBrewed", "أحد يحضّر بوصفتك", 3, "لين ٥ باليوم"),
+        ("streak7", "سلسلة ٧ أيام", 25, "كل أسبوع متواصل، ويوم سماح واحد بالأسبوع"),
     ]
 
     public static func titleAr(_ kind: String) -> String {
