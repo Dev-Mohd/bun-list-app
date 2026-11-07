@@ -74,6 +74,8 @@ struct AdminUserDetailView: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var user: RemoteAdminUser?
     @State private var message: String?
+    @State private var compose: ComposeItem?
+    @State private var sent: [RemoteTeamMessage] = []
     @State private var showResetPoints = false
     @State private var resetReason = ""
     @State private var showSuspend = false
@@ -90,16 +92,32 @@ struct AdminUserDetailView: View {
         .brandScreen()
         .navigationTitle(user.map { $0.username.map { "@" + $0 } ?? "حساب" } ?? "حساب")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task { await load(); await loadSent() }
         .sheet(isPresented: $showSuspend) {
-            SuspendSheet { reason, days in Task { await act(.suspend(reason: reason, days: days)) } }
+            SuspendSheet { reason, days in
+                Task {
+                    // After a suspension, suggest telling them why (edited before sending).
+                    if await act(.suspend(reason: reason, days: days)) {
+                        compose = ComposeItem(draft: .suggested(.suspension, name: user?.displayName, reason: reason, days: days))
+                    }
+                }
+            }
+        }
+        .sheet(item: $compose) { item in
+            TeamMessageComposer(userID: accountID, name: user?.displayName, draft: item.draft) { Task { await loadSent() } }
+                .environmentObject(auth)
         }
         .alert("تصفير النقاط", isPresented: $showResetPoints) {
             TextField("السبب (ما يشوفه إلا الأدمن)", text: $resetReason)
             Button("صفّر", role: .destructive) {
                 let reason = resetReason.trimmingCharacters(in: .whitespacesAndNewlines)
                 resetReason = ""
-                Task { await act(.resetPoints(reason: reason.count >= 2 ? reason : "تلاعب بالنقاط")) }
+                Task {
+                    let why = reason.count >= 2 ? reason : "تلاعب بالنقاط"
+                    if await act(.resetPoints(reason: why)) {
+                        compose = ComposeItem(draft: .suggested(.pointsReset, name: user?.displayName, reason: reason.count >= 2 ? reason : nil))
+                    }
+                }
             }
             Button("إلغاء", role: .cancel) { resetReason = "" }
         } message: {
@@ -112,18 +130,25 @@ struct AdminUserDetailView: View {
         catch { message = "تعذّر التحميل" }
     }
 
-    private func act(_ action: AdminUserAction) async {
+    @discardableResult
+    private func act(_ action: AdminUserAction) async -> Bool {
         isBusy = true
         defer { isBusy = false }
         do {
             user = try await auth.withToken { try await client.adminUserAction(id: accountID, action, accessToken: $0) }
             message = nil
             onChange()
+            return true
         } catch APIError.unprocessable {
             message = "ما ينفع هالإجراء على هذا الحساب (حسابك أنت، أو أدمن)."
         } catch {
             message = "ما تم الإجراء. حاول مرة ثانية."
         }
+        return false
+    }
+
+    private func loadSent() async {
+        sent = (try? await auth.withToken { try await client.adminTeamMessages(userID: accountID, accessToken: $0) }) ?? sent
     }
 
     private func content(_ u: RemoteAdminUser) -> some View {
@@ -186,6 +211,21 @@ struct AdminUserDetailView: View {
                 Section { Label(message, systemImage: "info.circle").foregroundStyle(.red) }
             }
 
+            if !sent.isEmpty {
+                Section("رسائل الفريق له") {
+                    ForEach(sent) { m in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(m.title).font(.subheadline.bold())
+                                Spacer()
+                                Text(m.read ? "مقروءة" : "ما انقرت").font(.caption2).foregroundStyle(m.read ? Brand.olive : .secondary)
+                            }
+                            Text(m.body).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                        }
+                    }
+                }
+            }
+
             Section("إجراءات") {
                 if u.suspended {
                     Button("رفع الإيقاف") { Task { await act(.unsuspend) } }.tint(Brand.olive)
@@ -195,6 +235,9 @@ struct AdminUserDetailView: View {
                 if u.points > 0 {
                     Button("تصفير النقاط…", role: .destructive) { showResetPoints = true }
                 }
+                Button {
+                    compose = ComposeItem(draft: .suggested(.general, name: u.displayName))
+                } label: { Label("راسله", systemImage: "envelope") }
                 Button(u.isAdmin ? "سحب صلاحية الأدمن" : "إعطاء صلاحية أدمن") { confirmAdmin = true }
                     .confirmationDialog(u.isAdmin ? "تسحب صلاحية الأدمن؟" : "تعطيه صلاحية أدمن؟", isPresented: $confirmAdmin,
                                         titleVisibility: .visible) {
@@ -262,4 +305,10 @@ private struct SuspendSheet: View {
         }
         .presentationDetents([.medium, .large])
     }
+}
+
+/// A message waiting to be edited and sent from the composer sheet.
+private struct ComposeItem: Identifiable {
+    let id = UUID()
+    let draft: TeamMessageDraft
 }

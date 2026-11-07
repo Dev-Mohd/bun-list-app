@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var profile: ProfileStore
     @Environment(\.dismiss) private var dismiss
     @State private var tipsReset = false
+    @State private var teamUnread = 0
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @AppStorage("appearance") private var appearance = AppAppearance.system
     @AppStorage("continuedAsGuest") private var continuedAsGuest = false
@@ -53,6 +54,16 @@ struct SettingsView: View {
 
                 if auth.isSignedIn {
                     Section("أدواتي") {
+                        NavigationLink { TeamMessagesView(onRead: { teamUnread = 0 }) } label: {
+                            HStack {
+                                Label("رسائل BunnList", systemImage: "envelope.fill")
+                                Spacer()
+                                if teamUnread > 0 {
+                                    Text("\(teamUnread)").font(.caption.bold()).foregroundStyle(.white)
+                                        .padding(.horizontal, 7).padding(.vertical, 2).background(Brand.olive, in: Capsule())
+                                }
+                            }
+                        }
                         NavigationLink { GrinderGuideView() } label: { Label("مطحنتي", systemImage: "dial.medium.fill") }
                             .accessibilityIdentifier("open-grinders")
                         NavigationLink { TastePrefsView(mode: .settings) } label: { Label("ذوقي", systemImage: "heart.text.square.fill") }
@@ -161,6 +172,10 @@ struct SettingsView: View {
             .brandScreen()
             .sheet(isPresented: $showRecipes) { RecipesHubView(startOn: .mine) }
             .navigationTitle("الإعدادات")
+            .task(id: auth.isSignedIn) {
+                guard auth.isSignedIn else { return }
+                teamUnread = (try? await auth.withToken { try await CatalogAPIClient(transport: URLSessionTransport()).teamMessages(accessToken: $0) })?.unread ?? 0
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }
             .confirmationDialog("حذف الحساب نهائيًا؟", isPresented: $confirmDelete, titleVisibility: .visible) {

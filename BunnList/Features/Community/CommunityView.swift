@@ -26,6 +26,7 @@ struct CommunityView: View {
     @State private var twins: [RemotePersonCard] = []
     @State private var challenge: RemoteChallengeState?
     @State private var latestUpdate: RemoteUpdate?
+    @State private var teamUnread = 0
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -60,7 +61,9 @@ struct CommunityView: View {
             .task(id: "\(kind.rawValue)-\(allTime)") { await load() }
             .task(id: auth.isSignedIn) { await loadFeed() }
             .task(id: section) { if section == .following { await loadFollowing() } }
-            .task(id: auth.isSignedIn) { await loadTwins(); await loadChallenge() }
+            .task(id: auth.isSignedIn) { await loadTwins(); await loadChallenge(); await loadTeamUnread() }
+            // Coming back from «رسائل BunnList» hides the banner.
+            .onAppear { Task { await loadTeamUnread() } }
             .task { await loadLatestUpdate() }
             .refreshable { await load(); await loadFeed(); await loadTwins(); await loadChallenge(); await loadLatestUpdate(); if section == .following { await loadFollowing() } }
             .onChange(of: auth.isSignedIn) { _, _ in Task { await load() } }
@@ -183,6 +186,7 @@ struct CommunityView: View {
     /// «لك»: what's trending, taste twins, and everyone's latest as posts.
     @ViewBuilder
     private var forYouSection: some View {
+        if teamUnread > 0 { TeamMessagesBanner(unread: teamUnread) }
         UpdatesCard(latest: latestUpdate)
             .appTip(UpdatesTip())
         if let challenge, challenge.challenge != nil {
@@ -215,6 +219,11 @@ struct CommunityView: View {
         .buttonStyle(.bordered)
         .tint(Brand.olive)
         .padding(.horizontal)
+    }
+
+    private func loadTeamUnread() async {
+        guard auth.isSignedIn else { teamUnread = 0; return }
+        teamUnread = (try? await auth.withToken { try await client.teamMessages(accessToken: $0) })?.unread ?? 0
     }
 
     private func loadChallenge() async {
