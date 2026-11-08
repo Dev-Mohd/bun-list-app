@@ -54,7 +54,7 @@ struct ServerRecipeEditor: View {
                     header
                     Picker("الوضع", selection: $proMode) {
                         Text("بسيط").tag(false)
-                        Text("احترافي").tag(true)
+                        Text("متقدم").tag(true)
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("recipe-mode")
@@ -177,10 +177,15 @@ struct ServerRecipeEditor: View {
 
     @ViewBuilder
     private var tunePage: some View {
-        doseCard
+        RecipeBasicsCard(draft: $draft)
         parametersCard
         grindCard
-        stepsCard
+        if draft.isEspresso {
+            stepsCard
+        } else {
+            if proMode { AdvancedStepsEditor(draft: $draft) } else { SimpleStepsEditor(draft: $draft) }
+            WaterCheckCard(draft: $draft)
+        }
         if draft.isEspresso { milkCard }
         tipsCard
         if proMode {
@@ -192,7 +197,8 @@ struct ServerRecipeEditor: View {
 
     @ViewBuilder
     private var finishPage: some View {
-        RecipeSummaryCard(draft: draft)
+        RecipeReviewCard(draft: draft)
+        WaterCheckCard(draft: $draft)
         infoCard
         coffeeCard
         if canTogglePublish { publishCard }
@@ -207,7 +213,7 @@ struct ServerRecipeEditor: View {
                     }
                     page = next
                 } label: {
-                    Text("التالي")
+                    Text(page == .tune ? "مراجعة الوصفة" : "التالي")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .background(Brand.ink, in: Capsule())
@@ -386,7 +392,6 @@ struct ServerRecipeEditor: View {
 
     private var parametersCard: some View {
         card("القوة") {
-            field("حرارة الماء (°م)") { numberField("96", value: $draft.waterTempC) }
             if draft.temperature == .iced && !draft.isEspresso {
                 field("الثلج (غ)") { numberField("100", value: iceBinding) }
             }

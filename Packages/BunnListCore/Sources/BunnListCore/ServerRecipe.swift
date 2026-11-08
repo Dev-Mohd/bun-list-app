@@ -12,12 +12,23 @@ public struct RemoteRecipeStep: Codable, Equatable, Hashable, Sendable {
     public var note: String
     public var pourStyle: PourStyle?
     public var pourSpeed: PourSpeed?
+    /// This pour's own water temperature; nil uses the recipe's.
+    public var tempC: Double?
+    /// "ice" or "dilute" on a serve step: grams added after brewing, not brew water.
+    public var addition: String?
+    /// Dilution water: "room", "hot" or "cold".
+    public var additionTemp: String?
 
     public init(kind: RecipeStepKind, addedWaterGrams: Double? = nil, seconds: Int? = nil, note: String = "",
-                pourStyle: PourStyle? = nil, pourSpeed: PourSpeed? = nil) {
+                pourStyle: PourStyle? = nil, pourSpeed: PourSpeed? = nil,
+                tempC: Double? = nil, addition: String? = nil, additionTemp: String? = nil) {
         self.kind = kind; self.addedWaterGrams = addedWaterGrams; self.seconds = seconds; self.note = note
         self.pourStyle = pourStyle; self.pourSpeed = pourSpeed
+        self.tempC = tempC; self.addition = addition; self.additionTemp = additionTemp
     }
+
+    /// An ice or dilution step: its grams are not brew water.
+    public var isAddition: Bool { kind == .serve && addition != nil }
 }
 
 public struct RemoteRecipeLot: Codable, Equatable, Hashable, Sendable {
@@ -252,7 +263,7 @@ public struct RecipeDraft: Equatable, Sendable {
         var problems: [RecipeProblem] = []
         if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { problems.append(.missingTitle) }
         if ReferenceCodes.brewMethod(methodCode) == nil { problems.append(.missingMethod) }
-        if steps.contains(where: { !$0.kind.addsWater && $0.addedWaterGrams != nil }) { problems.append(.waterOnNonPourStep) }
+        if steps.contains(where: { !$0.kind.addsWater && $0.addedWaterGrams != nil && !$0.isAddition }) { problems.append(.waterOnNonPourStep) }
         let pours = steps.filter(\.kind.addsWater).compactMap(\.addedWaterGrams)
         if pours.contains(where: { $0 <= 0 }) { problems.append(.negativeOrZeroWater) }
         if isEspresso {
@@ -387,11 +398,14 @@ public struct RecipeDraft: Equatable, Sendable {
             "notes": notes,
             "steps": steps.map { step -> [String: Any] in
                 ["kind": step.kind.rawValue,
-                 "addedWaterGrams": step.kind.addsWater ? num(step.addedWaterGrams) : NSNull(),
+                 "addedWaterGrams": step.kind.addsWater || step.isAddition ? num(step.addedWaterGrams) : NSNull(),
                  "seconds": step.seconds.map { $0 as Any } ?? NSNull(),
                  "note": step.note,
                  "pourStyle": step.kind.addsWater ? (step.pourStyle.map { $0.rawValue as Any } ?? NSNull()) : NSNull(),
-                 "pourSpeed": step.kind.addsWater ? (step.pourSpeed.map { $0.rawValue as Any } ?? NSNull()) : NSNull()]
+                 "pourSpeed": step.kind.addsWater ? (step.pourSpeed.map { $0.rawValue as Any } ?? NSNull()) : NSNull(),
+                 "tempC": step.kind.addsWater ? num(step.tempC) : NSNull(),
+                 "addition": step.isAddition ? (step.addition.map { $0 as Any } ?? NSNull()) : NSNull(),
+                 "additionTemp": step.isAddition && step.addition == "dilute" ? (step.additionTemp.map { $0 as Any } ?? NSNull()) : NSNull()]
             },
             "publish": publish,
         ]

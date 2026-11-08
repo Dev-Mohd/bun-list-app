@@ -11,7 +11,7 @@ public enum RecipeWizardStep: Int, CaseIterable, Sendable {
         switch self {
         case .tool: return "وش بتحضّر؟"
         case .tune: return "اضبطها على ذوقك"
-        case .finish: return "جاهزة"
+        case .finish: return "مراجعة الوصفة"
         }
     }
 
@@ -19,7 +19,7 @@ public enum RecipeWizardStep: Int, CaseIterable, Sendable {
         switch self {
         case .tool: return "اختر الأداة، ونجهّز لك وصفة باريستا تعدّل عليها."
         case .tune: return "غيّر البن، والماء والصبات تتعدل معه."
-        case .finish: return "سمّها إذا تبي، أو خلّ الاسم المقترح."
+        case .finish: return "شيّك عليها مثل ما بتطلع وقت التحضير، وسمّها."
         }
     }
 }

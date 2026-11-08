@@ -26,6 +26,9 @@ struct PublicProfileView<Extra: View>: View {
     @State private var coffeesHidden = false
     @State private var requests = 0
     @State private var confirmBlock = false
+    /// Your own recipes, private ones too, on your own profile.
+    @State private var myRecipes: [RemoteRecipe]?
+    @State private var editorDraft: DraftRef?
 
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -85,6 +88,55 @@ struct PublicProfileView<Extra: View>: View {
             NavigationStack { ProfileSetupView(mode: .edit) { } }
         }
         .sheet(isPresented: $showSignIn) { SignInView() }
+        .sheet(item: $editorDraft) { ref in
+            ServerRecipeEditor(draft: ref.draft) { _ in Task { await loadMyRecipes() } }
+                .environmentObject(auth)
+        }
+        .task(id: "\(tab)|\(profile?.isMe ?? false)") { if tab == .recipes, profile?.isMe == true { await loadMyRecipes() } }
+    }
+
+    private func loadMyRecipes() async {
+        guard auth.isSignedIn else { return }
+        if let all = try? await auth.withToken({ try await client.fetchMyRecipes(accessToken: $0) }) {
+            myRecipes = all.filter { $0.state != .deleted }
+        }
+    }
+
+    /// «الوصفات» on your own profile: all your recipes (published or 🔒 خاصة) and «＋ سوّ وصفة جديدة».
+    @ViewBuilder
+    private var myRecipesTab: some View {
+        VStack(spacing: 8) {
+            if let myRecipes {
+                ForEach(myRecipes) { recipe in
+                    Button { editorDraft = DraftRef(draft: RecipeDraft(editing: recipe)) } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(recipe.title.isEmpty ? RecipeText.method(recipe.methodCode) : recipe.title).font(.subheadline.bold()).foregroundStyle(Brand.ink)
+                                Text([RecipeText.method(recipe.methodCode), recipe.lot?.nameAr ?? "عامة"].joined(separator: " · "))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            let published = recipe.state == .published
+                            Text(published ? "منشورة" : "🔒 خاصة").font(.caption2.bold())
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(published ? Brand.olive.opacity(0.15) : Brand.background, in: Capsule())
+                                .foregroundStyle(published ? Brand.olive : .secondary)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                ForEach(0..<3, id: \.self) { _ in SkeletonBlock(height: 58, corner: 18) }
+            }
+            CreateRecipeCard {
+                var draft = RecipeDraft()
+                if let classic = BrewPreset.all.first { draft.apply(classic) }
+                editorDraft = DraftRef(draft: draft)
+            }
+        }
+        .padding(.horizontal)
     }
 
     private func content(_ p: RemotePublicProfile) -> some View {
@@ -123,7 +175,7 @@ struct PublicProfileView<Extra: View>: View {
                     .padding(.horizontal)
                     switch tab {
                     case .coffees: coffeesTab
-                    case .recipes: recipesTab(p)
+                    case .recipes: if p.isMe { myRecipesTab } else { recipesTab(p) }
                     case .lists: UserListsGrid(username: username)
                     }
                 }
@@ -264,7 +316,16 @@ struct PublicProfileView<Extra: View>: View {
                 .padding(.horizontal)
             }
         } else {
-            ProgressView().padding(.top, 20)
+            // Bag-shaped shimmering tiles while the shelf loads.
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                ForEach(0..<6, id: \.self) { _ in
+                    VStack(spacing: 6) {
+                        SkeletonBlock(height: 140, corner: 14)
+                        SkeletonBlock(height: 10, corner: 5).padding(.horizontal, 12)
+                    }
+                }
+            }
+            .padding(.horizontal)
         }
     }
 

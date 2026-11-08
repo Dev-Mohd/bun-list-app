@@ -65,12 +65,27 @@ struct SectionFailure: View {
 struct SkeletonBlock: View {
     var height: CGFloat
     var corner: CGFloat = 20
+    @State private var phase: CGFloat = -1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         RoundedRectangle(cornerRadius: corner)
             .fill(Brand.ink.opacity(0.06))
+            .overlay {
+                // A soft light sweeping across: «loading, shaped like what's coming».
+                GeometryReader { geo in
+                    LinearGradient(colors: [.clear, Color.white.opacity(0.45), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geo.size.width * 0.6)
+                        .offset(x: phase * geo.size.width * 1.6)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: corner))
+            }
             .frame(height: height)
             .accessibilityHidden(true)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) { phase = 1 }
+            }
     }
 }
 

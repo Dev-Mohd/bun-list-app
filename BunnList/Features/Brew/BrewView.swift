@@ -28,6 +28,7 @@ struct BrewView: View {
     /// The card showing in the swipeable row; selecting follows it.
     @State private var pageID: String?
     @State private var cups = 1
+    @State private var newRecipe: DraftRef?
     @State private var memory: BrewMemory?
     @State private var grindSetting = ""
     @State private var session: BrewSessionRef?
@@ -75,6 +76,9 @@ struct BrewView: View {
             }
             .sheet(isPresented: $showSignIn) { SignInView() }
             .sheet(isPresented: $showRecipes) { RecipesHubView() }
+            .sheet(item: $newRecipe, onDismiss: { Task { await loadPlans() } }) { ref in
+                ServerRecipeEditor(draft: ref.draft) { _ in }.environmentObject(auth)
+            }
             .sheet(isPresented: $showConverter) { GrindConverterView() }
             .task(id: auth.isSignedIn) { await loadLastBrew() }
             .sheet(isPresented: $showGrinder) { NavigationStack { GrinderGuideView(showsDone: true) }.environmentObject(auth) }
@@ -153,7 +157,8 @@ struct BrewView: View {
                 Label("ما قدرنا نجيب مجموعتك. اسحب للتحديث.", systemImage: "wifi.slash")
                     .foregroundStyle(.secondary).padding(.horizontal)
             } else {
-                HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 30)
+                HStack(spacing: 12) { ForEach(0..<3, id: \.self) { _ in SkeletonBlock(height: 150, corner: 16).frame(width: 112) } }
+                    .padding(.horizontal)
             }
         }
     }
@@ -247,11 +252,22 @@ struct BrewView: View {
             .padding(.horizontal)
             if let groups {
                 recipeTabs(groups)
-                recipeCards(groups.plans(tab))
+                if groups.plans(tab).isEmpty {
+                    // «وصفاتي» always shows; empty, it offers to make one for this coffee and method.
+                    CreateRecipeCard {
+                        var draft = RecipeDraft(lot: selected.map { RemoteRecipeLot(slug: $0.slug, nameAr: $0.nameAr, roasterNameAr: $0.roasterNameAr) })
+                        if let preset = BrewPreset.presets(for: method).first ?? BrewPreset.all.first { draft.apply(preset) }
+                        newRecipe = DraftRef(draft: draft)
+                    }
+                    .padding(.horizontal)
+                } else {
+                    recipeCards(groups.plans(tab))
+                }
                 GrindRow(grinder: guideGrinder, setting: $grindSetting, hint: basePlan?.grindText ?? "") { showGrinder = true }
                     .padding(.horizontal)
             } else {
-                HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 20)
+                VStack(spacing: 10) { SkeletonBlock(height: 34, corner: 17).frame(width: 220); SkeletonBlock(height: 170, corner: 18) }
+                    .padding(.horizontal)
             }
         }
     }
@@ -259,7 +275,7 @@ struct BrewView: View {
     private func recipeTabs(_ groups: BrewPlanner.Groups) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(groups.tabs, id: \.self) { t in
+                ForEach(BrewPlanner.Groups.Tab.allCases.filter { groups.tabs.contains($0) || $0 == .mine }, id: \.self) { t in
                     let on = t == tab
                     let gold = t == .forCoffee
                     Button { select(tab: t) } label: {
