@@ -89,8 +89,8 @@ extension BrewPlan {
     /// Clicks on a guide grinder for this recipe's grind, when the recipe recorded
     /// microns and the grinder's microns per step are verified. Approximate.
     public func approximateClicks(on grinder: RemoteGrinder?) -> Int? {
-        guard let grinder, let per = grinder.micronsPerStep, per > 0, let grindMicrons, grinder.adjustment != "timer" else { return nil }
-        return Int((Double(grindMicrons) / per).rounded())
+        guard let grinder, let per = grinder.micronsPerStep, per > 0, let microns = suggestedMicrons, grinder.adjustment != "timer" else { return nil }
+        return Int((Double(microns) / per).rounded())
     }
 }
 

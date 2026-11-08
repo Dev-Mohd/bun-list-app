@@ -45,6 +45,9 @@ public enum GrindLevel: String, Codable, CaseIterable, Hashable, Sendable {
         }
     }
 
+    /// The level's typical grind: the middle of its band.
+    public var midMicrons: Int { self == .extraFine ? 300 : lowerMicrons + 75 }
+
     public static func level(forMicrons microns: Int) -> GrindLevel {
         allCases.last { microns >= $0.lowerMicrons } ?? .extraFine
     }

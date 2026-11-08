@@ -30,7 +30,7 @@ struct TeamMessagesView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
-                ProgressView()
+                LoadingRows()
             }
         }
         .background(Brand.background.ignoresSafeArea())

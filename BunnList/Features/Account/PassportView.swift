@@ -23,7 +23,7 @@ struct PassportView: View {
                 ContentUnavailableView("ما قدرنا نفتح الجواز", systemImage: "wifi.slash", description: Text("اسحب للتحديث"))
                     .padding(.top, 80)
             } else {
-                ProgressView().tint(Brand.olive).padding(.top, 120)
+                LoadingRows().padding(.top, 12)
             }
         }
         .background(Brand.background.ignoresSafeArea())

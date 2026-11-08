@@ -89,6 +89,31 @@ struct SkeletonBlock: View {
     }
 }
 
+/// Loading, shaped like what's coming: shimmering rows instead of a spinner.
+struct LoadingRows: View {
+    var rows = 3
+    private let widths: [CGFloat] = [200, 150, 180]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ForEach(0..<rows, id: \.self) { i in
+                HStack(spacing: 12) {
+                    SkeletonBlock(height: 48, corner: 12).frame(width: 48)
+                    VStack(alignment: .leading, spacing: 6) {
+                        SkeletonBlock(height: 12, corner: 6).frame(maxWidth: widths[i % 3])
+                        SkeletonBlock(height: 10, corner: 5).frame(maxWidth: 110)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .accessibilityElement()
+        .accessibilityLabel("يحمّل")
+    }
+}
+
 // MARK: Header and search
 
 struct DiscoverHeader: View {

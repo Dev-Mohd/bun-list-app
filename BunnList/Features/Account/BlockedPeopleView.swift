@@ -33,7 +33,7 @@ struct BlockedPeopleView: View {
             } else if failed {
                 Label("ما قدرنا نجيب القائمة. اسحب للتحديث.", systemImage: "wifi.slash").foregroundStyle(.secondary)
             } else {
-                ProgressView().frame(maxWidth: .infinity)
+                LoadingRows()
             }
         }
         .navigationTitle("المحظورين")

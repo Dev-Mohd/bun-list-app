@@ -41,7 +41,7 @@ struct FirstCoffeesView: View {
                 .onChange(of: query) { _, v in if v.trimmingCharacters(in: .whitespaces).isEmpty { results = nil } }
 
                 if lots == nil && results == nil {
-                    HStack { Spacer(); ProgressView(); Spacer() }.padding(.top, 40)
+                    LoadingRows()
                 } else if shown.isEmpty {
                     ContentUnavailableView.search(text: query)
                 } else {

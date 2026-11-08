@@ -45,7 +45,7 @@ struct PublicProfileView<Extra: View>: View {
                     Button("إعادة المحاولة") { Task { await load() } }.buttonStyle(.borderedProminent)
                 }
             } else {
-                ProgressView()
+                LoadingRows()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -497,7 +497,7 @@ struct FollowListView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
-                ProgressView()
+                LoadingRows()
             }
         }
         .brandScreen()

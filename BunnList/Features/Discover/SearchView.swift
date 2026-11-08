@@ -168,7 +168,7 @@ struct SearchView: View {
     private var results: some View {
         switch phase {
         case .loading:
-            ProgressView().padding(.top, 40)
+            LoadingRows().padding(.top, 12)
         case .failed:
             ContentUnavailableView {
                 Label("تعذّر البحث", systemImage: "wifi.exclamationmark")

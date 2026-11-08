@@ -31,7 +31,7 @@ struct RoastersIndexView: View {
                     } actions: { Button("إعادة المحاولة") { Task { await load() } } }
                     .padding(.top, 60)
                 } else {
-                    ProgressView().padding(.top, 80)
+                    LoadingRows().padding(.top, 12)
                 }
             } else {
                 LazyVStack(spacing: 12) {
@@ -172,7 +172,7 @@ struct RoasterPageView: View {
                 } actions: { Button("إعادة المحاولة") { Task { await load() } } }
                 .padding(.top, 60)
             } else {
-                ProgressView().padding(.top, 120)
+                LoadingRows().padding(.top, 12)
             }
         }
         .background(Brand.background.ignoresSafeArea())

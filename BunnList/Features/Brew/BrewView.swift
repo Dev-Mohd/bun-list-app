@@ -263,7 +263,8 @@ struct BrewView: View {
                 } else {
                     recipeCards(groups.plans(tab))
                 }
-                GrindRow(grinder: guideGrinder, setting: $grindSetting, hint: basePlan?.grindText ?? "") { showGrinder = true }
+                GrindRow(grinder: guideGrinder, setting: $grindSetting, hint: basePlan?.grindText ?? "",
+                         suggestion: grindSuggestion, openConverter: { showConverter = true }) { showGrinder = true }
                     .padding(.horizontal)
             } else {
                 VStack(spacing: 10) { SkeletonBlock(height: 34, corner: 17).frame(width: 220); SkeletonBlock(height: 170, corner: 18) }
@@ -446,6 +447,16 @@ struct BrewView: View {
             ?? found.all.first { $0.id == id }.map(suggestedSetting(for:)) ?? ""
     }
 
+    /// «مقترح لهالوصفة: 21 كليك» on your grinder when it converts, else the level in words.
+    private var grindSuggestion: String? {
+        guard let plan = basePlan else { return nil }
+        if let clicks = plan.approximateClicks(on: guideGrinder) {
+            return "مقترح لهالوصفة: \(clicks.formatted()) \(guideGrinder?.adjustment == "stepped" ? "درجة" : "كليك")"
+        }
+        if let level = plan.grindLevel { return "مقترح: \(level.nameAr)" + (guideGrinder != nil ? " · مطحنتك ما تنشر مقاس الدرجة" : "") }
+        return plan.grindText.isEmpty ? nil : "مقترح: \(plan.grindText)"
+    }
+
     /// Your grinder's approximate clicks for the recipe, when known.
     private func suggestedSetting(for plan: BrewPlan) -> String {
         plan.approximateClicks(on: guideGrinder).map(String.init) ?? ""
@@ -530,6 +541,9 @@ private struct GrindRow: View {
     @Binding var setting: String
     /// The recipe's grind in words, shown as the suggestion when there's no number yet.
     var hint: String = ""
+    /// «مقترح لهالوصفة: 21 كليك», or the level in words.
+    var suggestion: String? = nil
+    var openConverter: (() -> Void)? = nil
     var chooseGrinder: () -> Void
 
     private var counts: Bool { grinder?.adjustment == "clicks" || grinder?.adjustment == "stepped" }
@@ -561,6 +575,13 @@ private struct GrindRow: View {
                 TextField(hint.isEmpty ? (grinder == nil ? "مثلًا: ٢٢ كليك أو متوسط ناعم" : "رقمك على المطحنة") : "مقترح: \(hint)",
                           text: $setting)
                     .textFieldStyle(.roundedBorder)
+            }
+            HStack {
+                if let suggestion { Text(suggestion).font(.caption.bold()).foregroundStyle(Brand.olive) }
+                Spacer()
+                if let openConverter {
+                    Button("محوّل الطحن ←", action: openConverter).font(.caption.bold()).tint(Brand.olive)
+                }
             }
             Text("نحفظها مع التجربة عشان المرة الجاية نبدأ منها.").font(.caption2).foregroundStyle(.secondary)
         }

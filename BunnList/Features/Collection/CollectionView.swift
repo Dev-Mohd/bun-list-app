@@ -59,7 +59,7 @@ struct CollectionView: View {
                         Button("إعادة المحاولة") { Task { await load() } }.buttonStyle(.borderedProminent)
                     }
                 } else {
-                    ProgressView()
+                    LoadingRows()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

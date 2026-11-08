@@ -94,7 +94,7 @@ struct UpdatesView: View {
                         Button("إعادة المحاولة") { Task { await load() } }
                     }
                 } else {
-                    ProgressView().padding(.top, 40)
+                    LoadingRows().padding(.top, 12)
                 }
             }
             .padding(.vertical)

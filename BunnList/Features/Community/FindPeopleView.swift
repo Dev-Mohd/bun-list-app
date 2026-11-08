@@ -23,7 +23,7 @@ struct FindPeopleView: View {
                     }
                     ForEach(results) { PersonRow(person: $0) }
                 } else {
-                    HStack { Spacer(); ProgressView(); Spacer() }
+                    LoadingRows()
                 }
             } else if let suggested {
                 if !suggested.similar.isEmpty {
@@ -39,7 +39,7 @@ struct FindPeopleView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
-                HStack { Spacer(); ProgressView(); Spacer() }
+                LoadingRows()
             }
         }
         .scrollContentBackground(.hidden)
@@ -164,7 +164,7 @@ struct FollowRequestsView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
-                HStack { Spacer(); ProgressView(); Spacer() }
+                LoadingRows()
             }
         }
         .scrollContentBackground(.hidden)

@@ -58,7 +58,7 @@ struct GrinderGuideView: View {
                     if catalog.failed {
                         ContentUnavailableView("ما قدرنا نجيب المطاحن", systemImage: "wifi.slash", description: Text("اسحب للتحديث"))
                     } else {
-                        HStack { Spacer(); ProgressView(); Spacer() }.padding(.top, 80)
+                        LoadingRows()
                     }
                 } else if sections.isEmpty {
                     ContentUnavailableView.search(text: query)

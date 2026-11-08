@@ -141,7 +141,7 @@ struct MyListsView: View {
                     .padding()
                 }
             } else {
-                ProgressView().padding(.top, 80)
+                LoadingRows().padding(.top, 12)
             }
         }
         .background(Brand.background.ignoresSafeArea())
@@ -185,7 +185,7 @@ struct ListDetailView: View {
                                        description: Text("ممكن صاحبها حذفها أو خلّاها خاصة."))
                     .padding(.top, 60)
             } else {
-                ProgressView().padding(.top, 80)
+                LoadingRows().padding(.top, 12)
             }
         }
         .background(Brand.background.ignoresSafeArea())
@@ -419,7 +419,7 @@ struct AddToListSheet: View {
                         }
                     }
                 } else {
-                    HStack { Spacer(); ProgressView(); Spacer() }
+                    LoadingRows()
                 }
             }
             .navigationTitle("أضف «\(lotName)» لقائمة")
@@ -483,7 +483,7 @@ struct UserListsGrid: View {
                     }
                 }
             } else {
-                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 30)
+                LoadingRows()
             }
         }
         .padding(.horizontal)

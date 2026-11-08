@@ -131,7 +131,7 @@ struct TrendingSection: View {
                 } else if failed {
                     Text("ما قدرنا نجيب الترند. اسحب للتحديث.").font(.callout).foregroundStyle(.secondary).padding(.horizontal)
                 } else {
-                    HStack { Spacer(); ProgressView(); Spacer() }.frame(height: 200)
+                    LoadingRows()
                 }
             }
             .transition(.opacity)
@@ -324,7 +324,7 @@ private struct TrendingRecipeLoader: View {
             } else if failed {
                 ContentUnavailableView("الوصفة ما عادت متاحة", systemImage: "book.closed")
             } else {
-                ProgressView()
+                LoadingRows()
             }
         }
         .task {

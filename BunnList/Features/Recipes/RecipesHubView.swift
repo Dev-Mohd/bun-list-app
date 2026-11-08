@@ -131,7 +131,7 @@ struct RecipesHubView: View {
                 Button("إعادة المحاولة") { Task { await load() } }.buttonStyle(.borderedProminent)
             }
         } else {
-            ProgressView()
+            LoadingRows()
         }
     }
 

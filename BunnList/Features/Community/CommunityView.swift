@@ -179,7 +179,7 @@ struct CommunityView: View {
                 PulsePostList(items: followingFeed, limit: 30)
             }
         } else {
-            ProgressView().frame(maxWidth: .infinity).padding()
+            LoadingRows()
         }
     }
 
@@ -283,7 +283,7 @@ struct CommunityView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
-                HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 30)
+                LoadingRows()
             }
         }
         .padding(.horizontal)

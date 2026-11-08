@@ -33,7 +33,7 @@ struct FilteredCollectionView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark").padding(.top, 60)
             } else {
-                ProgressView().padding(.top, 80)
+                LoadingRows().padding(.top, 12)
             }
         }
         .background(Brand.background.ignoresSafeArea())

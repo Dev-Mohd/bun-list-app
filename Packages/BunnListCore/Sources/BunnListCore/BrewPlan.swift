@@ -29,6 +29,8 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
     public let grindText: String
     /// Microns, when the recipe recorded them; enables the approximate conversion.
     public let grindMicrons: Int?
+    /// The recipe's grind level, when known; its middle stands in for microns the recipe didn't record.
+    public var grindLevel: GrindLevel? = nil
     public private(set) var steps: [RemoteRecipeStep]
     public let source: Source
     /// Who to credit and where it's published, for a champion's recipe.
@@ -50,6 +52,7 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
         if written.count == 2 { grindText = "\(written[0]) على \(written[1])" }
         else { grindText = written.first ?? recipe.grindLevel?.nameAr ?? "" }
         grindMicrons = recipe.grindMicrons
+        grindLevel = recipe.grindLevel ?? recipe.grindMicrons.map(GrindLevel.level(forMicrons:))
         steps = recipe.steps
         source = recipe.isMine ? .mine : .community(author: recipe.authorName, likes: recipe.likeCount ?? 0)
         credit = nil
@@ -67,6 +70,7 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
         waterTempC = preset.waterTempC
         grindText = preset.grindAr
         grindMicrons = nil
+        grindLevel = preset.grindLevel
         steps = preset.steps
         credit = preset.credit
         source = preset.credit.map { .champion(author: $0.author, titleAr: $0.titleAr) } ?? .base
@@ -158,9 +162,12 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
     /// Your grinder's clicks for this grind, when both sides have published microns
     /// per click. Approximate by nature: a starting point, never a promise.
     public func approximateClicks(on grinder: Grinder?) -> Int? {
-        guard let grinder, let grindMicrons else { return nil }
-        return grinder.clicks(forMicrons: grindMicrons)
+        guard let grinder, let microns = suggestedMicrons else { return nil }
+        return grinder.clicks(forMicrons: microns)
     }
+
+    /// Microns to aim for: the recipe's own, else the middle of its grind level.
+    public var suggestedMicrons: Int? { grindMicrons ?? grindLevel?.midMicrons }
 }
 
 public enum BrewPlanner {

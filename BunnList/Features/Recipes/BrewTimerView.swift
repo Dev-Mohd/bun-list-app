@@ -185,6 +185,17 @@ struct BrewTimerView: View {
                         .font(.system(.title2, design: .monospaced).bold())
                         .foregroundStyle(Brand.gold)
                 }
+                // Before starting: the water to prepare. While pouring: a pour's own temperature.
+                if !isRunning && elapsed == 0, let t = plan.waterTempC, plan.usesTimer {
+                    Text("جهّز الماء على \(RecipeText.number(t))°م").font(.subheadline.bold()).foregroundStyle(.white.opacity(0.85))
+                } else if step.kind.addsWater, let t = step.tempC {
+                    Text("الماء على \(RecipeText.number(t))°").font(.subheadline.bold()).foregroundStyle(.white.opacity(0.85))
+                }
+                if step.isAddition {
+                    Text(step.addition == "ice" ? "أضف \(RecipeText.number(step.addedWaterGrams))غ ثلج"
+                         : "أضف \(RecipeText.number(step.addedWaterGrams))غ ماء \(AdditionTemp.nameAr(step.additionTemp))")
+                        .font(.system(.title3, design: .monospaced).bold()).foregroundStyle(Brand.gold)
+                }
                 if !step.note.isEmpty {
                     Text(step.note).font(.callout).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
                 }

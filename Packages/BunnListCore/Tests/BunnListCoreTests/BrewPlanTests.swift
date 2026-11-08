@@ -29,7 +29,9 @@ final class BrewPlanTests: XCTestCase {
         XCTAssertEqual(plan.grindText, "24 على Comandante C40")
         XCTAssertEqual(plan.approximateClicks(on: Grinder.find("1zpresso-k-ultra")), 36)
         XCTAssertNil(plan.approximateClicks(on: Grinder.find("timemore-c3")))
-        XCTAssertNil(BrewPlan(preset: BrewPreset.all[0]).approximateClicks(on: Grinder.find("comandante-c40")))
+        // A preset has no microns, so its level's middle stands in: medium-fine → 625 µm → 21 clicks on a C40.
+        XCTAssertEqual(BrewPlan(preset: BrewPreset.all[0]).suggestedMicrons, 625)
+        XCTAssertEqual(BrewPlan(preset: BrewPreset.all[0]).approximateClicks(on: Grinder.find("comandante-c40")), 21)
     }
 
     func testRecentCoffeesComeFirst() {

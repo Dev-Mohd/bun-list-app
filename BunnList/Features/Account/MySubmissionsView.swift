@@ -28,7 +28,7 @@ struct MySubmissionsView: View {
             } else if failed {
                 ContentUnavailableView("تعذّر التحميل", systemImage: "wifi.exclamationmark")
             } else {
-                HStack { Spacer(); ProgressView(); Spacer() }
+                LoadingRows()
             }
         }
         .brandScreen()
