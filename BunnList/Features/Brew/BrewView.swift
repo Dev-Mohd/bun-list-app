@@ -45,7 +45,11 @@ struct BrewView: View {
 
     private var recent: [String] { recentRaw.split(separator: ",").map(String.init) }
     private var selected: RemoteCollectionItem? { coffees?.first { $0.slug == selectedSlug } }
-    private var basePlan: BrewPlan? { groups?.all.first { $0.id == selectedPlanID } ?? groups?.plans(tab).first }
+    /// The selected recipe within the open tab; an empty tab (e.g. «وصفاتي») selects nothing, so no start button.
+    private var basePlan: BrewPlan? {
+        guard let options = groups?.plans(tab) else { return nil }
+        return options.first { $0.id == selectedPlanID } ?? options.first
+    }
     /// The selected recipe at the chosen number of cups: what gets brewed and logged.
     private var plan: BrewPlan? { basePlan?.scaled(toCups: cups) }
     private var guideGrinder: RemoteGrinder? { grinders.grinder(myGuideGrinderID) }

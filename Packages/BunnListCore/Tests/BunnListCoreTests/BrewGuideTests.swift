@@ -16,7 +16,9 @@ final class BrewGuideTests: XCTestCase {
     }
 
     func testEveryPresetSitsInsideItsOwnTypicalRanges() {
-        for preset in BrewPreset.all {
+        // Champions' recipes are restated as published (e.g. a 1:5.5 AeroPress concentrate, Hoffmann's
+        // boiling water), so the starting-recipe ranges don't apply to them.
+        for preset in BrewPreset.all where preset.credit == nil {
             XCTAssertEqual(BrewAdvisor.tips(for: draft(preset)), [], preset.id)
         }
     }

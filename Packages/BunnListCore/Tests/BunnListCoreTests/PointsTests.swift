@@ -32,6 +32,8 @@ final class PointsTests: XCTestCase {
 
     func testRulesTableMatchesTheServer() {
         let byKind = Dictionary(uniqueKeysWithValues: PointRules.table.map { ($0.kind, $0.points) })
-        XCTAssertEqual(byKind, ["collect": 5, "rate": 10, "experience": 5, "recipe": 20, "streak7": 25])
+        // lib/mobile/points.ts POINTS (points v2).
+        XCTAssertEqual(byKind, ["collect": 5, "rate": 5, "rateNote": 5, "helpful": 2, "recipeBrewed": 3,
+                                "experience": 5, "recipe": 20, "streak7": 25])
     }
 }

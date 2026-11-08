@@ -21,7 +21,9 @@ final class GrinderGuideTests: XCTestCase {
 
     func testConversionNeedsVerifiedMicrons() throws {
         let plan = BrewPlan(preset: BrewPreset.all[0])
-        XCTAssertNil(plan.approximateClicks(on: try grinder(#""adjustment":"clicks","micronsPerStep":30"#)), "presets carry no microns")
+        // A preset records no microns; its grind level's middle (medium-fine → 625 µm) stands in, as a suggestion.
+        XCTAssertEqual(plan.approximateClicks(on: try grinder(#""adjustment":"clicks","micronsPerStep":30"#)), 21)
+        XCTAssertNil(plan.approximateClicks(on: try grinder(#""adjustment":"clicks","micronsPerStep":null"#)), "no published step, no number")
         let json = #"{"id":"r","clientId":"c","title":"t","methodCode":"V60","temperature":"hot","lot":null,"doseGrams":15,"hotWaterGrams":250,"iceGrams":null,"yieldGrams":null,"waterTempC":94,"grinder":"","grindSetting":"","grindMicrons":720,"notes":"","steps":[],"version":1,"state":"published","authorName":"م","isMine":true}"#
         let recipePlan = BrewPlan(recipe: try JSONDecoder().decode(RemoteRecipe.self, from: Data(json.utf8)))
         XCTAssertEqual(recipePlan.approximateClicks(on: try grinder(#""adjustment":"clicks","micronsPerStep":30"#)), 24)
