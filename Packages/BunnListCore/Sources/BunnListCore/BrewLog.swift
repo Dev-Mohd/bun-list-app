@@ -77,7 +77,8 @@ extension BrewPlan {
         switch source {
         case .mine: return "mine"
         case .community: return "community"
-        case .base: return "base"
+        // The server knows mine/community/base; a roaster's or champion's recipe ships with the coffee or the app.
+        case .base, .roaster, .champion: return "base"
         }
     }
 }

@@ -1,9 +1,10 @@
 import BunnListCore
 import SwiftUI
 
-/// «حضّر»: pick the coffee (the last one you brewed first) and the method, take a
-/// recipe (yours, then the community's for this coffee, then a BunnList starting
-/// recipe, always saying which), set the grind, brew with the timer, and optionally
+/// «حضّر»: pick the coffee (the last one you brewed first) and the method, then a
+/// recipe from the tabs (★ for this coffee: the roaster's and the community's; BunnList's
+/// starting and champion recipes; yours; the community's), swipe between them, set how
+/// many cups (everything scales), set the grind, brew with the timer, and optionally
 /// note how it came out. «آخر مرة» brings back your last brew of this coffee and
 /// method with one change to try. Scanning lives in search and the scan buttons now.
 @MainActor
@@ -21,8 +22,12 @@ struct BrewView: View {
     @State private var coffees: [RemoteCollectionItem]?
     @State private var failed = false
     @State private var selectedSlug: String?
-    @State private var plans: [BrewPlan]?
+    @State private var groups: BrewPlanner.Groups?
+    @State private var tab: BrewPlanner.Groups.Tab = .bunnlist
     @State private var selectedPlanID: String?
+    /// The card showing in the swipeable row; selecting follows it.
+    @State private var pageID: String?
+    @State private var cups = 1
     @State private var memory: BrewMemory?
     @State private var grindSetting = ""
     @State private var session: BrewSessionRef?
@@ -39,7 +44,9 @@ struct BrewView: View {
 
     private var recent: [String] { recentRaw.split(separator: ",").map(String.init) }
     private var selected: RemoteCollectionItem? { coffees?.first { $0.slug == selectedSlug } }
-    private var plan: BrewPlan? { plans?.first { $0.id == selectedPlanID } ?? plans?.first }
+    private var basePlan: BrewPlan? { groups?.all.first { $0.id == selectedPlanID } ?? groups?.plans(tab).first }
+    /// The selected recipe at the chosen number of cups: what gets brewed and logged.
+    private var plan: BrewPlan? { basePlan?.scaled(toCups: cups) }
     private var guideGrinder: RemoteGrinder? { grinders.grinder(myGuideGrinderID) }
 
     var body: some View {
@@ -50,7 +57,7 @@ struct BrewView: View {
             .safeAreaInset(edge: .bottom) { if auth.isSignedIn { startButton } }
             .background(Brand.background.ignoresSafeArea())
             .brandScreen()
-            .navigationTitle("حضّر")
+            .navigationTitle("وش بتحضّر؟")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showScan = true } label: { Image(systemName: "camera.viewfinder") }
@@ -129,7 +136,6 @@ struct BrewView: View {
 
     private var coffeeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("وش بتحضّر؟").font(.title3.bold()).padding(.horizontal)
             if let coffees {
                 if coffees.isEmpty {
                     emptyCollection
@@ -231,24 +237,98 @@ struct BrewView: View {
     private var recipeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let memory { LastBrewCard(memory: memory).padding(.horizontal) }
-            Text("الوصفة").font(.title3.bold()).padding(.horizontal)
-            if let plans {
-                VStack(spacing: 10) {
-                    ForEach(plans) { option in
-                        PlanCard(plan: option, isSelected: option.id == plan?.id,
-                                 guideGrinder: guideGrinder, legacyGrinder: Grinder.find(myGrinderID)) {
-                            selectedPlanID = option.id
-                            if memory?.startingSetting(grinderId: guideGrinder?.id) == nil { grindSetting = suggestedSetting(for: option) }
-                        }
-                    }
+            HStack(alignment: .firstTextBaseline) {
+                Text("الوصفة").font(.title3.bold())
+                Spacer()
+                if (groups?.plans(tab).count ?? 0) > 1 {
+                    Label("اسحب لوصفات ثانية", systemImage: "hand.draw").font(.caption).foregroundStyle(Brand.olive)
                 }
-                .padding(.horizontal)
-                GrindRow(grinder: guideGrinder, setting: $grindSetting) { showGrinder = true }
+            }
+            .padding(.horizontal)
+            if let groups {
+                recipeTabs(groups)
+                recipeCards(groups.plans(tab))
+                GrindRow(grinder: guideGrinder, setting: $grindSetting, hint: basePlan?.grindText ?? "") { showGrinder = true }
                     .padding(.horizontal)
             } else {
                 HStack { Spacer(); ProgressView(); Spacer() }.padding(.vertical, 20)
             }
         }
+    }
+
+    private func recipeTabs(_ groups: BrewPlanner.Groups) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(groups.tabs, id: \.self) { t in
+                    let on = t == tab
+                    let gold = t == .forCoffee
+                    Button { select(tab: t) } label: {
+                        Text("\(t.titleAr) \(groups.plans(t).count.formatted())")
+                            .font(.caption.bold())
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(on ? (gold ? Brand.gold : Brand.ink) : (gold ? Brand.gold.opacity(0.15) : Color(.secondarySystemGroupedBackground)),
+                                        in: Capsule())
+                            .foregroundStyle(on ? Brand.background : (gold ? Brand.gold : Brand.ink))
+                    }
+                    .buttonStyle(.plain)
+                    .sensoryFeedback(.selection, trigger: on)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func recipeCards(_ options: [BrewPlan]) -> some View {
+        VStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(options) { option in
+                        let isSelected = option.id == basePlan?.id
+                        PlanCard(plan: isSelected ? option.scaled(toCups: cups) : option, base: option, isSelected: isSelected,
+                                 cups: isSelected ? cups : option.baseCups,
+                                 guideGrinder: guideGrinder, legacyGrinder: Grinder.find(myGrinderID),
+                                 onCups: { cups = $0 }) {
+                            withAnimation(.snappy) { pageID = option.id }
+                        }
+                        .containerRelativeFrame(.horizontal)
+                        .id(option.id)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $pageID)
+            .onChange(of: pageID) { _, id in
+                guard let id, id != selectedPlanID else { return }
+                selectPlan(id)
+            }
+            if options.count > 1 {
+                HStack(spacing: 5) {
+                    ForEach(options) { option in
+                        Capsule().fill(option.id == basePlan?.id ? Brand.olive : Color.secondary.opacity(0.3))
+                            .frame(width: option.id == basePlan?.id ? 16 : 6, height: 6)
+                    }
+                }
+                .animation(.snappy, value: basePlan?.id)
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func select(tab t: BrewPlanner.Groups.Tab) {
+        tab = t
+        guard let first = groups?.plans(t).first else { return }
+        selectPlan(first.id)
+        pageID = first.id
+    }
+
+    /// Picks a recipe: back to its own number of cups, and its suggested grind unless last time's is kept.
+    private func selectPlan(_ id: String) {
+        selectedPlanID = id
+        guard let option = groups?.all.first(where: { $0.id == id }) else { return }
+        cups = option.baseCups
+        if memory?.startingSetting(grinderId: guideGrinder?.id) == nil { grindSetting = suggestedSetting(for: option) }
     }
 
     /// Recipes and the grind converter (they used to sit on the home).
@@ -323,21 +403,31 @@ struct BrewView: View {
 
     private func loadPlans() async {
         guard let slug = selectedSlug else { return }
-        plans = nil
+        groups = nil
         selectedPlanID = nil
+        pageID = nil
         memory = nil
         let mine = (try? await auth.withToken { try await client.fetchMyRecipes(accessToken: $0) }) ?? []
-        let community = (try? await auth.withOptionalToken { try await client.exploreRecipes(lotSlug: slug, accessToken: $0) }) ?? []
+        let lotCommunity = (try? await auth.withOptionalToken { try await client.exploreRecipes(lotSlug: slug, accessToken: $0) }) ?? []
+        let methodCommunity = (try? await auth.withOptionalToken { try await client.exploreRecipes(accessToken: $0) }) ?? []
+        let detail = try? await client.fetchLotDetail(slug: slug)
         let history = (try? await auth.withToken { try await client.fetchMyExperiences(slug: slug, accessToken: $0) }) ?? []
         guard slug == selectedSlug else { return }
-        let options = BrewPlanner.options(methodCode: method, lotSlug: slug, mine: mine, community: community)
+        let found = BrewPlanner.groups(methodCode: method, lotSlug: slug, roasterName: detail?.roasterNameAr ?? selected?.roasterNameAr ?? "المحمصة",
+                                       roasterRecipes: detail?.roasterRecipes ?? [], mine: mine,
+                                       lotCommunity: lotCommunity, methodCommunity: methodCommunity)
         let last = BrewMemory.latest(history, methodCode: method, grinder: guideGrinder)
-        plans = options
+        groups = found
         memory = last
-        // Last time's recipe leads again when it's still on offer.
-        selectedPlanID = options.first { $0.id == last?.log.recipeId }?.id ?? options.first?.id
+        // Last time's recipe leads again when it's still on offer; otherwise this coffee's own, else BunnList's.
+        let lastID = found.all.first { $0.id == last?.log.recipeId }?.id
+        tab = found.tab(of: lastID) ?? found.defaultTab
+        let id = lastID ?? found.plans(tab).first?.id
+        selectedPlanID = id
+        pageID = id
+        cups = found.all.first { $0.id == id }?.baseCups ?? 1
         grindSetting = last?.startingSetting(grinderId: guideGrinder?.id)
-            ?? options.first { $0.id == selectedPlanID }.map(suggestedSetting(for:)) ?? ""
+            ?? found.all.first { $0.id == id }.map(suggestedSetting(for:)) ?? ""
     }
 
     /// Your grinder's approximate clicks for the recipe, when known.
@@ -422,6 +512,8 @@ private struct LastBrewCard: View {
 private struct GrindRow: View {
     let grinder: RemoteGrinder?
     @Binding var setting: String
+    /// The recipe's grind in words, shown as the suggestion when there's no number yet.
+    var hint: String = ""
     var chooseGrinder: () -> Void
 
     private var counts: Bool { grinder?.adjustment == "clicks" || grinder?.adjustment == "stepped" }
@@ -450,7 +542,8 @@ private struct GrindRow: View {
                 .environment(\.layoutDirection, .leftToRight)
                 .frame(maxWidth: .infinity)
             } else {
-                TextField(grinder == nil ? "مثلًا: ٢٢ كليك أو متوسط ناعم" : "رقمك على المطحنة", text: $setting)
+                TextField(hint.isEmpty ? (grinder == nil ? "مثلًا: ٢٢ كليك أو متوسط ناعم" : "رقمك على المطحنة") : "مقترح: \(hint)",
+                          text: $setting)
                     .textFieldStyle(.roundedBorder)
             }
             Text("نحفظها مع التجربة عشان المرة الجاية نبدأ منها.").font(.caption2).foregroundStyle(.secondary)
@@ -477,11 +570,17 @@ private struct GrindRow: View {
 /// One recipe option: where it's from, the numbers, and the grind (with your
 /// grinder's approximate clicks when both are known).
 private struct PlanCard: View {
+    /// The recipe at the chosen cups (what the numbers show).
     let plan: BrewPlan
+    /// As written, for the cups stepper's range.
+    let base: BrewPlan
     let isSelected: Bool
+    let cups: Int
     let guideGrinder: RemoteGrinder?
     let legacyGrinder: Grinder?
+    var onCups: (Int) -> Void
     var onSelect: () -> Void
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Button(action: onSelect) {
@@ -497,6 +596,7 @@ private struct PlanCard: View {
                     .foregroundStyle(sourceColor)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(sourceColor.opacity(0.12), in: Capsule())
+                if isSelected, base.scalesByCups { cupsRow }
                 HStack(spacing: 8) {
                     fact(RecipeText.number(plan.doseGrams) + "غ", "بن")
                     if plan.isEspresso {
@@ -505,7 +605,7 @@ private struct PlanCard: View {
                         fact(RecipeText.number(plan.hotWaterGrams) + "غ", "ماء")
                     }
                     fact(RecipeText.number(plan.waterTempC) + "°", "حرارة")
-                    if plan.usesTimer, plan.totalSeconds > 0 { fact(RecipeText.duration(plan.totalSeconds), "وقت") }
+                    if plan.usesTimer, plan.totalSeconds > 0 { fact(RecipeText.minutes(plan.totalSeconds), "وقت") }
                 }
                 if !plan.grindText.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
@@ -517,10 +617,19 @@ private struct PlanCard: View {
                     }
                     .foregroundStyle(.secondary)
                 }
+                if let credit = plan.credit, let url = URL(string: credit.sourceURL) {
+                    Button { openURL(url) } label: {
+                        Label(credit.advanced ? "متقدمة · المصدر المنشور" : "المصدر المنشور", systemImage: "link")
+                            .font(.caption2.bold())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Brand.gold)
+                }
             }
             .padding(14)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(isSelected ? Brand.olive : .clear, lineWidth: 2))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardFill, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(isSelected ? strokeColor : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -536,9 +645,53 @@ private struct PlanCard: View {
     private var sourceColor: Color {
         switch plan.source {
         case .mine: return Brand.olive
-        case .community: return Brand.gold
+        case .community, .roaster, .champion: return Brand.gold
         case .base: return Brand.brown
         }
+    }
+
+    /// This coffee's roaster recipe stands out in gold, as do champions'.
+    private var isGold: Bool {
+        switch plan.source {
+        case .roaster, .champion: return true
+        default: return false
+        }
+    }
+    private var strokeColor: Color { isGold ? Brand.gold : Brand.olive }
+    private var cardFill: AnyShapeStyle {
+        isGold ? AnyShapeStyle(LinearGradient(colors: [Color(.secondarySystemGroupedBackground), Brand.gold.opacity(0.08)],
+                                              startPoint: .top, endPoint: .bottom))
+               : AnyShapeStyle(Color(.secondarySystemGroupedBackground))
+    }
+
+    /// «كم كوب؟»: coffee, water and every pour follow the count; the strength stays.
+    private var cupsRow: some View {
+        HStack {
+            Text(base.cupNameAr == "فنجان" ? "كم فنجان؟" : "كم كوب؟").font(.subheadline.bold())
+            Spacer()
+            HStack(spacing: 14) {
+                cupButton("minus", cups - 1, enabled: cups > 1)
+                Text(cups.formatted()).font(.title3.bold().monospacedDigit()).frame(minWidth: 26)
+                cupButton("plus", cups + 1, enabled: cups < base.maxCups)
+            }
+            .environment(\.layoutDirection, .leftToRight)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(Brand.background, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func cupButton(_ symbol: String, _ value: Int, enabled: Bool) -> some View {
+        Button { onCups(value) } label: {
+            Image(systemName: symbol).font(.headline)
+                .frame(width: 34, height: 34)
+                .background(symbol == "plus" ? Brand.olive : Color.secondary.opacity(0.15), in: Circle())
+                .foregroundStyle(symbol == "plus" ? Brand.background : Brand.ink)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+        .sensoryFeedback(.selection, trigger: cups)
+        .accessibilityLabel(symbol == "plus" ? "كوب زيادة" : "كوب أقل")
     }
 
     private func fact(_ value: String, _ label: String) -> some View {

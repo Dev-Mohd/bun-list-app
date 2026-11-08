@@ -22,6 +22,18 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
     public let brewer: String
     public let filterType: FilterType?
     public let steps: [RemoteRecipeStep]
+    /// Set for a champion's published recipe: who, the title they won, and where it's published.
+    public var credit: Credit? = nil
+
+    /// A champion's recipe, credited to them with its published source.
+    public struct Credit: Equatable, Sendable {
+        public let author: String
+        /// "بطل العالم للإيروبرس 2024".
+        public let titleAr: String
+        public let sourceURL: String
+        /// Needs two servers or more steps than a beginner wants.
+        public var advanced: Bool = false
+    }
 
     public static func presets(for methodCode: String) -> [BrewPreset] { all.filter { $0.methodCode == methodCode } }
 
@@ -46,11 +58,13 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
                 .init(kind: .bloom, addedWaterGrams: 50, seconds: 45,
                       note: "أول ٤٠٪ تتحكم بالحلاوة والحموضة: صبة أولى أصغر = حموضة أوضح."),
                 .init(kind: .pour, addedWaterGrams: 70, seconds: 45, note: "أكمل حتى ١٢٠غ."),
-                .init(kind: .pour, addedWaterGrams: 60, seconds: 45,
-                      note: "الـ٦٠٪ الأخيرة تتحكم بالقوة: صبات أكثر = كوب أقوى."),
-                .init(kind: .pour, addedWaterGrams: 60, seconds: 45, note: "حتى ٢٤٠غ."),
-                .init(kind: .pour, addedWaterGrams: 60, seconds: 30, note: "حتى ٣٠٠غ، ثم اترك الماء ينزل. الهدف ٣:٣٠."),
-            ]),
+                .init(kind: .pour, addedWaterGrams: 60, seconds: 40,
+                      note: "الـ٦٠٪ الأخيرة تتحكم بالقوة، على ٣ صبات متساوية. حتى ١٨٠غ."),
+                .init(kind: .pour, addedWaterGrams: 60, seconds: 30, note: "حتى ٢٤٠غ."),
+                .init(kind: .pour, addedWaterGrams: 60, seconds: 50, note: "حتى ٣٠٠غ، وشيل القمع عند ٣:٣٠."),
+            ],
+            credit: .init(author: "Tetsu Kasuya", titleAr: "بطل العالم لتحضير القهوة 2016",
+                          sourceURL: "https://www.hario-europe.com/blogs/hario-community/v60-ambassadors-tetsu-kasuya")),
         BrewPreset(
             id: "v60-iced", nameAr: "المثلجة اليابانية", summaryAr: "صب على الثلج · ثلج ٣٧٪ · ١:١٦",
             methodCode: "V60", temperature: .iced, doseGrams: 20, hotWaterGrams: 200, iceGrams: 120, yieldGrams: nil,
@@ -128,6 +142,83 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
                 .init(kind: .wait, seconds: 120, note: "طفّ النار وخلّها تركد دقيقتين عشان ينزل البن تحت."),
                 .init(kind: .serve, seconds: 30, note: "صبّها بهدوء في الترمس أو المصفاة، وقدّمها بالفناجين مع التمر."),
             ]),
+    ] + champions
+
+    /// Champions' published recipes, restated from their own pages (numbers as published).
+    public static let champions: [BrewPreset] = [
+        BrewPreset(
+            id: "v60-hoffmann", nameAr: "Ultimate V60", summaryAr: "تشريب ودوّرة · ١:١٦٫٧ · ٣:٣٠",
+            methodCode: "V60", temperature: .hot, doseGrams: 30, hotWaterGrams: 500, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 100, grindAr: "متوسط إلى ناعم", grindLevel: .mediumFine, brewer: "V60 02", filterType: .paperWhite,
+            steps: [
+                .init(kind: .bloom, addedWaterGrams: 60, seconds: 45, note: "تشريب بضعف وزن البن، ودوّر القمع حتى يتبلل كله."),
+                .init(kind: .pour, addedWaterGrams: 240, seconds: 30, note: "صب حتى ٣٠٠غ خلال ٣٠ ثانية."),
+                .init(kind: .pour, addedWaterGrams: 200, seconds: 30, note: "صب حتى ٥٠٠غ خلال ٣٠ ثانية، أبطأ شوي."),
+                .init(kind: .stir, seconds: 10, note: "حرّك مرة مع عقارب الساعة ومرة عكسها، خله ينزل شوي، ودوّره بهدوء."),
+                .init(kind: .wait, seconds: 95, note: "خل الماء ينزل كله. الهدف يخلص عند ٣:٣٠."),
+            ],
+            credit: .init(author: "James Hoffmann", titleAr: "بطل العالم للباريستا 2007",
+                          sourceURL: "https://www.hario-usa.com/blogs/recipes-and-more-from-friends/james-hoffmann-uitimate-v60-technique")),
+        BrewPreset(
+            id: "aeropress-wac-2025", nameAr: "وصفة بطل الإيروبرس 2025", summaryAr: "١٠٠غ ماء على ٨٤° + ٧٠غ في السيرفر · ١:١٠",
+            methodCode: "AEROPRESS", temperature: .hot, doseGrams: 18, hotWaterGrams: 100, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 84, grindAr: "متوسط ناعم (Comandante 31 كليك، منخول على 200 ميكرون)", grindLevel: .mediumFine,
+            brewer: "AeroPress", filterType: .paperWhite,
+            steps: [
+                .init(kind: .pour, addedWaterGrams: 100, seconds: 25, note: "قبل: حط ٧٠غ ماء على ٥٠° في السيرفر. صب ١٠٠غ على ٨٤°."),
+                .init(kind: .stir, seconds: 25, note: "حرّك عند ٠:٢٥."),
+                .init(kind: .press, seconds: 20, note: "من ٠:٥٠ اضغط بهدوء حوالي ٢٠ ثانية فوق الماء اللي في السيرفر."),
+            ],
+            credit: .init(author: "Nemo Pop · أستراليا", titleAr: "بطل العالم للإيروبرس 2025",
+                          sourceURL: "https://worldaeropresschampionship.com/pages/recipes")),
+        BrewPreset(
+            id: "aeropress-wac-2024", nameAr: "وصفة بطل الإيروبرس 2024", summaryAr: "تشريب ثم نقع · ١:١٢٫٥ · ٢:١٠",
+            methodCode: "AEROPRESS", temperature: .hot, doseGrams: 18, hotWaterGrams: 225, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 93, grindAr: "متوسط (Comandante 25 كليك، حوالي 750 ميكرون)", grindLevel: .medium,
+            brewer: "AeroPress", filterType: .paperWhite,
+            steps: [
+                .init(kind: .bloom, addedWaterGrams: 50, seconds: 30, note: "ورقتين فلتر مبلولة. صب ٥٠غ وخله يتشرب ٣٠ ثانية."),
+                .init(kind: .pour, addedWaterGrams: 175, seconds: 10, note: "صب حتى ٢٢٥غ."),
+                .init(kind: .stir, seconds: 10, note: "حرّك بهدوء ١٠ ثواني في ٤ اتجاهات."),
+                .init(kind: .wait, seconds: 40, note: "انتظر لين ١:٣٠."),
+                .init(kind: .press, seconds: 40, note: "اضغط ببطء حوالي ٤٠ ثانية."),
+                .init(kind: .serve, seconds: 10, note: "خففها بـ١٥ إلى ٣٠غ ماء بحرارة الغرفة، وخلها تبرد ٢ إلى ٣ دقايق."),
+            ],
+            credit: .init(author: "George Stanica · رومانيا", titleAr: "بطل العالم للإيروبرس 2024",
+                          sourceURL: "https://aeropress.com/blogs/w-a-c-aeropress-recipes/1st-george-stanica-romania-2024")),
+        BrewPreset(
+            id: "aeropress-wac-2022", nameAr: "وصفة بطلة الإيروبرس 2022", summaryAr: "مركّزة ثم تخفيف لين ١٥٠غ · ٢:١٠",
+            methodCode: "AEROPRESS", temperature: .hot, doseGrams: 18, hotWaterGrams: 94, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 92, grindAr: "خشن، مع نخل الناعم (100 إلى 200 ميكرون)", grindLevel: .coarse,
+            brewer: "AeroPress", filterType: .paperWhite,
+            steps: [
+                .init(kind: .pour, addedWaterGrams: 94, seconds: 20, note: "قبل: حط ٢٠غ ماء بارد في السيرفر. صب ٩٤غ على ٩٢°."),
+                .init(kind: .stir, seconds: 10, note: "حرّك بهدوء ١٢ مرة."),
+                .init(kind: .wait, seconds: 60, note: "ركّب المكبس عند ١:٢٠، وانتظر لين ١:٣٠."),
+                .init(kind: .press, seconds: 40, note: "اضغط بهدوء."),
+                .init(kind: .serve, seconds: 10, note: "كمّل بماء ٩٠° لين ١٥٠غ."),
+            ],
+            credit: .init(author: "Jibbi Little · أستراليا", titleAr: "بطلة العالم للإيروبرس 2022",
+                          sourceURL: "https://aeropress.com/blogs/w-a-c-aeropress-recipes/1st-jibbi-little-australia-2022")),
+        BrewPreset(
+            id: "aeropress-wac-2023", nameAr: "وصفة بطل الإيروبرس 2023", summaryAr: "متقدمة · سيرفرين · ٢:٢٠",
+            methodCode: "AEROPRESS", temperature: .hot, doseGrams: 18, hotWaterGrams: 105, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 89, grindAr: "متوسط", grindLevel: .medium, brewer: "AeroPress", filterType: .paperWhite,
+            steps: [
+                .init(kind: .pour, addedWaterGrams: 55, seconds: 25, note: "٣ أوراق فلتر. ١٦غ بن في الحجرة، وصب ٥٥غ على ٨٩°."),
+                .init(kind: .stir, seconds: 5, note: "حرّك ٥ ثواني وركّب المكبس."),
+                .init(kind: .wait, seconds: 15, note: "انتظر لين ٠:٤٥."),
+                .init(kind: .press, seconds: 10, note: "اضغط ١٠ ثواني في سيرفر أول (حوالي ٣٥غ) وخله على جنب."),
+                .init(kind: .wait, seconds: 10, note: "انقل الجهاز لسيرفر ثاني وشيل المكبس."),
+                .init(kind: .pour, addedWaterGrams: 50, seconds: 25, note: "زد ٢غ بن، وصب ٥٠غ."),
+                .init(kind: .stir, seconds: 5, note: "حرّك ٥ ثواني، ورجّع خلاصة السيرفر الأول للحجرة."),
+                .init(kind: .wait, seconds: 35, note: "ركّب المكبس وانتظر لين ٢:١٠."),
+                .init(kind: .press, seconds: 10, note: "اضغط ١٠ ثواني (٨٠ إلى ٨٥غ)."),
+                .init(kind: .serve, seconds: 10, note: "ماء بحرارة الغرفة لين ١١٠غ، وبعدها ماء حار لين ١٥٤غ."),
+            ],
+            credit: .init(author: "Tay Wipvasutt · تايلند", titleAr: "بطل العالم للإيروبرس 2023",
+                          sourceURL: "https://aeropress.com/blogs/w-a-c-aeropress-recipes/1st-tay-wipvasutt-thailand-2023",
+                          advanced: true)),
     ]
 }
 

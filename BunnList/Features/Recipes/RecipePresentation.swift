@@ -72,6 +72,13 @@ enum RecipeText {
         String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
+    /// For «وقت» on recipe cards: "2:45 د", or whole minutes ("16 د") from ten minutes up.
+    static func minutes(_ seconds: Int) -> String {
+        if seconds >= 600 { return "\(Int((Double(seconds) / 60).rounded())) د" }
+        if seconds < 60 { return "\(seconds) ث" }
+        return duration(seconds) + " د"
+    }
+
     static func problem(_ problem: RecipeProblem) -> String {
         switch problem {
         case .missingTitle: return "أضف عنوانًا للوصفة"
