@@ -99,6 +99,9 @@ struct RootView: View {
     /// UI tests launch straight into the tabs, past the welcome gate.
     private var uiTesting: Bool { ProcessInfo.processInfo.arguments.contains("-uiTesting") }
 
+    /// Signed in, profile here, first-run setup not done on the server.
+    private var needsOnboarding: Bool { !uiTesting && auth.isSignedIn && profile.me.map { !$0.isOnboarded } == true }
+
     var body: some View {
         if !uiTesting && !auth.isSignedIn && !continuedAsGuest {
             WelcomeView(continuedAsGuest: $continuedAsGuest)
@@ -110,6 +113,12 @@ struct RootView: View {
             } actions: {
                 Button("إعادة المحاولة") { model.reload() }.buttonStyle(.borderedProminent)
             }
+        } else if needsOnboarding {
+            // First run in place of the tabs, not as a cover: signing in from a sheet (a guest tapping «سجّل
+            // دخولك» in Community, Brew or a roaster page) left the cover unable to present over that sheet, so
+            // new accounts skipped the profile and taste setup. Swapping the root also closes that sheet.
+            OnboardingFlow { }
+                .transition(.opacity)
         } else {
             TabView(selection: $tab) {
                 DiscoverView(tab: $tab)
@@ -136,14 +145,6 @@ struct RootView: View {
             }
             .animation(.easeInOut(duration: 0.3), value: profile.me == nil)
             .task(id: auth.isSignedIn) { await profile.refresh(auth) }
-            .fullScreenCover(isPresented: Binding(
-                get: { !uiTesting && auth.isSignedIn && profile.me.map { !$0.isOnboarded } == true },
-                set: { _ in }
-            )) {
-                OnboardingFlow { }
-                    .environmentObject(auth)
-                    .environmentObject(profile)
-            }
             .alert("تنبيه", isPresented: Binding(get: { model.errorMessage != nil },
                                                  set: { if !$0 { model.errorMessage = nil } })) {
                 Button("حسنًا", role: .cancel) { model.errorMessage = nil }
