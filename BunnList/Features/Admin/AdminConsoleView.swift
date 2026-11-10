@@ -128,6 +128,9 @@ struct AdminConsoleView: View {
             NavigationLink { AdminBroadcastView() } label: {
                 row("إرسال إشعار", detail: "للكل أو للنشطين، مع تجربة على جوالك", icon: "megaphone.fill", count: nil)
             }
+            NavigationLink { AdminSiteClicksView() } label: {
+                row("تحميلات الموقع", detail: "كم ضغطة على أزرار التحميل، حسب الجهاز والزر واليوم", icon: "arrow.down.circle.fill", count: nil)
+            }
         }
         .buttonStyle(.plain)
     }
