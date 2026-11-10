@@ -30,6 +30,7 @@ struct EspressoShotView: View {
     @State private var startedAt: Date?
     @State private var stoppedAt: TimeInterval?
     @State private var now = Date()
+    @State private var prepDone = Set<Int>()
     private let tick = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
     /// The recipe's own shot time ± 3 s, or the usual espresso window.
@@ -46,12 +47,16 @@ struct EspressoShotView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 26) {
+            ScrollView {
+            VStack(spacing: 22) {
                 VStack(spacing: 4) {
                     Text(plan.title).font(.title3.bold())
-                    Text("\(RecipeText.number(plan.doseGrams))غ بن ← \(RecipeText.number(plan.yieldGrams))غ في الكوب")
+                    Text("\(RecipeText.number(plan.doseGrams))غ بن ← \(RecipeText.number(plan.yieldGrams))غ في الكوب"
+                         + (plan.milkDrink != nil ? " + \(RecipeText.number(plan.milkGrams))غ حليب" : ""))
                         .font(.subheadline).foregroundStyle(.white.opacity(0.7))
                 }
+                // Before the shot: getting the puck ready, as a list to tick through.
+                if startedAt == nil, stoppedAt == nil, !plan.prepAr.isEmpty { prep }
                 TimelineView(.animation) { context in
                     let pulled = stoppedAt ?? startedAt.map { context.date.timeIntervalSince($0) } ?? 0
                     VStack(spacing: 10) {
@@ -65,10 +70,15 @@ struct EspressoShotView: View {
                     .environment(\.layoutDirection, .leftToRight)
                 }
                 result
-                Spacer(minLength: 0)
-                controls
+                // After the shot (and to read ahead): the milk for this drink.
+                if let drink = plan.milkDrink {
+                    MilkGuideCard(drink: drink, milkGrams: plan.milkGrams, onDark: true)
+                        .environment(\.layoutDirection, .rightToLeft)
+                }
             }
             .padding()
+            }
+            .safeAreaInset(edge: .bottom) { controls.padding(.horizontal).padding(.vertical, 10).background(Color.black) }
             .background(Color.black.ignoresSafeArea())
             .foregroundStyle(.white)
             .toolbar {
@@ -81,6 +91,29 @@ struct EspressoShotView: View {
         .onReceive(tick) { if startedAt != nil && stoppedAt == nil { now = $0 } }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+    }
+
+    private var prep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("قبل الاستخلاص").font(.subheadline.bold())
+            ForEach(Array(plan.prepAr.enumerated()), id: \.offset) { i, step in
+                Button {
+                    if prepDone.contains(i) { prepDone.remove(i) } else { prepDone.insert(i) }
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: prepDone.contains(i) ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(prepDone.contains(i) ? Brand.gold : .white.opacity(0.5))
+                        Text(step).font(.footnote).foregroundStyle(.white.opacity(prepDone.contains(i) ? 0.5 : 0.85))
+                            .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
     }
 
     /// 0–40 s, the target window shaded, a marker at the shot's time.
@@ -188,7 +221,11 @@ struct ChecklistBrewView: View {
                                 Image(systemName: done.contains(index) ? "checkmark.circle.fill" : "circle")
                                     .font(.title3).foregroundStyle(done.contains(index) ? Brand.olive : .secondary)
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(RecipeText.stepKind(step.kind)).font(.headline)
+                                    Text(step.isAddition ? step.titleAr : RecipeText.stepKind(step.kind)).font(.headline)
+                                    if let grams = step.addedWaterGrams, grams > 0 {
+                                        Text(step.addition == "ice" ? "\(RecipeText.number(grams))غ ثلج" : "\(RecipeText.number(grams))غ ماء")
+                                            .font(.subheadline.weight(.semibold)).foregroundStyle(Brand.olive)
+                                    }
                                     if !step.note.isEmpty { Text(step.note).font(.callout).foregroundStyle(.secondary) }
                                 }
                             }

@@ -68,7 +68,7 @@ struct AdvisorFlow: View {
                 switch phase {
                 case .asking: asking
                 case .loading: AdvisorLoading()
-                case let .result(result): AdvisorResults(result: result, addTo: { addTo = $0 }, restart: restart)
+                case let .result(result): AdvisorResults(result: result, milkDrink: answers.milkPreset?.milkDrink, addTo: { addTo = $0 }, restart: restart)
                 case .failed:
                     ContentUnavailableView {
                         Label("ما قدرنا نختار الحين", systemImage: "wifi.exclamationmark")
@@ -126,31 +126,42 @@ struct AdvisorFlow: View {
         case .mood:
             question("وش جوّك اليوم؟", "على حسب جوّك نختار") {
                 optionGrid([
-                    ("☀️", "أبي أصحصح", "قوية ومنعشة", AdvisorAnswers.Mood.wake),
-                    ("🛋️", "روقان", "أبي أهدأ", .calm),
-                    ("👥", "عندي ضيوف", "ترضي الكل", .guests),
-                    ("🧭", "شي جديد", "فاجئني", .new),
+                    (emoji("☀️"), "أبي أصحصح", "قوية ومنعشة", AdvisorAnswers.Mood.wake),
+                    (emoji("🛋️"), "روقان", "أبي أهدأ", .calm),
+                    (emoji("👥"), "عندي ضيوف", "ترضي الكل", .guests),
+                    (emoji("🧭"), "شي جديد", "فاجئني", .new),
                 ], selected: answers.mood) { answers.mood = $0; advance() }
             }
         case .method:
             question("وش بتستخدم؟", "نختار اللي تطلع حلوة فيه") {
                 optionGrid([
-                    ("💧", "V60", nil, AdvisorAnswers.Method.v60),
-                    ("☕", "إسبريسو", nil, .espresso),
-                    ("⚗️", "كيمكس", nil, .chemex),
-                    ("🫖", "فرنش برس", nil, .frenchPress),
+                    (icon(.v60), "V60", nil, AdvisorAnswers.Method.v60),
+                    (icon(.espresso), "إسبريسو", nil, .espresso),
+                    (icon(.chemex), "كيمكس", nil, .chemex),
+                    (icon(.frenchPress), "فرنش برس", nil, .frenchPress),
                 ], selected: answers.method) { method in
                     answers.method = method
-                    if method != .espresso { answers.milk = nil }
+                    if method != .espresso { answers.milk = nil; answers.milkDrink = nil }
                     advance()
                 }
             }
         case .milk:
             question("تشربها مع حليب؟", "لاتيه، كورتادو، فلات وايت…") {
                 optionGrid([
-                    ("🥛", "إيه، مع حليب", "نختار اللي تحلى معه", true),
-                    ("☕", "لا، سادة", "إسبريسو صافي", false),
-                ], selected: answers.milk) { answers.milk = $0; advance() }
+                    (icon(.milk), "إيه، مع حليب", "نختار اللي تحلى معه", true),
+                    (icon(.black), "لا، سادة", "إسبريسو صافي", false),
+                ], selected: answers.milk) { milk in
+                    answers.milk = milk
+                    if !milk { answers.milkDrink = nil }
+                    advance()
+                }
+            }
+        case .milkDrink:
+            question("أي مشروب؟", "نعطيك وصفته وكمية الحليب مع النتيجة") {
+                optionGrid(AdvisorAnswers.milkDrinks.map { drink in
+                    (AnyView(MilkDrinkGlass(drink: drink, size: 60)), drink.nameAr,
+                     Optional("\(Int(drink.typicalMilkGrams))غ حليب · كوب \(drink.cupMl) مل"), drink)
+                }, selected: answers.milkDrink) { answers.milkDrink = $0; advance() }
             }
         case .flavors:
             question("وش يشدّك في الطعم؟", "اختر اللي تبي، أو تخطّ") {
@@ -161,8 +172,8 @@ struct AdvisorFlow: View {
         case .serve:
             question("حار ولا بارد؟", nil) {
                 HStack(spacing: 12) {
-                    serveHalf("☕", "حار", .hot, [Color(red: 0.96, green: 0.84, blue: 0.72), Color(red: 0.91, green: 0.66, blue: 0.43)], Color(red: 0.35, green: 0.18, blue: 0.07))
-                    serveHalf("🧊", "بارد", .iced, [Color(red: 0.86, green: 0.93, blue: 0.95), Color(red: 0.61, green: 0.78, blue: 0.85)], Color(red: 0.09, green: 0.23, blue: 0.29))
+                    serveHalf(.hot, "حار", .hot, [Color(red: 0.96, green: 0.84, blue: 0.72), Color(red: 0.91, green: 0.66, blue: 0.43)], Color(red: 0.35, green: 0.18, blue: 0.07))
+                    serveHalf(.iced, "بارد", .iced, [Color(red: 0.86, green: 0.93, blue: 0.95), Color(red: 0.61, green: 0.78, blue: 0.85)], Color(red: 0.09, green: 0.23, blue: 0.29))
                 }
                 .frame(height: 300)
             }
@@ -195,7 +206,10 @@ struct AdvisorFlow: View {
         .padding(.top, 8)
     }
 
-    private func optionGrid<T: Equatable>(_ items: [(String, String, String?, T)], selected: T?, pick: @escaping (T) -> Void) -> some View {
+    private func emoji(_ text: String) -> AnyView { AnyView(Text(text).font(.system(size: 40))) }
+    private func icon(_ kind: BrewIcon.Kind) -> AnyView { AnyView(BrewIcon(kind: kind, size: 60)) }
+
+    private func optionGrid<T: Equatable>(_ items: [(AnyView, String, String?, T)], selected: T?, pick: @escaping (T) -> Void) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 let on = selected == item.3
@@ -204,9 +218,9 @@ struct AdvisorFlow: View {
                     pick(item.3)
                 } label: {
                     VStack(spacing: 6) {
-                        Text(item.0).font(.system(size: 40)).scaleEffect(on ? 1.18 : 1).rotationEffect(.degrees(on ? -6 : 0))
+                        item.0.scaleEffect(on ? 1.18 : 1).rotationEffect(.degrees(on ? -6 : 0))
                         Text(item.1).font(.headline).foregroundStyle(Brand.ink)
-                        if let sub = item.2 { Text(sub).font(.caption).foregroundStyle(.secondary) }
+                        if let sub = item.2 { Text(sub).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center) }
                     }
                     .frame(maxWidth: .infinity, minHeight: 130)
                     .background(on ? Brand.olive.opacity(0.12) : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
@@ -220,7 +234,7 @@ struct AdvisorFlow: View {
         }
     }
 
-    private func serveHalf(_ emoji: String, _ label: String, _ serve: AdvisorAnswers.Serve, _ colors: [Color], _ ink: Color) -> some View {
+    private func serveHalf(_ kind: BrewIcon.Kind, _ label: String, _ serve: AdvisorAnswers.Serve, _ colors: [Color], _ ink: Color) -> some View {
         let on = answers.serve == serve
         let dim = answers.serve != nil && !on
         return Button {
@@ -229,7 +243,7 @@ struct AdvisorFlow: View {
             advance()
         } label: {
             VStack(spacing: 8) {
-                Text(emoji).font(.system(size: 72))
+                BrewIcon(kind: kind, size: 96)
                 Text(label).font(.title2.bold()).foregroundStyle(ink)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -432,6 +446,8 @@ private struct AdvisorLoading: View {
 
 private struct AdvisorResults: View {
     let result: RemoteAdvisorResult
+    /// The milk drink picked on the way, to show its recipe with the coffees.
+    var milkDrink: MilkDrink? = nil
     var addTo: (RemoteLot) -> Void
     var restart: () -> Void
 
@@ -461,6 +477,16 @@ private struct AdvisorResults: View {
                     .buttonStyle(.plain)
                     .opacity(shown > i ? 1 : 0)
                     .offset(y: shown > i ? 0 : 40)
+                }
+                if let milkDrink {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("وصفة مشروبك").font(.headline).foregroundStyle(Brand.ink)
+                        MilkGuideCard(drink: milkDrink)
+                        Text("تلقاها في «حضّر» ← إسبريسو ← وصفات BunnList، مع مؤقّت الشوت.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
                 }
                 Button(action: restart) {
                     Label("جرّب أسئلة ثانية", systemImage: "arrow.counterclockwise")

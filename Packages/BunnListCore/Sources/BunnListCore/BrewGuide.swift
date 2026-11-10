@@ -24,6 +24,10 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
     public let steps: [RemoteRecipeStep]
     /// Set for a champion's published recipe: who, the title they won, and where it's published.
     public var credit: Credit? = nil
+    /// An espresso drink with milk: which one. The amount, cup and steaming come from the drink.
+    public var milkDrink: MilkDrink? = nil
+    /// What to do before brewing, in order (espresso: weigh, grind, distribute, tamp…).
+    public var prepAr: [String] = []
 
     /// A champion's recipe, credited to them with its published source.
     public struct Credit: Equatable, Sendable {
@@ -36,6 +40,29 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
     }
 
     public static func presets(for methodCode: String) -> [BrewPreset] { all.filter { $0.methodCode == methodCode } }
+
+    /// Getting the puck ready, the same for every espresso drink.
+    static let espressoPrep = [
+        "سخّن المكينة والبورتافلتر والكوب.",
+        "وزّن ١٨غ بن واطحنه ناعم، قبل الاستخلاص مباشرة.",
+        "وزّع البن في السلة بالتساوي (بإبرة التوزيع أو بطرق خفيف على الجنب).",
+        "دكّه دكّة وحدة مستوية وثابتة، وامسح حافة السلة.",
+        "نظّف رأس المكينة بنفضة ماء، وركّب البورتافلتر وابدأ على طول.",
+    ]
+
+    static let espressoShot = RemoteRecipeStep(
+        kind: .serve, seconds: 28,
+        note: "الهدف ٣٦غ في ٢٥–٣٠ ثانية. طلع أسرع؟ نعّم الطحنة. أبطأ؟ خشّنها. غيّر شي واحد كل مرة.")
+
+    /// An espresso drink with milk: the same double shot, then the drink's own milk.
+    static func milk(_ drink: MilkDrink) -> BrewPreset {
+        BrewPreset(
+            id: "espresso-" + drink.rawValue.lowercased(), nameAr: drink.nameAr,
+            summaryAr: "شوت دبل ٣٦غ + \(Int(drink.typicalMilkGrams))غ حليب · كوب \(drink.cupMl) مل",
+            methodCode: "ESPRESSO", temperature: .hot, doseGrams: 18, hotWaterGrams: nil, iceGrams: nil, yieldGrams: 36,
+            waterTempC: 93, grindAr: "ناعم", grindLevel: .extraFine, brewer: "سلة ١٨غ", filterType: nil,
+            steps: [espressoShot], milkDrink: drink, prepAr: espressoPrep)
+    }
 
     public static let all: [BrewPreset] = [
         BrewPreset(
@@ -114,19 +141,32 @@ public struct BrewPreset: Equatable, Identifiable, Sendable {
             id: "espresso-classic", nameAr: "إسبريسو ١:٢", summaryAr: "١٨غ ← ٣٦غ في ٢٥–٣٠ ثانية",
             methodCode: "ESPRESSO", temperature: .hot, doseGrams: 18, hotWaterGrams: nil, iceGrams: nil, yieldGrams: 36,
             waterTempC: 93, grindAr: "ناعم", grindLevel: .extraFine, brewer: "سلة ١٨غ", filterType: nil,
-            steps: [
-                .init(kind: .serve, seconds: 28,
-                      note: "وزّع البن ودكّه بثبات. الهدف ٣٦غ في ٢٥–٣٠ ثانية: أسرع = نعّم الطحنة، أبطأ = خشّنها."),
-            ]),
+            steps: [espressoShot], prepAr: espressoPrep),
+        milk(.cortado), milk(.flatWhite), milk(.cappuccino), milk(.latte),
         BrewPreset(
             id: "cold-brew", nameAr: "كولد برو مركّز", summaryAr: "١:١٠ · نقع ١٢–١٦ ساعة · يُخفف ١:١",
             methodCode: "COLD_BREW", temperature: .iced, doseGrams: 100, hotWaterGrams: 1000, iceGrams: nil, yieldGrams: nil,
             waterTempC: 20, grindAr: "خشن جدًا", grindLevel: .extraCoarse, brewer: "مرطبان", filterType: .cloth,
             steps: [
-                .init(kind: .pour, addedWaterGrams: 1000, seconds: 60,
-                      note: "صب ماء بحرارة الغرفة وحرّك حتى يتبلل كل البن."),
-                .init(kind: .wait, note: "غطّها وانقعها ١٢–١٦ ساعة في الثلاجة."),
-                .init(kind: .serve, note: "صفّها بفلتر ورقي، وخففها بالماء أو الحليب ١:١ وقدّمها على ثلج."),
+                .init(kind: .pour, addedWaterGrams: 200, seconds: 30,
+                      note: "حط البن في المرطبان وصب ٢٠٠غ ماء بحرارة الغرفة، وحرّك لين يتبلل كله."),
+                .init(kind: .pour, addedWaterGrams: 800, seconds: 30, note: "كمّل الماء لين ١٠٠٠غ، وحرّك مرة وحدة بهدوء."),
+                .init(kind: .wait, note: "غطّه وحطه في الثلاجة ١٢–١٦ ساعة. أقل من ١٢ يطلع خفيف، وأكثر من ١٨ يطلع مرّ."),
+                .init(kind: .serve, note: "صفّه بقماش أو مصفاة ثم بفلتر ورقي، بدون ما تعصر البن."),
+                .init(kind: .serve, addedWaterGrams: 100, note: "للكوب: ١٠٠غ مركّز + ١٠٠غ ماء بارد أو حليب.", addition: "dilute", additionTemp: "cold"),
+                .init(kind: .serve, addedWaterGrams: 80, note: "أضف ثلج وقدّمه. المركّز يقعد في الثلاجة لين أسبوعين.", addition: "ice"),
+            ]),
+        BrewPreset(
+            id: "cold-brew-ready", nameAr: "كولد برو جاهز للشرب", summaryAr: "١:١٢ · نقع ١٤–١٨ ساعة · بدون تخفيف",
+            methodCode: "COLD_BREW", temperature: .iced, doseGrams: 80, hotWaterGrams: 960, iceGrams: nil, yieldGrams: nil,
+            waterTempC: 20, grindAr: "خشن", grindLevel: .coarse, brewer: "مرطبان", filterType: .cloth,
+            steps: [
+                .init(kind: .pour, addedWaterGrams: 160, seconds: 30,
+                      note: "حط البن في المرطبان وصب ١٦٠غ ماء بحرارة الغرفة، وحرّك لين يتبلل كله."),
+                .init(kind: .pour, addedWaterGrams: 800, seconds: 30, note: "كمّل الماء لين ٩٦٠غ، وحرّك مرة وحدة بهدوء."),
+                .init(kind: .wait, note: "غطّه وحطه في الثلاجة ١٤–١٨ ساعة."),
+                .init(kind: .serve, note: "صفّه بقماش أو مصفاة ثم بفلتر ورقي، بدون ما تعصر البن."),
+                .init(kind: .serve, addedWaterGrams: 80, note: "صبّه على ثلج واشربه كذا، بدون تخفيف. يقعد في الثلاجة لين أسبوع.", addition: "ice"),
             ]),
         BrewPreset(
             id: "arabic-saudi", nameAr: "قهوة سعودية بالهيل", summaryAr: "دلة لتر · ٣٠غ بن شقراء · ١٠غ هيل · ١٥ دقيقة",

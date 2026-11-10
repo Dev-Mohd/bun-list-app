@@ -24,6 +24,7 @@ struct PublicProfileView<Extra: View>: View {
     @State private var shelf = CoffeeShelf.owned
     @State private var coffees: RemotePersonCoffees?
     @State private var coffeesHidden = false
+    @State private var coffeesFailed = false
     @State private var requests = 0
     @State private var confirmBlock = false
     /// Your own recipes, private ones too, on your own profile.
@@ -78,7 +79,9 @@ struct PublicProfileView<Extra: View>: View {
             Text("ما بتشوفون نشاط وتعليقات بعض، وتنلغي المتابعة بينكم. تقدر تلغي الحظر من الإعدادات.")
         }
         .task { if profile == nil { await load() } }
-        .task(id: "\(shelf.rawValue)|\(profile?.isFollowing ?? false)") { await loadCoffees() }
+        // Also keyed on the profile having arrived: the first run comes before it and can't load,
+        // and nothing else would start it again («عندي» kept shimmering until another chip was tapped).
+        .task(id: "\(shelf.rawValue)|\(profile?.isFollowing ?? false)|\(profile != nil)") { await loadCoffees() }
         .refreshable { await load(); await loadCoffees() }
         .sheet(item: $list) { which in
             NavigationStack { FollowListView(username: username, list: which, showsDone: true, canRemove: profile?.isMe == true) }
@@ -322,6 +325,12 @@ struct PublicProfileView<Extra: View>: View {
                 }
                 .padding(.horizontal)
             }
+        } else if coffeesFailed {
+            VStack(spacing: 8) {
+                Text("ما قدرنا نحمّل القهاوي.").font(.callout).foregroundStyle(.secondary)
+                Button("حاول مرة ثانية") { coffeesFailed = false; Task { await loadCoffees() } }.buttonStyle(.bordered).tint(Brand.olive)
+            }
+            .padding(.top, 20)
         } else {
             // Bag-shaped shimmering tiles while the shelf loads.
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -420,10 +429,12 @@ struct PublicProfileView<Extra: View>: View {
         do {
             coffees = try await auth.withOptionalToken { try await client.personCoffees(username, shelf: shelf, accessToken: $0) }
             coffeesHidden = false
+            coffeesFailed = false
         } catch APIError.forbidden {
             coffeesHidden = true
         } catch {
-            // Keeps what was shown.
+            // Keeps what was shown; with nothing shown yet, say so instead of shimmering forever.
+            if coffees == nil { coffeesFailed = true }
         }
     }
 

@@ -35,6 +35,11 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
     public let source: Source
     /// Who to credit and where it's published, for a champion's recipe.
     public let credit: BrewPreset.Credit?
+    /// An espresso drink with milk, and how much milk; nil for a plain shot.
+    public var milkDrink: MilkDrink? = nil
+    public var milkGrams: Double? = nil
+    /// What to do before brewing, in order.
+    public var prepAr: [String] = []
 
     public init(recipe: RemoteRecipe) {
         id = "recipe:" + recipe.id
@@ -56,6 +61,9 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
         steps = recipe.steps
         source = recipe.isMine ? .mine : .community(author: recipe.authorName, likes: recipe.likeCount ?? 0)
         credit = nil
+        milkDrink = recipe.milkDrink
+        milkGrams = recipe.milkGrams ?? recipe.milkDrink?.typicalMilkGrams
+        if recipe.methodCode == "ESPRESSO" { prepAr = BrewPreset.espressoPrep }
     }
 
     public init(preset: BrewPreset) {
@@ -74,6 +82,9 @@ public struct BrewPlan: Equatable, Identifiable, Sendable {
         steps = preset.steps
         credit = preset.credit
         source = preset.credit.map { .champion(author: $0.author, titleAr: $0.titleAr) } ?? .base
+        milkDrink = preset.milkDrink
+        milkGrams = preset.milkDrink?.typicalMilkGrams
+        prepAr = preset.prepAr
     }
 
     /// The roaster's recipe for this coffee. Nil for an xBloom link (its numbers live on xBloom's page).

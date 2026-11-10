@@ -11,6 +11,8 @@ public struct AdvisorAnswers: Equatable, Sendable {
     public var method: Method?
     /// Asked only after espresso.
     public var milk: Bool?
+    /// Asked only after «مع حليب»: which drink.
+    public var milkDrink: MilkDrink?
     public var families: Set<FlavorFamily> = []
     public var serve: Serve?
     /// 0 = the safe pick … 1 = surprise me.
@@ -23,6 +25,7 @@ public struct AdvisorAnswers: Equatable, Sendable {
     public var steps: [AdvisorStep] {
         var s: [AdvisorStep] = [.mood, .method]
         if method == .espresso { s.append(.milk) }
+        if method == .espresso, milk == true { s.append(.milkDrink) }
         s += [.flavors, .serve, .adventure, .text]
         return s
     }
@@ -44,7 +47,18 @@ public struct AdvisorAnswers: Equatable, Sendable {
     }
 }
 
-public enum AdvisorStep: String, Equatable, Sendable { case mood, method, milk, flavors, serve, adventure, text }
+public enum AdvisorStep: String, Equatable, Sendable { case mood, method, milk, milkDrink, flavors, serve, adventure, text }
+
+extension AdvisorAnswers {
+    /// The drinks offered after «مع حليب», smallest to largest.
+    public static let milkDrinks: [MilkDrink] = [.cortado, .flatWhite, .cappuccino, .latte]
+
+    /// The BunnList recipe for the chosen drink, to show with the results.
+    public var milkPreset: BrewPreset? {
+        guard method == .espresso, milk == true, let milkDrink else { return nil }
+        return BrewPreset.all.first { $0.milkDrink == milkDrink }
+    }
+}
 
 public struct RemoteAdvisorPick: Codable, Equatable, Sendable, Identifiable {
     public var id: String { lot.id }

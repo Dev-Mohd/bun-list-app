@@ -196,9 +196,53 @@ public enum MilkDrink: String, Codable, CaseIterable, Hashable, Sendable {
         case .macchiato: return 15
         case .cortado: return 40
         case .flatWhite: return 120
-        case .cappuccino: return 150
+        case .cappuccino: return 110
         case .latte: return 220
         }
+    }
+
+    /// The usual cup for the drink, in millilitres.
+    public var cupMl: Int {
+        switch self {
+        case .macchiato: return 90
+        case .cortado: return 120
+        case .flatWhite: return 160
+        case .cappuccino: return 180
+        case .latte: return 300
+        }
+    }
+
+    /// How long to let air in while steaming (the «تمزيق» sound), in seconds. More air, thicker foam.
+    public var airSeconds: ClosedRange<Int> {
+        switch self {
+        case .macchiato, .cortado: return 1...2
+        case .flatWhite, .latte: return 2...3
+        case .cappuccino: return 5...6
+        }
+    }
+
+    /// What sets it apart, in a line.
+    public var summaryAr: String {
+        switch self {
+        case .macchiato: return "شوت ونقطة رغوة"
+        case .cortado: return "نص قهوة ونص حليب، طعم القهوة واضح"
+        case .flatWhite: return "حليب ناعم ورغوة رقيقة، والقهوة هي البطل"
+        case .cappuccino: return "رغوة كثيفة وقوام مخملي"
+        case .latte: return "حليب أكثر وطعم أخف"
+        }
+    }
+
+    /// Steaming the milk for this drink, step by step. Amounts are for a double shot.
+    public var steamingAr: [String] {
+        let grams = Int(typicalMilkGrams)
+        return [
+            "صب \(grams)غ حليب بارد من الثلاجة في الإبريق (لين تحت بداية المصب بشوي).",
+            "نظّف عصا البخار بنفخة، وحط رأسها تحت سطح الحليب بشوي وعلى جنب.",
+            "افتح البخار كامل، ودخّل هواء \(airSeconds.lowerBound)–\(airSeconds.upperBound) ثواني (تسمع صوت تمزيق خفيف).",
+            "نزّل العصا شوي وخل الحليب يدور دوامة لين يسخن الإبريق وما تقدر تمسكه (٥٥–٦٥°م).",
+            "سكّر البخار، امسح العصا وانفخها، واضرب الإبريق على الطاولة ودوّره لين يلمع الحليب.",
+            "صب على الشوت من ارتفاع قليل، وقرّب الإبريق في الآخر عشان تطلع الرغوة.",
+        ]
     }
 
     /// How the milk is textured, as a barista would say it.
@@ -206,8 +250,8 @@ public enum MilkDrink: String, Codable, CaseIterable, Hashable, Sendable {
         switch self {
         case .macchiato: return "نقطة رغوة فوق الشوت"
         case .cortado: return "حليب مبخّر بقليل من الرغوة"
-        case .flatWhite: return "رغوة ناعمة رقيقة (ميكروفوم) بسماكة ~١ سم"
-        case .cappuccino: return "رغوة أكثف بسماكة ~١٫٥–٢ سم"
+        case .flatWhite: return "رغوة ناعمة رقيقة (ميكروفوم) بسماكة ~٠٫٥ سم"
+        case .cappuccino: return "رغوة أكثف بسماكة ~١٫٥ سم"
         case .latte: return "رغوة ناعمة رقيقة ~١ سم"
         }
     }
