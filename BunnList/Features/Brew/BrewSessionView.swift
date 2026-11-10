@@ -31,6 +31,10 @@ struct EspressoShotView: View {
     @State private var stoppedAt: TimeInterval?
     @State private var now = Date()
     @State private var prepDone = Set<Int>()
+    /// The shot speaks twice: when the window opens and when it ends (the timer's speaker setting).
+    @State private var speaker = BrewSpeaker()
+    @State private var spokenSecond = -1
+    @AppStorage("brew.voice") private var voiceOn = true
     private let tick = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
     /// The recipe's own shot time ± 3 s, or the usual espresso window.
@@ -85,12 +89,33 @@ struct EspressoShotView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }.tint(.white).accessibilityLabel("إغلاق")
                 }
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        voiceOn.toggle()
+                        if !voiceOn { speaker.stop() }
+                    } label: { Image(systemName: voiceOn ? "speaker.wave.2.fill" : "speaker.slash.fill") }
+                        .tint(.white)
+                        .accessibilityLabel(voiceOn ? "إيقاف الصوت" : "تشغيل الصوت")
+                }
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
-        .onReceive(tick) { if startedAt != nil && stoppedAt == nil { now = $0 } }
+        .onReceive(tick) {
+            guard startedAt != nil && stoppedAt == nil else { return }
+            now = $0
+            let second = Int(elapsed)
+            if second != spokenSecond {
+                spokenSecond = second
+                if voiceOn, let line = BrewVoice.espressoLine(second: second, target: target) {
+                    speaker.play(.step(index: 0, line: line, mood: second == target.upperBound ? .wait : .pour))
+                }
+            }
+        }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            speaker.stop()
+        }
     }
 
     private var prep: some View {
@@ -162,7 +187,7 @@ struct EspressoShotView: View {
     private var controls: some View {
         HStack(spacing: 16) {
             if stoppedAt != nil {
-                Button { startedAt = nil; stoppedAt = nil } label: {
+                Button { startedAt = nil; stoppedAt = nil; spokenSecond = -1; speaker.stop() } label: {
                     Image(systemName: "arrow.counterclockwise").font(.title2)
                         .frame(width: 60, height: 60).background(Color.white.opacity(0.12), in: Circle())
                 }

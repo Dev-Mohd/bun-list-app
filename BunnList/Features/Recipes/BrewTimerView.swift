@@ -25,6 +25,9 @@ struct BrewTimerView: View {
     @State private var lastStep = -1
     @State private var cuedStep = -1
     @State private var spokenSecond = -1
+    /// «استعد»: seconds left before the clock starts, so the phone can be put down first.
+    @State private var prepLeft: Int?
+    @State private var prepTask: Task<Void, Never>?
     @State private var speaker = BrewSpeaker()
     @AppStorage("brew.voice") private var voiceOn = true
     @AppStorage("brew.glance") private var glance = true
@@ -149,7 +152,22 @@ struct BrewTimerView: View {
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
+            prepTask?.cancel()
             speaker.stop()
+        }
+        .overlay {
+            // The detailed layout has no board to show the get-ready count on.
+            if let prepLeft, !glance {
+                VStack(spacing: 6) {
+                    Text(BrewVoice.readyLine).font(.title.bold())
+                    Text("\(prepLeft)").font(.system(size: 120, weight: .heavy, design: .rounded).monospacedDigit())
+                        .contentTransition(.numericText())
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.black.opacity(0.75))
+                .allowsHitTesting(false)
+            }
         }
     }
 
@@ -176,7 +194,13 @@ struct BrewTimerView: View {
                     .font(.subheadline.monospacedDigit()).foregroundStyle(fg.opacity(0.7))
             }
             Spacer(minLength: 0)
-            if position.isFinished && elapsed > 0 {
+            if let prepLeft {
+                Text(BrewVoice.readyLine).font(.system(size: 34, weight: .bold))
+                Text("\(prepLeft)")
+                    .font(.system(size: 170, weight: .heavy, design: .rounded).monospacedDigit())
+                    .contentTransition(.numericText())
+                Text("حط الجوال وامسك الغلاية").font(.title3.bold()).foregroundStyle(fg.opacity(0.75))
+            } else if position.isFinished && elapsed > 0 {
                 Image(systemName: "cup.and.saucer.fill").font(.system(size: 64))
                 Text("خلصت، بالعافية").font(.system(size: 40, weight: .heavy))
                 Text("تذوّقها وهي دافئة ثم وهي تبرد؛ النكهات تتغير.").font(.callout).foregroundStyle(fg.opacity(0.75))
@@ -221,9 +245,19 @@ struct BrewTimerView: View {
                 }
             }
             Spacer(minLength: 0)
+            if isRunning, !position.isFinished {
+                Text("ضغطتين على الشاشة تنقلك للخطوة التالية").font(.caption).foregroundStyle(fg.opacity(0.55))
+            }
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        // Wet hands miss small buttons: the whole board takes a double tap for «next».
+        .onTapGesture(count: 2) {
+            guard isRunning, !position.isFinished else { return }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            skip(position)
+        }
         .accessibilityElement(children: .combine)
     }
 
@@ -375,9 +409,11 @@ struct BrewTimerView: View {
             .accessibilityLabel("إعادة")
             .disabled(elapsed == 0)
 
-            Button { isRunning ? pause() : start(position) } label: {
-                Label(isRunning ? "إيقاف مؤقت" : (elapsed > 0 && !position.isFinished ? "متابعة" : "ابدأ"),
-                      systemImage: isRunning ? "pause.fill" : "play.fill")
+            Button {
+                if prepLeft != nil { cancelPrep() } else if isRunning { pause() } else { start(position) }
+            } label: {
+                Label(prepLeft != nil ? "إلغاء" : (isRunning ? "إيقاف مؤقت" : (elapsed > 0 && !position.isFinished ? "متابعة" : "ابدأ")),
+                      systemImage: prepLeft != nil ? "xmark" : (isRunning ? "pause.fill" : "play.fill"))
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 60)
                     .background(accent(position), in: Capsule())
@@ -396,11 +432,40 @@ struct BrewTimerView: View {
         .buttonStyle(.plain)
     }
 
+    /// A fresh brew gets «استعد» and a short count first; resuming starts at once.
     private func start(_ position: BrewTimeline.Position) {
         if position.isFinished { reset() }
+        if elapsed == 0 { beginPrep() } else { begin() }
+    }
+
+    private func begin() {
         now = Date()
         startedAt = now
         if lastStep < 0 { lastStep = 0 }
+    }
+
+    private func beginPrep() {
+        prepTask?.cancel()
+        prepLeft = BrewVoice.prepSeconds
+        if voiceOn { speaker.play(.step(index: 0, line: BrewVoice.readyLine, mood: .act)) }
+        prepTask = Task { @MainActor in
+            for n in stride(from: BrewVoice.prepSeconds - 1, through: 0, by: -1) {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                withAnimation { prepLeft = n }
+                if (1...3).contains(n), voiceOn { speaker.play(.count(n)) }
+            }
+            prepLeft = nil
+            prepTask = nil
+            begin()
+        }
+    }
+
+    private func cancelPrep() {
+        prepTask?.cancel()
+        prepTask = nil
+        prepLeft = nil
+        speaker.stop()
     }
 
     private func pause() {
@@ -411,6 +476,9 @@ struct BrewTimerView: View {
     }
 
     private func reset() {
+        prepTask?.cancel()
+        prepTask = nil
+        prepLeft = nil
         startedAt = nil
         pausedElapsed = 0
         lastStep = -1

@@ -25,6 +25,17 @@ public enum BrewVoice {
 
     public static let finishedLine = "خلصت، بالعافية"
 
+    /// Said when «ابدأ» is pressed: a few seconds to put the phone down and pick up the kettle.
+    public static let readyLine = "استعد"
+    public static let prepSeconds = 5
+
+    /// The espresso shot has two moments worth saying: the window opening, and its end.
+    public static func espressoLine(second: Int, target: ClosedRange<Int>) -> String? {
+        if second == target.lowerBound { return "وصلت \(spokenDuration(second))، تقدر توقّف" }
+        if second == target.upperBound { return "وقّف الحين" }
+        return nil
+    }
+
     /// A step shorter than this has no countdown: its own line would still be playing.
     static let countdownMinSeconds = 8
 

@@ -89,4 +89,12 @@ final class BrewVoiceTests: XCTestCase {
         XCTAssertEqual(String(decoding: wav.prefix(4), as: UTF8.self), "RIFF")
         XCTAssertEqual(wav.count, 44 + BrewTone.samples(.done).count * 2)
     }
+
+    func testEspressoSpeaksAtTheWindowOnly() {
+        XCTAssertEqual(BrewVoice.espressoLine(second: 25, target: 25...32), "وصلت 25 ثانية، تقدر توقّف")
+        XCTAssertEqual(BrewVoice.espressoLine(second: 32, target: 25...32), "وقّف الحين")
+        XCTAssertNil(BrewVoice.espressoLine(second: 10, target: 25...32))
+        XCTAssertNil(BrewVoice.espressoLine(second: 28, target: 25...32))
+        XCTAssertEqual(BrewVoice.prepSeconds, 5)
+    }
 }
