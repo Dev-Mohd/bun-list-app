@@ -106,30 +106,42 @@ struct AdminFeedbackView: View {
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     var body: some View {
-        List {
-            Picker("العرض", selection: $showAll) {
-                Text("بانتظار الرد").tag(false)
-                Text("الكل").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-
-            if let inbox {
-                if inbox.items.isEmpty {
-                    ContentUnavailableView(showAll ? "ما وصلت رسائل للحين" : "رديت على الكل 👏", systemImage: "tray")
-                        .listRowBackground(Color.clear)
-                } else {
-                    ForEach(inbox.items) { item in
-                        Button { replying = item } label: { row(item) }.buttonStyle(.plain)
-                    }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                Picker("العرض", selection: $showAll) {
+                    Text("بانتظار الرد").tag(false)
+                    Text("الكل").tag(true)
                 }
-            } else if failed {
-                Label("ما قدرنا نجيب الرسائل. اسحب للتحديث.", systemImage: "wifi.slash").foregroundStyle(.secondary)
-            } else {
-                ProgressView().frame(maxWidth: .infinity)
+                .pickerStyle(.segmented)
+                if let inbox {
+                    if inbox.items.isEmpty {
+                        ContentUnavailableView(showAll ? "ما وصلت رسائل للحين" : "رديت على الكل", systemImage: "tray",
+                                               description: Text(showAll ? "" : "أي رسالة جديدة تطلع لك هنا وفي أول لوحة التحكم."))
+                            .padding(.top, 40)
+                    } else {
+                        Text(showAll ? "\(inbox.items.count.formatted()) رسالة" : "\(inbox.items.count.formatted()) تنتظر ردّك")
+                            .font(.caption).foregroundStyle(.secondary)
+                        ForEach(inbox.items) { item in
+                            Button { replying = item } label: {
+                                row(item)
+                                    .padding(14)
+                                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } else if failed {
+                    Label("ما قدرنا نجيب الرسائل. اسحب للتحديث.", systemImage: "wifi.slash")
+                        .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.top, 40)
+                } else {
+                    ForEach(0..<4, id: \.self) { _ in SkeletonBlock(height: 96, corner: 18) }
+                }
             }
+            .padding()
         }
-        .navigationTitle("صندوق الاقتراحات")
+        .background(Brand.background.ignoresSafeArea())
+        .brandScreen()
+        .navigationTitle("رسائل الناس")
         .task(id: showAll) { await load() }
         .refreshable { await load() }
         .sheet(item: $replying) { item in
@@ -157,10 +169,11 @@ struct AdminFeedbackView: View {
                 HStack(spacing: 6) {
                     Text(AdminUserDetailView.date(f.createdAt)).font(.caption2).foregroundStyle(.secondary)
                     if f.isAnswered { Label("تم الرد", systemImage: "checkmark.circle.fill").font(.caption2).foregroundStyle(Brand.olive) }
+                    Spacer()
+                    if !f.isAnswered { Label("ردّ", systemImage: "arrowshape.turn.up.left.fill").font(.caption.bold()).foregroundStyle(Brand.olive) }
                 }
             }
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 

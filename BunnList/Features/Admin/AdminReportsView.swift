@@ -14,29 +14,36 @@ struct AdminReportsView: View {
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
     var body: some View {
-        List {
-            Section {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
                 Picker("الحالة", selection: $closed) {
                     Text("مفتوحة").tag(false)
                     Text("منتهية").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-            }
-            if let reports {
-                if reports.isEmpty {
-                    ContentUnavailableView(closed ? "ما فيه بلاغات منتهية" : "ما فيه بلاغات", systemImage: "checkmark.shield")
+                if let reports {
+                    if reports.isEmpty {
+                        ContentUnavailableView(closed ? "ما فيه بلاغات منتهية" : "ما فيه بلاغات تنتظرك", systemImage: "checkmark.shield",
+                                               description: Text(closed ? "" : "أي بلاغ جديد يطلع لك هنا وفي أول لوحة التحكم."))
+                            .padding(.top, 40)
+                    } else {
+                        Text("\(reports.count.formatted()) \(closed ? "منتهية" : "تنتظر قرارك")")
+                            .font(.caption).foregroundStyle(.secondary)
+                        ForEach(reports) { report in
+                            card(report)
+                                .padding(14)
+                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                        }
+                    }
+                } else if failed {
+                    Label("ما قدرنا نجيب البلاغات. اسحب للتحديث.", systemImage: "wifi.slash")
+                        .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.top, 40)
+                } else {
+                    ForEach(0..<3, id: \.self) { _ in SkeletonBlock(height: 150, corner: 18) }
                 }
-                ForEach(reports) { report in
-                    Section { card(report) }
-                }
-            } else if failed {
-                Label("ما قدرنا نجيب البلاغات", systemImage: "wifi.slash").foregroundStyle(.secondary)
-            } else {
-                HStack { Spacer(); ProgressView(); Spacer() }
             }
+            .padding()
         }
-        .scrollContentBackground(.hidden)
         .background(Brand.background.ignoresSafeArea())
         .brandScreen()
         .navigationTitle("البلاغات")
@@ -93,7 +100,6 @@ struct AdminReportsView: View {
                     .font(.caption.bold()).foregroundStyle(r.status == "removed" ? .red : Brand.olive)
             }
         }
-        .padding(.vertical, 4)
     }
 
     private func resolve(_ r: RemoteAdminReport, remove: Bool) async {
