@@ -43,6 +43,13 @@ struct BrewView: View {
     @State private var lastBrew: RemoteHome.LastBrew?
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
+    /// Brewing without a coffee from the collection: any bag, a guest, or an empty
+    /// collection. BunnList's recipes (and yours) still guide it; nothing is logged.
+    private static let anyCoffee = "__any__"
+    private var isAny: Bool { selectedSlug == Self.anyCoffee }
+    @State private var showNudge = false
+    @State private var pendingNudge = false
+
     private var recent: [String] { recentRaw.split(separator: ",").map(String.init) }
     private var selected: RemoteCollectionItem? { coffees?.first { $0.slug == selectedSlug } }
     /// The selected recipe within the open tab; an empty tab (e.g. «وصفاتي») selects nothing, so no start button.
@@ -57,9 +64,9 @@ struct BrewView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                if auth.isSignedIn { content } else { signedOut }
+                if auth.isSignedIn { content } else { guestContent }
             }
-            .safeAreaInset(edge: .bottom) { if auth.isSignedIn { startButton } }
+            .safeAreaInset(edge: .bottom) { startButton }
             .background(Brand.background.ignoresSafeArea())
             .brandScreen()
             .navigationTitle("وش بتحضّر؟")
@@ -89,12 +96,26 @@ struct BrewView: View {
             .task { await grinders.load() }
             .fullScreenCover(item: $session, onDismiss: {
                 if let pendingFinish { finishing = pendingFinish; self.pendingFinish = nil }
+                if pendingNudge { pendingNudge = false; showNudge = true }
             }) { ref in
                 BrewSessionView(plan: ref.plan) { seconds in
+                    // No coffee chosen: nothing to log against, so offer to add it instead.
+                    guard !ref.slug.isEmpty else { pendingNudge = true; return }
                     remember(ref.slug)
                     pendingFinish = BrewFinishRef(slug: ref.slug, coffeeName: ref.coffeeName, plan: ref.plan, seconds: seconds,
                                                   grinder: ref.grinder, grindSetting: ref.grindSetting, roasterName: ref.roasterName)
                 }
+            }
+            .alert("بالعافية", isPresented: $showNudge) {
+                if auth.isSignedIn {
+                    Button("أضف القهوة") { showAdd = true }
+                } else {
+                    Button("تسجيل الدخول") { showSignIn = true }
+                }
+                Button("بعدين", role: .cancel) {}
+            } message: {
+                Text(auth.isSignedIn ? "أضف القهوة اللي حضّرتها لمجموعتك، والمرة الجاية نحفظ تحضيرتك ونضبط لك الطحنة عليها."
+                     : "سجّل دخولك عشان نحفظ تحضيراتك ونقترح لك وصفات على قهوتك.")
             }
             .sheet(item: $finishing, onDismiss: { Task { await loadPlans(); await loadLastBrew() } }) { ref in
                 BrewFinishView(ref: ref).environmentObject(auth)
@@ -104,17 +125,27 @@ struct BrewView: View {
 
     // MARK: Signed out
 
-    private var signedOut: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "cup.and.saucer.fill").font(.system(size: 54)).foregroundStyle(Brand.olive)
-            Text("حضّر قهوتك خطوة بخطوة").font(.title3.bold())
-            Text("سجّل دخولك عشان نجيب قهوات مجموعتك ووصفاتك، ونحفظ تجاربك.")
-                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button("تسجيل الدخول") { showSignIn = true }
-                .buttonStyle(.borderedProminent).tint(Brand.olive)
+    /// Guests brew straight away with BunnList's recipes; signing in adds their coffees and memory.
+    private var guestContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(spacing: 12) {
+                Image(systemName: "cup.and.saucer.fill").font(.title2).foregroundStyle(Brand.olive)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("حضّر على طول").font(.headline)
+                    Text("اختر الطريقة والوصفة وابدأ. سجّل دخولك عشان نحفظ تحضيراتك ونجيب قهوات مجموعتك.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button("دخول") { showSignIn = true }
+                    .buttonStyle(.bordered).tint(Brand.olive)
+            }
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+            .padding(.horizontal)
+            methodSection
+            recipeSection
         }
-        .padding(32)
-        .padding(.top, 60)
+        .padding(.vertical)
     }
 
     // MARK: Content
@@ -133,7 +164,7 @@ struct BrewView: View {
                 .padding(.horizontal)
             }
             coffeeSection
-            if selected != nil {
+            if selected != nil || isAny {
                 methodSection
                 recipeSection
             }
@@ -151,6 +182,7 @@ struct BrewView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .top, spacing: 12) {
                             ForEach(coffees) { item in coffeeTile(item) }
+                            anyTile
                             addTile
                         }
                         .padding(.horizontal)
@@ -190,6 +222,31 @@ struct BrewView: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    /// «أي قهوة»: brew a bag that isn't in the collection, without adding it first.
+    private var anyTile: some View {
+        Button {
+            withAnimation(.spring(response: 0.3)) { selectedSlug = Self.anyCoffee }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                VStack(spacing: 8) {
+                    Image(systemName: "cup.and.saucer.fill").font(.title2.bold())
+                    Text("أي قهوة").font(.caption.bold())
+                }
+                .foregroundStyle(isAny ? Brand.background : Brand.olive)
+                .frame(width: 112, height: 112)
+                .background(isAny ? Brand.olive : Brand.olive.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+                Text("بدون اختيار").font(.subheadline.bold()).lineLimit(1)
+                Text("حضّر على طول").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .frame(width: 112)
+            .scaleEffect(isAny ? 1.03 : 1)
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: isAny)
+        .accessibilityAddTraits(isAny ? .isSelected : [])
+        .accessibilityIdentifier("brew-any-coffee")
+    }
+
     private var addTile: some View {
         Button { showAdd = true } label: {
             VStack(spacing: 8) {
@@ -205,7 +262,8 @@ struct BrewView: View {
 
     private var emptyCollection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("مجموعتك فاضية. أضف القهوة اللي عندك وابدأ.").font(.callout).foregroundStyle(.secondary)
+            Text("مجموعتك فاضية. تقدر تحضّر على طول من تحت، أو أضف قهوتك عشان نحفظ تحضيراتك ونضبط لك الطحنة.")
+                .font(.callout).foregroundStyle(.secondary)
             HStack {
                 Button { showAdd = true } label: { Label("ابحث عنها", systemImage: "magnifyingglass") }
                     .buttonStyle(.borderedProminent).tint(Brand.olive)
@@ -259,6 +317,7 @@ struct BrewView: View {
                 if groups.plans(tab).isEmpty {
                     // «وصفاتي» always shows; empty, it offers to make one for this coffee and method.
                     CreateRecipeCard {
+                        guard auth.isSignedIn else { showSignIn = true; return }
                         var draft = RecipeDraft(lot: selected.map { RemoteRecipeLot(slug: $0.slug, nameAr: $0.nameAr, roasterNameAr: $0.roasterNameAr) })
                         if let preset = BrewPreset.presets(for: method).first ?? BrewPreset.all.first { draft.apply(preset) }
                         newRecipe = DraftRef(draft: draft)
@@ -379,11 +438,12 @@ struct BrewView: View {
 
     @ViewBuilder
     private var startButton: some View {
-        if let plan, let coffee = selected {
+        if let plan, selected != nil || isAny {
             Button {
                 BrewTip().invalidate(reason: .actionPerformed)
-                session = BrewSessionRef(slug: coffee.slug, coffeeName: coffee.nameAr, plan: plan,
-                                         grinder: guideGrinder, grindSetting: grindSetting, roasterName: coffee.roasterNameAr)
+                // An empty slug marks a brew with no coffee chosen.
+                session = BrewSessionRef(slug: selected?.slug ?? "", coffeeName: selected?.nameAr ?? "", plan: plan,
+                                         grinder: guideGrinder, grindSetting: grindSetting, roasterName: selected?.roasterNameAr ?? "")
             } label: {
                 Label("ابدأ التحضير", systemImage: "play.fill")
                     .font(.headline)
@@ -403,15 +463,20 @@ struct BrewView: View {
     // MARK: Data
 
     private func loadCoffees() async {
-        guard auth.isSignedIn else { return }
+        guard auth.isSignedIn else {
+            coffees = nil
+            selectedSlug = Self.anyCoffee
+            return
+        }
+        if isAny, coffees == nil { selectedSlug = nil }
         do {
             let items = try await auth.withToken { try await client.fetchCollection(accessToken: $0) }
             // Bags you own first, then everything else; the last brewed always leads.
             let owned = items.filter(\.owned) + items.filter { !$0.owned }
             coffees = BrewPlanner.ordered(owned, slug: \.slug, recent: recent)
             failed = false
-            if selectedSlug == nil || !(coffees ?? []).contains(where: { $0.slug == selectedSlug }) {
-                selectedSlug = coffees?.first?.slug
+            if selectedSlug == nil || (!isAny && !(coffees ?? []).contains(where: { $0.slug == selectedSlug })) {
+                selectedSlug = coffees?.first?.slug ?? Self.anyCoffee
             }
             if !focusSlug.isEmpty, (coffees ?? []).contains(where: { $0.slug == focusSlug }) {
                 selectedSlug = focusSlug
@@ -429,12 +494,13 @@ struct BrewView: View {
         pageID = nil
         memory = nil
         let mine = (try? await auth.withToken { try await client.fetchMyRecipes(accessToken: $0) }) ?? []
-        let lotCommunity = (try? await auth.withOptionalToken { try await client.exploreRecipes(lotSlug: slug, accessToken: $0) }) ?? []
+        let any = slug == Self.anyCoffee
+        let lotCommunity = any ? [] : (try? await auth.withOptionalToken { try await client.exploreRecipes(lotSlug: slug, accessToken: $0) }) ?? []
         let methodCommunity = (try? await auth.withOptionalToken { try await client.exploreRecipes(accessToken: $0) }) ?? []
-        let detail = try? await client.fetchLotDetail(slug: slug)
-        let history = (try? await auth.withToken { try await client.fetchMyExperiences(slug: slug, accessToken: $0) }) ?? []
+        let detail = any ? nil : (try? await client.fetchLotDetail(slug: slug))
+        let history = any ? [] : (try? await auth.withToken { try await client.fetchMyExperiences(slug: slug, accessToken: $0) }) ?? []
         guard slug == selectedSlug else { return }
-        let found = BrewPlanner.groups(methodCode: method, lotSlug: slug, roasterName: detail?.roasterNameAr ?? selected?.roasterNameAr ?? "المحمصة",
+        let found = BrewPlanner.groups(methodCode: method, lotSlug: any ? nil : slug, roasterName: detail?.roasterNameAr ?? selected?.roasterNameAr ?? "المحمصة",
                                        roasterRecipes: detail?.roasterRecipes ?? [], mine: mine,
                                        lotCommunity: lotCommunity, methodCommunity: methodCommunity)
         let last = BrewMemory.latest(history, methodCode: method, grinder: guideGrinder)
