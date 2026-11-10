@@ -8,7 +8,18 @@ public struct RemoteAdminOverview: Codable, Equatable, Sendable {
         public let day: String
         public let active: Int
         public let newUsers: Int
+        /// Saved brews that day (older servers leave it out).
+        public let brews: Int?
         public var id: String { day }
+    }
+
+    /// The 7 days before the last 7, for week-over-week change.
+    public struct Previous: Codable, Equatable, Sendable {
+        public let newUsers: Int
+        public let reviews: Int
+        public let recipes: Int
+        public let brews: Int
+        public let scans: Int
     }
 
     public let users: Int
@@ -22,6 +33,28 @@ public struct RemoteAdminOverview: Codable, Equatable, Sendable {
     public let pendingSubmissions: Int
     public let openReports: Int
     public let series: [Day]
+    // Newer servers only.
+    public let active7d: Int?
+    public let brewers7d: Int?
+    public let unreadFeedback: Int?
+    public let prev7d: Previous?
+
+    /// Everything that waits on an admin: suggestions, reports and unread feedback.
+    public var waiting: Int { pendingSubmissions + openReports + (unreadFeedback ?? 0) }
+}
+
+/// Week-over-week change for the console's numbers.
+public enum AdminTrend {
+    /// Whole percent up (positive) or down; nil when there is nothing to compare with.
+    public static func percent(current: Int, previous: Int?) -> Int? {
+        guard let previous, previous > 0 else { return nil }
+        return Int((Double(current - previous) / Double(previous) * 100).rounded())
+    }
+
+    /// Share of `part` in `whole`, as a whole percent (0 when `whole` is empty).
+    public static func share(_ part: Int, of whole: Int) -> Int {
+        whole > 0 ? Int((Double(part) / Double(whole) * 100).rounded()) : 0
+    }
 }
 
 public struct RemoteAdminLotRow: Codable, Equatable, Sendable, Identifiable {

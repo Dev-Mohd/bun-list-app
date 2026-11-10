@@ -1,64 +1,6 @@
 import BunnListCore
 import SwiftUI
 
-/// «مهامك»: the console's top, counting what needs doing, each opening its list.
-@MainActor
-struct AdminTasksSection: View {
-    @EnvironmentObject private var auth: AuthModel
-    @State private var counts: RemoteQueueCounts?
-    private let client = CatalogAPIClient(transport: URLSessionTransport())
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("مهامك").font(.title2.bold())
-            NavigationLink { RoasterQueueView(kind: .pending) } label: {
-                task(counts?.pending, "اقتراحات تنتظر", detail: "حسب المحمصة، وراجعها وحدة وحدة", color: Brand.gold)
-            }
-            NavigationLink { RoasterQueueView(kind: .incomplete) } label: {
-                task(counts?.incomplete, "قهاوي ناقصة معلومات", detail: counts.map {
-                    "منشأ \($0.noOrigin.formatted()) · معالجة \($0.noProcess.formatted()) · نكهات \($0.noNotes.formatted())"
-                } ?? "المنشأ والمعالجة والنكهات", color: .red)
-            }
-            NavigationLink { RoasterQueueView(kind: .photos) } label: {
-                task(counts?.published, "مراجعة الصور", detail: "كل القهاوي المنشورة حسب المحمصة: شيل الخلفية، قص، رجّع الأصل", color: Brand.gold)
-            }
-            NavigationLink { DuplicatesView() } label: {
-                task(nil, "قهاوي مكررة", detail: "نفس القهوة منشورة مرتين: اختر وحدة وادمج", color: Brand.ink)
-            }
-            NavigationLink { AdminLotsView(startFilter: .noPhoto) } label: {
-                task(counts?.noPhoto, "قهاوي بدون صورة", detail: "أضف صورة الكيس", color: Brand.olive)
-            }
-            NavigationLink { AdminReportsView() } label: {
-                task(counts?.reports, "بلاغات", detail: "مراجعة المحتوى", color: Brand.ink)
-            }
-        }
-        .buttonStyle(.plain)
-        // Again on every return, so finished work comes off the counts.
-        .onAppear { Task { await load() } }
-    }
-
-    func load() async {
-        counts = try? await auth.withToken { try await client.queueCounts(accessToken: $0) }
-    }
-
-    private func task(_ count: Int?, _ title: String, detail: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Text(count.map { $0.formatted() } ?? "—")
-                .font(.headline.monospacedDigit()).foregroundStyle(.white)
-                .frame(minWidth: 52, minHeight: 48)
-                .background(color.opacity((count ?? 0) > 0 ? 1 : 0.35), in: RoundedRectangle(cornerRadius: 14))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.bold())
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer()
-            Image(systemName: "chevron.backward").font(.caption).foregroundStyle(.tertiary)
-        }
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-    }
-}
-
 /// The work of one kind, roaster by roaster: search, sort, and open one.
 @MainActor
 struct RoasterQueueView: View {
