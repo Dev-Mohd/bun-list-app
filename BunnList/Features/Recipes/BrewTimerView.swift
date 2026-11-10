@@ -8,6 +8,11 @@ import UIKit
 /// instead of the ring. A light tap three seconds before each step, a stronger one
 /// at the change, and the screen stays awake while brewing. With `onFinish`,
 /// ending the brew hands back the elapsed seconds (for «كيف طلعت؟»).
+///
+/// Hands-free: each step is announced by a tone and a spoken line, with a
+/// three-two-one before the next (the speaker button mutes it). The glance layout
+/// (the eye button) swaps the scene for one giant number and a whole-screen colour:
+/// gold while pouring, dark while waiting.
 @MainActor
 struct BrewTimerView: View {
     let plan: BrewPlan
@@ -19,6 +24,10 @@ struct BrewTimerView: View {
     @State private var now = Date()
     @State private var lastStep = -1
     @State private var cuedStep = -1
+    @State private var spokenSecond = -1
+    @State private var speaker = BrewSpeaker()
+    @AppStorage("brew.voice") private var voiceOn = true
+    @AppStorage("brew.glance") private var glance = true
 
     private let tick = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
     private var timeline: BrewTimeline { BrewTimeline(steps: plan.steps) }
@@ -29,6 +38,19 @@ struct BrewTimerView: View {
     }
 
     private var isRunning: Bool { startedAt != nil }
+    private var titles: [String?] { BrewVoice.titles(plan: plan) }
+
+    /// What the hands are doing now, for the glance colour. Nil before the start.
+    private func mood(_ position: BrewTimeline.Position) -> BrewVoice.Mood? {
+        if position.isFinished { return elapsed > 0 ? .done : nil }
+        guard isRunning || elapsed > 0, let step = plan.steps[safe: position.stepIndex] else { return nil }
+        return BrewVoice.mood(step: step, titleAr: titles[safe: position.stepIndex] ?? nil)
+    }
+
+    /// Gold is the only light backdrop: everything on it turns dark.
+    private func onGold(_ position: BrewTimeline.Position) -> Bool { glance && mood(position) == .pour }
+    private func ink(_ position: BrewTimeline.Position) -> Color { onGold(position) ? .black : .white }
+    private func accent(_ position: BrewTimeline.Position) -> Color { onGold(position) ? .black : Brand.gold }
     private var sceneKind: BrewSceneKind { BrewSceneKind.of(plan) }
     private var totalWater: Double {
         plan.steps.reduce(0) { $0 + ($1.kind.addsWater ? ($1.addedWaterGrams ?? 0) : 0) }
@@ -48,21 +70,47 @@ struct BrewTimerView: View {
         let position = timeline.position(at: Int(elapsed))
         NavigationStack {
             VStack(spacing: 24) {
-                header
-                if sceneKind == .ring { dial(position) } else { scene }
-                currentStep(position)
-                Spacer(minLength: 0)
+                if glance {
+                    glanceBoard(position)
+                } else {
+                    header
+                    if sceneKind == .ring { dial(position) } else { scene }
+                    currentStep(position)
+                    Spacer(minLength: 0)
+                }
                 nextStep(position)
                 controls(position)
             }
             .padding()
-            .background(backdrop.ignoresSafeArea())
-            .foregroundStyle(.white)
+            .background {
+                if glance {
+                    glanceColor(position).ignoresSafeArea().animation(.easeInOut(duration: 0.35), value: mood(position))
+                } else {
+                    backdrop.ignoresSafeArea()
+                }
+            }
+            .foregroundStyle(ink(position))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
-                        .tint(.white)
+                        .tint(ink(position))
                         .accessibilityLabel("إغلاق")
+                }
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 18) {
+                        Button {
+                            voiceOn.toggle()
+                            if !voiceOn { speaker.stop() }
+                        } label: { Image(systemName: voiceOn ? "speaker.wave.2.fill" : "speaker.slash.fill") }
+                            .accessibilityLabel(voiceOn ? "إيقاف الصوت" : "تشغيل الصوت")
+                            .accessibilityIdentifier("brew-voice")
+                        Button { withAnimation { glance.toggle() } } label: {
+                            Image(systemName: glance ? "eye.fill" : "eye")
+                        }
+                        .accessibilityLabel(glance ? "عرض التفاصيل" : "عرض النظرة السريعة")
+                        .accessibilityIdentifier("brew-glance")
+                    }
+                    .tint(ink(position))
                 }
                 if let onFinish, elapsed > 0 {
                     ToolbarItem(placement: .confirmationAction) {
@@ -71,7 +119,7 @@ struct BrewTimerView: View {
                             dismiss()
                             onFinish(seconds)
                         }
-                        .font(.headline).tint(Brand.gold)
+                        .font(.headline).tint(accent(position))
                         .accessibilityIdentifier("brew-finish")
                     }
                 }
@@ -82,6 +130,12 @@ struct BrewTimerView: View {
             guard isRunning else { return }
             now = date
             let current = timeline.position(at: Int(elapsed))
+            // One cue a second at most; a late tick past the end still says the finish.
+            let second = min(Int(elapsed), timeline.totalSeconds)
+            if second != spokenSecond {
+                spokenSecond = second
+                if voiceOn, let cue = BrewVoice.cue(timeline: timeline, second: second, titles: titles) { speaker.play(cue) }
+            }
             if sceneState.isCueing, cuedStep != current.stepIndex {
                 cuedStep = current.stepIndex
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -93,7 +147,95 @@ struct BrewTimerView: View {
             if current.isFinished { pause() }
         }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            speaker.stop()
+        }
+    }
+
+    private func glanceColor(_ position: BrewTimeline.Position) -> Color {
+        switch mood(position) {
+        case .pour: return Color(red: 0.78, green: 0.6, blue: 0.24)
+        case .act: return Color(red: 0.29, green: 0.2, blue: 0.16)
+        case .done: return Color(red: 0.33, green: 0.39, blue: 0.27)
+        case .wait, nil: return Color(red: 0.09, green: 0.08, blue: 0.07)
+        }
+    }
+
+    /// The glance layout: what to do in two words, and one number big enough to
+    /// read from the counter. Pouring shows the scale reading; anything else the
+    /// seconds left.
+    @ViewBuilder
+    private func glanceBoard(_ position: BrewTimeline.Position) -> some View {
+        let fg = ink(position)
+        let step = plan.steps[safe: position.stepIndex]
+        VStack(spacing: 6) {
+            Text(plan.title).font(.headline)
+            if mood(position) != nil, !position.isFinished {
+                Text("خطوة \(position.stepIndex + 1) من \(plan.steps.count) · \(RecipeText.duration(Int(elapsed)))")
+                    .font(.subheadline.monospacedDigit()).foregroundStyle(fg.opacity(0.7))
+            }
+            Spacer(minLength: 0)
+            if position.isFinished && elapsed > 0 {
+                Image(systemName: "cup.and.saucer.fill").font(.system(size: 64))
+                Text("خلصت، بالعافية").font(.system(size: 40, weight: .heavy))
+                Text("تذوّقها وهي دافئة ثم وهي تبرد؛ النكهات تتغير.").font(.callout).foregroundStyle(fg.opacity(0.75))
+            } else if mood(position) == nil {
+                Text("جاهز؟").font(.system(size: 64, weight: .heavy))
+                if let t = plan.waterTempC {
+                    Text("جهّز الماء على \(RecipeText.number(t))°م").font(.title2.bold()).foregroundStyle(Brand.gold)
+                }
+                Text(voiceOn ? "حط الجوال قدامك واضغط «ابدأ». بنقول لك كل خطوة بالصوت، وما تحتاج تلمسه."
+                     : "الصوت مقفّل. شغّله من زر السماعة فوق عشان نقول لك كل خطوة.")
+                    .font(.callout).foregroundStyle(fg.opacity(0.75)).padding(.top, 6)
+                if voiceOn && !speaker.hasArabicVoice {
+                    Text("جوالك ما فيه صوت عربي، فبتسمع النغمات بس. تقدر تنزّل صوت عربي من إعدادات الجوال.")
+                        .font(.footnote).foregroundStyle(fg.opacity(0.6))
+                }
+            } else if let step {
+                let title = (titles[safe: position.stepIndex] ?? nil) ?? sceneState.titleAr
+                if let pourTo = position.pourTo, mood(position) == .pour {
+                    Text(step.kind == .bloom ? "تفتيح · صبّ لين" : "صبّ لين").font(.system(size: 34, weight: .bold))
+                    Text(RecipeText.number(pourTo))
+                        .font(.system(size: 170, weight: .heavy, design: .rounded).monospacedDigit())
+                        .minimumScaleFactor(0.4).lineLimit(1)
+                        .contentTransition(.numericText())
+                        .environment(\.layoutDirection, .leftToRight)
+                    Text("غرام على الميزان").font(.title3.bold()).foregroundStyle(fg.opacity(0.75))
+                    Text("باقي \(RecipeText.duration(position.secondsLeftInStep))")
+                        .font(.system(size: 34, weight: .bold, design: .monospaced)).padding(.top, 8)
+                } else {
+                    Text(title ?? glanceVerb(step)).font(.system(size: 34, weight: .bold))
+                    Text(position.secondsLeftInStep >= 60 ? RecipeText.duration(position.secondsLeftInStep) : "\(position.secondsLeftInStep)")
+                        .font(.system(size: 170, weight: .heavy, design: .rounded).monospacedDigit())
+                        .minimumScaleFactor(0.4).lineLimit(1)
+                        .contentTransition(.numericText())
+                        .environment(\.layoutDirection, .leftToRight)
+                    Text(position.secondsLeftInStep >= 60 ? "باقي" : "ثانية باقية").font(.title3.bold()).foregroundStyle(fg.opacity(0.75))
+                    if step.isAddition {
+                        Text(BrewVoice.line(step: step, pourTo: nil)).font(.title2.bold()).padding(.top, 8)
+                    }
+                }
+                if !step.note.isEmpty {
+                    Text(step.note).font(.callout).foregroundStyle(fg.opacity(0.8)).lineLimit(3).padding(.top, 6)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func glanceVerb(_ step: RemoteRecipeStep) -> String {
+        switch step.kind {
+        case .wait: return "انتظر"
+        case .swirl: return "حرّك القمع"
+        case .stir: return "قلّب"
+        case .press: return "اضغط بهدوء"
+        case .serve: return "قدّم القهوة"
+        case .bloom, .pour: return "صبّ"
+        }
     }
 
     private var header: some View {
@@ -211,12 +353,12 @@ struct BrewTimerView: View {
     private func nextStep(_ position: BrewTimeline.Position) -> some View {
         if !position.isFinished, let next = plan.steps[safe: position.stepIndex + 1] {
             HStack {
-                Text("التالي").font(.caption).foregroundStyle(.white.opacity(0.6))
+                Text("التالي").font(.caption).foregroundStyle(ink(position).opacity(0.6))
                 Label(RecipeText.stepKind(next.kind), systemImage: RecipeText.stepIcon(next.kind)).font(.subheadline)
                 Spacer()
             }
             .padding(12)
-            .background(sceneState.isCueing ? Brand.gold.opacity(0.35) : Color.white.opacity(0.08),
+            .background(sceneState.isCueing ? accent(position).opacity(0.35) : ink(position).opacity(0.1),
                         in: RoundedRectangle(cornerRadius: 12))
             .scaleEffect(sceneState.isCueing ? 1.03 : 1)
             .animation(.spring(response: 0.35), value: sceneState.isCueing)
@@ -228,7 +370,7 @@ struct BrewTimerView: View {
             Button { reset() } label: {
                 Image(systemName: "arrow.counterclockwise").font(.title2)
                     .frame(width: 60, height: 60)
-                    .background(Color.white.opacity(0.12), in: Circle())
+                    .background(ink(position).opacity(0.12), in: Circle())
             }
             .accessibilityLabel("إعادة")
             .disabled(elapsed == 0)
@@ -238,15 +380,15 @@ struct BrewTimerView: View {
                       systemImage: isRunning ? "pause.fill" : "play.fill")
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 60)
-                    .background(Brand.gold, in: Capsule())
-                    .foregroundStyle(.black)
+                    .background(accent(position), in: Capsule())
+                    .foregroundStyle(onGold(position) ? Color(red: 0.78, green: 0.6, blue: 0.24) : .black)
             }
             .accessibilityIdentifier("brew-start")
 
             Button { skip(position) } label: {
                 Image(systemName: "forward.end.fill").font(.title2)
                     .frame(width: 60, height: 60)
-                    .background(Color.white.opacity(0.12), in: Circle())
+                    .background(ink(position).opacity(0.12), in: Circle())
             }
             .accessibilityLabel("الخطوة التالية")
             .disabled(position.isFinished)
@@ -264,6 +406,8 @@ struct BrewTimerView: View {
     private func pause() {
         pausedElapsed = elapsed
         startedAt = nil
+        // The finishing line plays on; a pause mid-brew cuts the sentence.
+        if !timeline.position(at: Int(pausedElapsed)).isFinished { speaker.stop() }
     }
 
     private func reset() {
@@ -271,6 +415,8 @@ struct BrewTimerView: View {
         pausedElapsed = 0
         lastStep = -1
         cuedStep = -1
+        spokenSecond = -1
+        speaker.stop()
     }
 
     /// Jumps to the start of the next step (for when you finish a pour early).
