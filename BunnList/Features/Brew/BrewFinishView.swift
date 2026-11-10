@@ -1,10 +1,11 @@
 import BunnListCore
 import SwiftUI
 
-/// «كيف طلعت؟» after a brew: optional. With stars it saves a brew experience
-/// (private unless published) with the brew log (recipe, grind, time, taste), which
-/// is what earns its points and passport stamp under the usual rules; without
-/// stars, nothing is saved. Picking a taste shows one change to try next time.
+/// «كيف طلعت؟» after a brew: one tap. Tapping a star saves the brew experience
+/// straight away (private unless published) with the brew log (recipe, grind, time,
+/// taste), which is what earns its points and passport stamp under the usual rules.
+/// The taste, the note and publishing are extras that update the same record;
+/// without stars, nothing is saved. Picking a taste shows one change to try next time.
 @MainActor
 struct BrewFinishView: View {
     let ref: BrewFinishRef
@@ -16,6 +17,12 @@ struct BrewFinishView: View {
     @State private var note = ""
     @State private var publish = false
     @State private var isSaving = false
+    /// One record per brew: every save after the first edits it.
+    @State private var clientID = UUID().uuidString
+    @State private var savedOnce = false
+    @State private var brewedAt = Date()
+    /// Something changed while a save was in flight: save again after it.
+    @State private var dirty = false
     @State private var saved = false
     @State private var errorMessage: String?
     @State private var keepingRecipe: RecipeDraft?
@@ -39,7 +46,7 @@ struct BrewFinishView: View {
             .navigationTitle("كيف طلعت؟")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !saved {
+                if !saved && stars == 0 {
                     ToolbarItem(placement: .cancellationAction) { Button("تخطّي") { dismiss() } }
                 }
             }
@@ -60,7 +67,10 @@ struct BrewFinishView: View {
                         .font(.caption).foregroundStyle(.secondary)
                     HStack(spacing: 10) {
                         ForEach(1...5, id: \.self) { n in
-                            Button { stars = stars == n ? 0 : n } label: {
+                            Button {
+                                stars = n
+                                Task { await save() }
+                            } label: {
                                 Image(systemName: n <= stars ? "star.fill" : "star")
                                     .font(.system(size: 34)).foregroundStyle(n <= stars ? Brand.gold : .secondary)
                             }
@@ -71,11 +81,19 @@ struct BrewFinishView: View {
                     .environment(\.layoutDirection, .leftToRight)
                     .sensoryFeedback(.selection, trigger: stars)
                     .padding(.top, 6)
+                    if savedOnce {
+                        Label("انحفظت", systemImage: "checkmark.circle.fill")
+                            .font(.caption.bold()).foregroundStyle(Brand.olive)
+                            .transition(.opacity)
+                    } else if stars == 0 {
+                        Text("اضغط نجمة وتنحفظ على طول").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity)
             }
             Section("الطعم بكلمة") {
                 TasteChips(selected: $taste)
+                    .onChange(of: taste) { _, _ in if stars > 0 { Task { await save() } } }
                 if let fix { FixCard(fix: fix, lead: "المرة الجاية") }
             }
             Section {
@@ -88,16 +106,23 @@ struct BrewFinishView: View {
             Section {
                 Toggle("انشرها مع تجارب هالقهوة", isOn: $publish).tint(Brand.olive)
             } footer: {
-                Text("التقييم اختياري. بدون نجوم ما نحفظ شي، وتقدر تتخطّى.")
+                Text("النجمة تكفي. الطعم والملاحظة والنشر إضافات تتحدّث على نفس التجربة.")
             }
             if let errorMessage {
                 Section { Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
             }
             Section {
-                Button { Task { await save() } } label: {
-                    Text(isSaving ? "نحفظ…" : "حفظ التجربة").font(.headline).frame(maxWidth: .infinity)
+                Button {
+                    Task {
+                        // The note and the publish toggle go in with this last save.
+                        let stored = await save()
+                        // A save already in flight picks these up when it finishes.
+                        if stored || isSaving { withAnimation { saved = true } }
+                    }
+                } label: {
+                    Text("تم").font(.headline).frame(maxWidth: .infinity)
                 }
-                .disabled(stars == 0 || isSaving)
+                .disabled(stars == 0)
             }
         }
     }
@@ -139,24 +164,38 @@ struct BrewFinishView: View {
         return auth.isSignedIn
     }
 
-    private func save() async {
+    /// Saves (or updates) this brew's record. True when what's on screen is stored.
+    @discardableResult
+    private func save() async -> Bool {
+        guard stars > 0 else { return false }
+        if isSaving { dirty = true; return false }
         isSaving = true
         defer { isSaving = false }
-        let text = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        let log = BrewLogEntry(plan: ref.plan, grinderId: ref.grinder?.id, grindSetting: ref.grindSetting,
-                               seconds: ref.seconds, taste: taste)
-        do {
-            _ = try await auth.withToken {
-                try await client.saveExperience(slug: ref.slug, accessToken: $0, clientID: UUID().uuidString,
-                                                methodCode: ref.plan.methodCode, stars: stars, brewedAt: Date(),
-                                                note: text, publish: publish, log: log)
+        var ok = false
+        repeat {
+            dirty = false
+            let text = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            let log = BrewLogEntry(plan: ref.plan, grinderId: ref.grinder?.id, grindSetting: ref.grindSetting,
+                                   seconds: ref.seconds, taste: taste)
+            let rating = stars, shared = publish
+            do {
+                _ = try await auth.withToken {
+                    try await client.saveExperience(slug: ref.slug, accessToken: $0, clientID: clientID,
+                                                    methodCode: ref.plan.methodCode, stars: rating, brewedAt: brewedAt,
+                                                    note: text, publish: shared, log: log)
+                }
+                errorMessage = nil
+                withAnimation { savedOnce = true }
+                ok = true
+            } catch APIError.forbidden {
+                errorMessage = "حسابك موقوف عن النشر حاليًا."
+                ok = false
+            } catch {
+                errorMessage = "ما انحفظت. حاول مرة ثانية."
+                ok = false
             }
-            withAnimation { saved = true }
-        } catch APIError.forbidden {
-            errorMessage = "حسابك موقوف عن النشر حاليًا."
-        } catch {
-            errorMessage = "ما انحفظت. حاول مرة ثانية."
-        }
+        } while dirty
+        return ok
     }
 }
 
