@@ -334,7 +334,7 @@ struct AdminConsoleView: View {
                 sectionTitle("التواصل")
                 group {
                     NavigationLink { AdminBroadcastView() } label: {
-                        row("إرسال إشعار", detail: "للكل أو للنشطين، مع تجربة على جوالك", icon: "megaphone.fill", tint: Brand.gold, count: nil)
+                        row("الإشعارات", detail: "أرسل الآن، أو رسائل متكررة كل كم يوم", icon: "megaphone.fill", tint: Brand.gold, count: nil)
                     }
                     divider
                     NavigationLink { AdminUpdatesView() } label: {

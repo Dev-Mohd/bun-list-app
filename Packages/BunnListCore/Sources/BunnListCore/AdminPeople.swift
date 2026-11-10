@@ -13,6 +13,8 @@ public struct RemoteAdminUserRow: Codable, Equatable, Sendable, Identifiable {
     public let suspended: Bool
     /// «مبدع مؤسس» number; missing from older servers.
     public var founderNumber: Int? = nil
+    /// The last Riyadh day they opened the app ("2026-11-10"); missing from older servers.
+    public var lastActiveDay: String? = nil
     public var id: String { accountId }
 
     public var shownName: String { displayName ?? username.map { "@" + $0 } ?? "بدون اسم" }
@@ -94,6 +96,106 @@ public struct RemoteBroadcasts: Codable, Equatable, Sendable {
     public let history: [Sent]
 }
 
+/// Narrows the admin's user list.
+public enum AdminUserFilter: String, CaseIterable, Sendable, Identifiable {
+    case all, active, new, founders, suspended, admins
+    public var id: String { rawValue }
+
+    public var nameAr: String {
+        switch self {
+        case .all: return "الكل"
+        case .active: return "نشطين هالأسبوع"
+        case .new: return "جدد"
+        case .founders: return "مؤسسين"
+        case .suspended: return "موقوفين"
+        case .admins: return "أدمن"
+        }
+    }
+}
+
+/// «اليوم», «أمس», «قبل ٥ أيام»: how long since an account last opened the app.
+public enum AdminActivity {
+    /// Whole days between two "yyyy-MM-dd" days; nil when either doesn't parse.
+    public static func daysAgo(_ day: String?, today: String) -> Int? {
+        guard let day else { return nil }
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let a = f.date(from: day), let b = f.date(from: today) else { return nil }
+        return max(0, Int((b.timeIntervalSince(a) / 86_400).rounded()))
+    }
+
+    public static func label(_ day: String?, today: String) -> String {
+        guard let days = daysAgo(day, today: today) else { return "ما فتح التطبيق" }
+        switch days {
+        case 0: return "نشط اليوم"
+        case 1: return "أمس"
+        case 2: return "قبل يومين"
+        case 3...10: return "قبل \(days) أيام"
+        default: return "قبل \(days) يوم"
+        }
+    }
+
+    /// Today in Riyadh, in the server's day format.
+    public static func riyadhToday(_ now: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "Asia/Riyadh")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: now)
+    }
+}
+
+/// The repeating notifications: a list sent one at a time every few days.
+public struct RemoteRotation: Codable, Equatable, Sendable {
+    public struct Item: Codable, Equatable, Sendable, Identifiable {
+        public var id: String
+        public var title: String
+        public var body: String
+        public var enabled: Bool
+        public var sentCount: Int
+        public var lastSentAt: String?
+
+        public init(id: String, title: String, body: String, enabled: Bool = true, sentCount: Int = 0, lastSentAt: String? = nil) {
+            self.id = id; self.title = title; self.body = body; self.enabled = enabled
+            self.sentCount = sentCount; self.lastSentAt = lastSentAt
+        }
+    }
+
+    public var enabled: Bool
+    public var everyDays: Int
+    public var audience: String
+    public var lastRunAt: String?
+    public var nextRunAt: String?
+    public var nextItemId: String?
+    public var items: [Item]
+
+    /// What PUT takes. Ids the server didn't issue (new rows) are left out.
+    public func payload(knownIDs: Set<String>) -> [String: Any] {
+        ["enabled": enabled, "everyDays": everyDays, "audience": audience,
+         "items": items.map { item -> [String: Any] in
+             var row: [String: Any] = ["title": item.title, "body": item.body, "enabled": item.enabled]
+             if knownIDs.contains(item.id) { row["id"] = item.id }
+             return row
+         }]
+    }
+}
+
+/// Ready-made repeating notifications to start the list from.
+public enum BroadcastTemplates {
+    public static let all: [(title: String, body: String)] = [
+        ("قهوة اليوم جاهزة؟", "افتح التحضير وخل BunnList يمشي معك خطوة خطوة."),
+        ("وش في رفّك؟", "أضف القهوة اللي عندك وخذ وصفة تناسبها بالضبط."),
+        ("محتار وش تشتري؟", "جاوب 4 أسئلة في «ساعدني أختار» ونرشح لك قهوة على ذوقك."),
+        ("كيف طلعت آخر كوب؟", "قيّم تحضيرتك بضغطة، وبنضبط لك الطحنة للمرة الجاية."),
+        ("جرّب وصفة بطل", "وصفات أبطال العالم موجودة في التحضير، جاهزة على قهوتك."),
+        ("وش يشربون الناس؟", "ادخل المجتمع وشف تقييمات الأسبوع وشارك رأيك."),
+    ]
+}
+
 public struct RemoteBroadcastResult: Codable, Equatable, Sendable {
     public let accounts: Int
     public let delivered: Int
@@ -137,10 +239,10 @@ extension CatalogAPIClient {
         catch { throw AuthClientError.malformedResponse }
     }
 
-    public func adminUsers(query: String, accessToken: String) async throws -> [RemoteAdminUserRow] {
+    public func adminUsers(query: String, filter: AdminUserFilter = .all, accessToken: String) async throws -> [RemoteAdminUserRow] {
         let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&+="))) ?? ""
         struct Wrapper: Decodable { let users: [RemoteAdminUserRow] }
-        return try await get(Wrapper.self, "/api/v1/admin/users?q=\(q)", accessToken).users
+        return try await get(Wrapper.self, "/api/v1/admin/users?q=\(q)&filter=\(filter.rawValue)", accessToken).users
     }
 
     public func adminUser(id: String, accessToken: String) async throws -> RemoteAdminUser {
@@ -153,6 +255,19 @@ extension CatalogAPIClient {
 
     public func adminBroadcasts(accessToken: String) async throws -> RemoteBroadcasts {
         try await get(RemoteBroadcasts.self, "/api/v1/admin/broadcasts", accessToken)
+    }
+
+    public func adminRotation(accessToken: String) async throws -> RemoteRotation {
+        try await get(RemoteRotation.self, "/api/v1/admin/broadcasts/rotation", accessToken)
+    }
+
+    public func saveRotation(_ rotation: RemoteRotation, knownIDs: Set<String>, accessToken: String) async throws -> RemoteRotation {
+        let data = (try? JSONSerialization.data(withJSONObject: rotation.payload(knownIDs: knownIDs))) ?? Data()
+        let response = try await transport.send(
+            HTTPRequest(method: .put, path: "/api/v1/admin/broadcasts/rotation", body: data, bearer: accessToken))
+        try Self.checkContract(response)
+        do { return try JSONDecoder().decode(RemoteRotation.self, from: response.body) }
+        catch { throw AuthClientError.malformedResponse }
     }
 
     public func sendBroadcast(title: String, body: String, audience: BroadcastAudience, accessToken: String) async throws -> RemoteBroadcastResult {

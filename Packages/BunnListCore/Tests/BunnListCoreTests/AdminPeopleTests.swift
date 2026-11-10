@@ -30,4 +30,28 @@ final class AdminPeopleTests: XCTestCase {
         XCTAssertTrue(s.announcements)
         XCTAssertFalse(s.weeklySummary)
     }
+
+    func testActivityLabels() {
+        XCTAssertEqual(AdminActivity.label("2026-11-10", today: "2026-11-10"), "نشط اليوم")
+        XCTAssertEqual(AdminActivity.label("2026-11-09", today: "2026-11-10"), "أمس")
+        XCTAssertEqual(AdminActivity.label("2026-11-05", today: "2026-11-10"), "قبل 5 أيام")
+        XCTAssertEqual(AdminActivity.label("2026-10-01", today: "2026-11-10"), "قبل 40 يوم")
+        XCTAssertEqual(AdminActivity.label(nil, today: "2026-11-10"), "ما فتح التطبيق")
+        XCTAssertEqual(AdminActivity.riyadhToday(Date(timeIntervalSince1970: 1_794_348_000)).count, 10)
+    }
+
+    func testRotationDecodesAndSendsOnlyKnownIDs() throws {
+        var r = try JSONDecoder().decode(RemoteRotation.self, from: Data(#"""
+        {"enabled":true,"everyDays":2,"audience":"all","lastRunAt":null,"nextRunAt":"2026-11-12T15:00:00.000Z","nextItemId":"a",
+         "items":[{"id":"a","title":"أولى","body":"نص","enabled":true,"sentCount":3,"lastSentAt":null}]}
+        """#.utf8))
+        r.items.append(.init(id: "local-1", title: "جديدة", body: "نص جديد"))
+        let items = r.payload(knownIDs: ["a"])["items"] as? [[String: Any]]
+        XCTAssertEqual(items?.count, 2)
+        XCTAssertEqual(items?[0]["id"] as? String, "a")
+        XCTAssertNil(items?[1]["id"])
+        XCTAssertEqual(r.payload(knownIDs: [])["everyDays"] as? Int, 2)
+        XCTAssertFalse(BroadcastTemplates.all.isEmpty)
+        XCTAssertTrue(BroadcastTemplates.all.allSatisfy { $0.title.count <= 60 && $0.body.count <= 200 })
+    }
 }

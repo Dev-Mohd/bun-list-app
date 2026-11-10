@@ -1,48 +1,56 @@
 import BunnListCore
 import SwiftUI
 
-/// The newest accounts, or a search by @username, name or email.
+/// The accounts: newest first, a search by @username, name or email, and filters
+/// (active this week, new, founders, suspended, admins). Each row says when the
+/// person last opened the app.
 @MainActor
 struct AdminUsersView: View {
     @EnvironmentObject private var auth: AuthModel
     @State private var query = ""
+    @State private var filter = AdminUserFilter.all
     @State private var users: [RemoteAdminUserRow]?
     @State private var failed = false
     private let client = CatalogAPIClient(transport: URLSessionTransport())
+    private let today = AdminActivity.riyadhToday()
 
     var body: some View {
-        List {
-            if let users {
-                if users.isEmpty { ContentUnavailableView("ما فيه نتائج", systemImage: "person.slash") }
-                ForEach(users) { user in
-                    NavigationLink { AdminUserDetailView(accountID: user.accountId) { Task { await load() } } } label: {
-                        HStack(spacing: 12) {
-                            AvatarView(url: user.avatarUrl, name: user.shownName, size: 40)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(user.shownName).font(.subheadline.bold()).lineLimit(1)
-                                if let username = user.username, user.displayName != nil {
-                                    Text("@\(username)").font(.caption).foregroundStyle(.secondary)
-                                }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                filters
+                if let users {
+                    Text(users.count >= 50 && filter != .founders ? "أحدث ٥٠ حساب" : "\(users.count.formatted()) حساب")
+                        .font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+                    if users.isEmpty {
+                        ContentUnavailableView("ما فيه نتائج", systemImage: "person.slash",
+                                               description: Text(filter == .all ? "جرّب اسم ثاني" : "ما فيه أحد في «\(filter.nameAr)»"))
+                            .padding(.top, 40)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(Array(users.enumerated()), id: \.element.id) { index, user in
+                                NavigationLink { AdminUserDetailView(accountID: user.accountId) { Task { await load() } } } label: { row(user) }
+                                    .buttonStyle(.plain)
+                                if index < users.count - 1 { Divider().padding(.leading, 68) }
                             }
-                            Spacer()
-                            if let number = user.founderNumber { badge("مؤسس \(FounderBadge.label(number))", Brand.gold) }
-                            if user.isAdmin { badge("أدمن", Brand.olive) }
-                            if user.suspended { badge("موقوف", .red) }
                         }
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                        .padding(.horizontal)
                     }
+                } else if failed {
+                    Label("ما قدرنا نجيب المستخدمين. اسحب للتحديث.", systemImage: "wifi.slash")
+                        .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.top, 40)
+                } else {
+                    VStack(spacing: 8) { ForEach(0..<6, id: \.self) { _ in SkeletonBlock(height: 60, corner: 14) } }
+                        .padding(.horizontal)
                 }
-            } else if failed {
-                Label("ما قدرنا نجيب المستخدمين", systemImage: "wifi.slash").foregroundStyle(.secondary)
-            } else {
-                HStack { Spacer(); ProgressView(); Spacer() }
             }
+            .padding(.vertical)
         }
-        .scrollContentBackground(.hidden)
         .background(Brand.background.ignoresSafeArea())
         .brandScreen()
         .navigationTitle("المستخدمين")
         .searchable(text: $query, prompt: "@اسم المستخدم أو الاسم أو الإيميل")
-        .task(id: query) {
+        .task(id: "\(query)|\(filter.rawValue)") {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await load()
@@ -50,15 +58,66 @@ struct AdminUsersView: View {
         .refreshable { await load() }
     }
 
+    private var filters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(AdminUserFilter.allCases) { f in
+                    let on = f == filter
+                    Button { filter = f } label: {
+                        Text(f.nameAr).font(.subheadline.bold())
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(on ? Brand.olive : Color(.secondarySystemGroupedBackground), in: Capsule())
+                            .foregroundStyle(on ? Brand.background : Brand.ink)
+                    }
+                    .buttonStyle(.plain)
+                    .sensoryFeedback(.selection, trigger: on)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func row(_ user: RemoteAdminUserRow) -> some View {
+        let days = AdminActivity.daysAgo(user.lastActiveDay, today: today)
+        return HStack(spacing: 12) {
+            AvatarView(url: user.avatarUrl, name: user.shownName, size: 42)
+                .overlay(alignment: .bottomTrailing) {
+                    // Green while they've been in within the week.
+                    if let days, days <= 6 {
+                        Circle().fill(Brand.olive).frame(width: 11, height: 11)
+                            .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+                    }
+                }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(user.shownName).font(.subheadline.bold()).lineLimit(1)
+                    if let number = user.founderNumber { badge("مؤسس \(FounderBadge.label(number))", Brand.gold) }
+                    if user.isAdmin { badge("أدمن", Brand.olive) }
+                    if user.suspended { badge("موقوف", .red) }
+                }
+                Text([user.displayName != nil ? user.username.map { "@" + $0 } : nil,
+                      AdminActivity.label(user.lastActiveDay, today: today),
+                      "انضم \(AdminUserDetailView.date(user.joinedAt))"].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.backward").font(.caption.bold()).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+
     private func badge(_ text: String, _ color: Color) -> some View {
         Text(text).font(.caption2.bold()).foregroundStyle(color)
             .padding(.horizontal, 7).padding(.vertical, 2)
             .background(Capsule().fill(color.opacity(0.12)))
+            .fixedSize()
     }
 
     private func load() async {
         do {
-            users = try await auth.withToken { try await client.adminUsers(query: query, accessToken: $0) }
+            users = try await auth.withToken { try await client.adminUsers(query: query, filter: filter, accessToken: $0) }
             failed = false
         } catch {
             failed = users == nil
@@ -166,7 +225,7 @@ struct AdminUserDetailView: View {
                 }
                 if let bio = u.bio, !bio.isEmpty { Text(bio).font(.callout) }
                 LabeledContent("انضم", value: Self.date(u.joinedAt))
-                LabeledContent("آخر نشاط", value: u.lastActiveDay ?? "—")
+                LabeledContent("آخر نشاط", value: AdminActivity.label(u.lastActiveDay, today: AdminActivity.riyadhToday()))
                 LabeledContent("النقاط", value: u.points.formatted())
                 if let username = u.username {
                     NavigationLink("صفحته العامة") { PublicProfileView(username: username) }
