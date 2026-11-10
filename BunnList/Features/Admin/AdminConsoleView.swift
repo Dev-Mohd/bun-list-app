@@ -136,13 +136,14 @@ struct AdminConsoleView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon).font(.subheadline)
                 .foregroundStyle(hot ? Brand.background : Brand.olive)
+                .frame(height: 20)
             Text(count.map { $0.formatted() } ?? "—")
                 .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(hot ? Brand.background : Brand.ink)
             Text(title).font(.caption.bold())
                 .foregroundStyle(hot ? Brand.background.opacity(0.85) : .secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
         .padding(14)
         .background(hot ? Brand.gold : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .combine)
@@ -156,7 +157,7 @@ struct AdminConsoleView: View {
             HStack(alignment: .firstTextBaseline) {
                 sectionTitle("هالأسبوع")
                 Spacer()
-                if o.prev7d != nil { Text("مقارنة بالأسبوع اللي قبله").font(.caption2).foregroundStyle(.secondary) }
+                if comparable(o) { Text("مقارنة بالأسبوع اللي قبله").font(.caption2).foregroundStyle(.secondary) }
             }
             if let active = o.active7d {
                 HStack(spacing: 14) {
@@ -185,8 +186,15 @@ struct AdminConsoleView: View {
                 kpi(o.reviews7d, "تقييم", previous: o.prev7d?.reviews, icon: "star.fill")
                 kpi(o.recipes7d, "وصفة منشورة", previous: o.prev7d?.recipes, icon: "book.closed.fill")
                 kpi(o.scans7d, "مسح كيس", previous: o.prev7d?.scans, icon: "camera.viewfinder")
+                if let brewers = o.brewers7d { kpi(brewers, "شخص حضّر", previous: nil, icon: "person.fill.checkmark") }
             }
         }
+    }
+
+    /// Last week had something to compare with (a brand-new app has nothing yet).
+    private func comparable(_ o: RemoteAdminOverview) -> Bool {
+        guard let p = o.prev7d else { return false }
+        return p.newUsers + p.reviews + p.recipes + p.brews + p.scans > 0
     }
 
     private func kpi(_ value: Int, _ label: String, previous: Int?, icon: String) -> some View {
@@ -205,7 +213,7 @@ struct AdminConsoleView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// ▲ 20٪ in olive, ▼ in red, «جديد» when last week had none.
+    /// ▲ 20٪ in olive, ▼ in red; nothing when last week had none to compare with.
     @ViewBuilder
     private func trend(current: Int, previous: Int?) -> some View {
         if let percent = AdminTrend.percent(current: current, previous: previous) {
@@ -216,10 +224,6 @@ struct AdminConsoleView: View {
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background((percent == 0 ? Color.secondary : (up ? Brand.olive : .red)).opacity(0.12), in: Capsule())
                 .accessibilityLabel(percent == 0 ? "بدون تغيير" : "\(up ? "زاد" : "نقص") \(abs(percent)) بالمية")
-        } else if previous == 0, current > 0 {
-            Text("جديد").font(.caption2.bold()).foregroundStyle(Brand.gold)
-                .padding(.horizontal, 7).padding(.vertical, 3)
-                .background(Brand.gold.opacity(0.14), in: Capsule())
         }
     }
 
