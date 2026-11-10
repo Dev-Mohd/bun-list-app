@@ -11,6 +11,8 @@ public struct RemoteAdminUserRow: Codable, Equatable, Sendable, Identifiable {
     public let joinedAt: String
     public let isAdmin: Bool
     public let suspended: Bool
+    /// «مبدع مؤسس» number; missing from older servers.
+    public var founderNumber: Int? = nil
     public var id: String { accountId }
 
     public var shownName: String { displayName ?? username.map { "@" + $0 } ?? "بدون اسم" }
@@ -55,6 +57,8 @@ public struct RemoteAdminUser: Codable, Equatable, Sendable {
     public let counts: Counts
     public let suspension: Suspension?
     public let recentReviews: [Review]
+    /// «مبدع مؤسس» number; missing from older servers.
+    public var founderNumber: Int? = nil
 }
 
 public enum BroadcastAudience: String, CaseIterable, Sendable, Identifiable {
@@ -103,6 +107,8 @@ public enum AdminUserAction: Sendable, Equatable {
     case setAdmin(Bool)
     /// For someone gaming the points: wipes their points, streak and level back to zero.
     case resetPoints(reason: String)
+    /// «مبدع مؤسس»: give the next number of 100, or take the badge back.
+    case setFounder(Bool)
 
     var payload: [String: Any] {
         switch self {
@@ -110,6 +116,7 @@ public enum AdminUserAction: Sendable, Equatable {
         case .unsuspend: return ["action": "unsuspend"]
         case let .setAdmin(on): return ["action": "setAdmin", "admin": on]
         case let .resetPoints(reason): return ["action": "resetPoints", "reason": reason]
+        case let .setFounder(on): return ["action": "setFounder", "founder": on]
         }
     }
 }

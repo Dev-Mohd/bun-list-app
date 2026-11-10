@@ -25,6 +25,7 @@ struct AdminUsersView: View {
                                 }
                             }
                             Spacer()
+                            if let number = user.founderNumber { badge("مؤسس \(FounderBadge.label(number))", Brand.gold) }
                             if user.isAdmin { badge("أدمن", Brand.olive) }
                             if user.suspended { badge("موقوف", .red) }
                         }
@@ -80,6 +81,7 @@ struct AdminUserDetailView: View {
     @State private var resetReason = ""
     @State private var showSuspend = false
     @State private var confirmAdmin = false
+    @State private var confirmFounder = false
     @State private var isBusy = false
     private let client = CatalogAPIClient(transport: URLSessionTransport())
 
@@ -238,6 +240,23 @@ struct AdminUserDetailView: View {
                 Button {
                     compose = ComposeItem(draft: .suggested(.general, name: u.displayName))
                 } label: { Label("راسله", systemImage: "envelope") }
+                Button {
+                    confirmFounder = true
+                } label: {
+                    Label(u.founderNumber.map { "مبدع مؤسس \(FounderBadge.label($0)) · سحب الشارة" } ?? "اجعله مبدع مؤسس",
+                          systemImage: u.founderNumber == nil ? "seal" : "seal.fill")
+                }
+                .tint(u.founderNumber == nil ? Brand.gold : .red)
+                .confirmationDialog(u.founderNumber == nil ? "تعطيه شارة «مبدع مؤسس»؟" : "تسحب شارة «مبدع مؤسس»؟",
+                                    isPresented: $confirmFounder, titleVisibility: .visible) {
+                    Button(u.founderNumber == nil ? "إعطاء الشارة" : "سحب", role: u.founderNumber == nil ? nil : .destructive) {
+                        Task { await act(.setFounder(u.founderNumber == nil)) }
+                    }
+                } message: {
+                    Text(u.founderNumber == nil
+                         ? "ياخذ الرقم التالي من ١٠٠، ويوصله إشعار، وتنفتح له روابط حساباته."
+                         : "تنشال الشارة وروابط حساباته، ورقمه ما ينعطى لأحد ثاني.")
+                }
                 Button(u.isAdmin ? "سحب صلاحية الأدمن" : "إعطاء صلاحية أدمن") { confirmAdmin = true }
                     .confirmationDialog(u.isAdmin ? "تسحب صلاحية الأدمن؟" : "تعطيه صلاحية أدمن؟", isPresented: $confirmAdmin,
                                         titleVisibility: .visible) {

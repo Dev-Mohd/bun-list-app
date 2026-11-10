@@ -26,6 +26,9 @@ public struct RemoteMe: Codable, Equatable, Sendable {
     /// Signup taste picks («وش تحب في قهوتك؟»); nil from older servers.
     public var tastePrefs: [String]? = nil
     public var brewPrefs: [String]? = nil
+    /// «مبدع مؤسس» and their linked accounts; nil from older servers.
+    public var founder: FounderBadge? = nil
+    public var socials: Socials? = nil
 
     public var isOnboarded: Bool { onboarded ?? true }
 

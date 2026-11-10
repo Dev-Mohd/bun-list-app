@@ -365,6 +365,7 @@ struct PulseSection: View {
     private func row(_ item: RemotePulseItem) -> some View {
         let content = HStack(spacing: 10) {
             AvatarView(url: item.avatarUrl, name: item.name, size: 36)
+                .founderRing(item.founderNumber != nil, size: 36)
             VStack(alignment: .leading, spacing: 2) {
                 (Text(item.name).bold() + Text(" ") + Text(item.actionAr))
                     .font(.subheadline).foregroundStyle(Brand.ink).lineLimit(2)
@@ -512,8 +513,12 @@ struct PulsePostCard: View {
     @ViewBuilder private var header: some View {
         let row = HStack(spacing: 10) {
             AvatarView(url: item.avatarUrl, name: item.name, size: 38)
+                .founderRing(item.founderNumber != nil, size: 38)
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.name).font(.subheadline.bold()).foregroundStyle(Brand.ink)
+                HStack(spacing: 6) {
+                    Text(item.name).font(.subheadline.bold()).foregroundStyle(Brand.ink)
+                    if let number = item.founderNumber { FounderChip(number: number, compact: true, name: item.name) }
+                }
                 Text([item.username.flatMap { item.name.contains($0) ? nil : "@\($0)" }, headline,
                       item.date.map { $0.formatted(.relative(presentation: .named)) }]
                         .compactMap { $0 }.joined(separator: " · "))
@@ -613,6 +618,7 @@ struct TasteTwinsRow: View {
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 1.3).delay(0.4), value: shown)
                 AvatarView(url: person.avatarUrl, name: person.displayName ?? person.username, size: 48)
+                    .founderRing(person.founderNumber != nil, size: 48)
             }
             .frame(width: 60, height: 60)
             .environment(\.layoutDirection, .leftToRight)

@@ -8,6 +8,8 @@ public struct RemotePublicRecipe: Codable, Equatable, Sendable, Hashable, Identi
     public let title: String
     public let methodCode: String
     public let lotNameAr: String?
+    /// «حضّرها N شخص»; missing from older servers.
+    public var brewedCount: Int? = nil
 }
 
 public struct RemotePublicProfile: Codable, Equatable, Sendable {
@@ -30,6 +32,9 @@ public struct RemotePublicProfile: Codable, Equatable, Sendable {
     public let isBlocked: Bool?
     public let discoveries: [RemoteLot]
     public let recipes: [RemotePublicRecipe]
+    /// «مبدع مؤسس» and, for founders, their accounts elsewhere. Missing from older servers.
+    public var founder: FounderBadge? = nil
+    public var socials: Socials? = nil
 }
 
 public struct RemotePerson: Codable, Equatable, Sendable, Hashable, Identifiable {

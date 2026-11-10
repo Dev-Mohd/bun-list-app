@@ -217,7 +217,13 @@ struct RecipeListRow: View {
             }
             HStack(spacing: 12) {
                 if showsAuthor {
-                    Label(recipe.authorName, systemImage: "person").font(.caption2).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Label(recipe.authorName, systemImage: "person").font(.caption2).foregroundStyle(.secondary)
+                        if let number = recipe.authorFounder { FounderChip(number: number, compact: true, name: recipe.authorName) }
+                    }
+                }
+                if let brewed = recipe.brewedCount, brewed > 0 {
+                    Label("حضّرها \(brewed.formatted())", systemImage: "cup.and.saucer.fill").font(.caption2.bold()).foregroundStyle(Brand.olive)
                 }
                 if let likes = recipe.likeCount, likes > 0 {
                     Label(likes.formatted(), systemImage: recipe.likedByMe == true ? "heart.fill" : "heart")

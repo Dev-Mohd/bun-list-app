@@ -323,8 +323,12 @@ private struct LeaderboardRow: View {
         HStack(spacing: 12) {
             rankBadge
             AvatarView(url: entry.avatarUrl, name: entry.name, size: 40)
+                .founderRing(entry.founderNumber != nil, size: 40)
             VStack(alignment: .leading, spacing: 1) {
-                Text(entry.isMe ? "\(entry.name) (أنت)" : entry.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(entry.isMe ? "\(entry.name) (أنت)" : entry.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    if let number = entry.founderNumber { FounderChip(number: number, compact: true, name: entry.name) }
+                }
                 HStack(spacing: 6) {
                     if let level = entry.levelAr {
                         Text("\(entry.levelEmoji ?? "") \(level)").font(.caption2.bold()).foregroundStyle(Brand.olive)

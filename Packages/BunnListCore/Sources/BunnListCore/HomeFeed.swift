@@ -134,6 +134,8 @@ public struct RemotePulseItem: Decodable, Equatable, Sendable, Identifiable {
     /// The brew's id for its comments (recipes use recipeId), and how many it has.
     public var brewId: String? = nil
     public var commentCount: Int? = nil
+    /// «مبدع مؤسس» number of the person; missing from older servers.
+    public var founderNumber: Int? = nil
 
     public var id: String { "\(kind.rawValue)|\(username ?? name)|\(lotSlug ?? recipeId ?? "")|\(at)" }
 

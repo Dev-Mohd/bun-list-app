@@ -194,6 +194,7 @@ struct PublicProfileView<Extra: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 14) {
                 AvatarView(url: p.avatarUrl, name: p.displayName ?? p.username, size: 76)
+                    .founderRing(p.founder != nil, size: 76)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(p.displayName ?? p.username).font(.title2.bold()).foregroundStyle(Brand.ink)
@@ -205,11 +206,17 @@ struct PublicProfileView<Extra: View>: View {
                     }
                     Text("@\(p.username)").font(.subheadline).foregroundStyle(.secondary)
                         .environment(\.layoutDirection, .leftToRight)
+                    if let founder = p.founder {
+                        FounderChip(number: founder.number, name: p.displayName ?? p.username, isMine: p.isMe).padding(.top, 2)
+                    }
                 }
                 Spacer(minLength: 0)
             }
             if let bio = p.bio, !bio.isEmpty {
                 Text(bio).font(.callout).foregroundStyle(.primary.opacity(0.85))
+            }
+            if let socials = p.socials, !socials.isEmpty {
+                SocialLinksRow(socials: socials)
             }
             HStack(spacing: 8) {
                 Button { list = .followers } label: { count(p.followers, "متابِع") }
@@ -342,6 +349,10 @@ struct PublicProfileView<Extra: View>: View {
                             Text([ReferenceCodes.brewMethod(recipe.methodCode)?.nameAr ?? recipe.methodCode, recipe.lotNameAr]
                                 .compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption).foregroundStyle(.secondary)
+                            if let brewed = recipe.brewedCount, brewed > 0 {
+                                Label("حضّرها \(brewed.formatted()) شخص", systemImage: "cup.and.saucer.fill")
+                                    .font(.caption.bold()).foregroundStyle(Brand.olive)
+                            }
                         }
                         Spacer()
                     }

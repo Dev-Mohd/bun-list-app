@@ -79,6 +79,11 @@ public struct RemoteRecipe: Codable, Equatable, Hashable, Sendable, Identifiable
     /// In lists only; missing from older servers.
     public let likeCount: Int?
     public let likedByMe: Bool?
+    /// The author's @username, «مبدع مؤسس» number and (founders) accounts; «حضّرها N شخص». Missing from older servers.
+    public var authorUsername: String? = nil
+    public var authorFounder: Int? = nil
+    public var authorSocials: Socials? = nil
+    public var brewedCount: Int? = nil
 }
 
 public struct RecipeDraft: Equatable, Sendable {

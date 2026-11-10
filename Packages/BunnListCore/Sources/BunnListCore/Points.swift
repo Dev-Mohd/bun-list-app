@@ -38,6 +38,8 @@ public struct RemoteLeaderboard: Codable, Equatable, Sendable {
         public let isMe: Bool
         public let levelAr: String?
         public let levelEmoji: String?
+        /// «مبدع مؤسس» number; missing from older servers.
+        public var founderNumber: Int? = nil
     }
 
     public struct Me: Codable, Equatable, Sendable {

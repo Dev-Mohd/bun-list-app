@@ -33,6 +33,8 @@ public struct RemotePersonCard: Codable, Equatable, Sendable, Hashable, Identifi
     public let reasonAr: String?
     /// Taste twins: the share of your coffees they have too (0–100); missing from older servers.
     public var sharedPercent: Int? = nil
+    /// «مبدع مؤسس» number; missing from older servers.
+    public var founderNumber: Int? = nil
 
     public var followState: FollowState { FollowState(following: isFollowing, requested: requested) }
 }

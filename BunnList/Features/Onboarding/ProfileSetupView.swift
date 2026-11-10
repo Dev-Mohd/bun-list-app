@@ -107,6 +107,28 @@ struct ProfileSetupView: View {
                     Text("\(bio.count.formatted())/\(ProfileRules.maxBio.formatted())").foregroundStyle(.secondary)
                 }
 
+                if mode == .edit, let founder = profile.me?.founder {
+                    NavigationLink { FounderSocialsEditor() } label: {
+                        HStack(spacing: 12) {
+                            FounderSeal(size: 44, dashed: false)
+                            VStack(alignment: .leading, spacing: 2) {
+                                (Text("حساباتك · مبدع مؤسس ") + Text(founder.label).monospacedDigit()).font(.subheadline.bold())
+                                Text(profile.me?.socials?.isEmpty == false
+                                     ? (profile.me?.socials?.linked.map(\.network.nameAr).joined(separator: "، ") ?? "")
+                                     : "أضف تيك توك وإنستقرام ويوتيوب وإكس")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.left").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .padding(14)
+                        .background(Color(red: 0.984, green: 0.953, blue: 0.875), in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(red: 0.92, green: 0.83, blue: 0.61)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("founder-socials")
+                }
+
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.red)
                 }

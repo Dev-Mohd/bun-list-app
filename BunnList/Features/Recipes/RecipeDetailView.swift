@@ -153,8 +153,21 @@ struct RecipeDetailView: View {
                     }
                 }
 
-                Text(recipe.isMine ? "حالة الوصفة: \(RecipeText.state(recipe.state))" : "بواسطة \(recipe.authorName)")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let brewed = recipe.brewedCount, brewed > 0 {
+                    Label("حضّرها \(brewed.formatted()) شخص", systemImage: "cup.and.saucer.fill")
+                        .font(.subheadline.bold()).foregroundStyle(Brand.olive)
+                }
+                if recipe.isMine {
+                    Text("حالة الوصفة: \(RecipeText.state(recipe.state))").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text("بواسطة \(recipe.authorName)").font(.caption).foregroundStyle(.secondary)
+                            if let number = recipe.authorFounder { FounderChip(number: number, compact: true, name: recipe.authorName) }
+                        }
+                        if let socials = recipe.authorSocials, !socials.isEmpty { SocialLinksRow(socials: socials) }
+                    }
+                }
             }
             .padding()
         }

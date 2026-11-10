@@ -87,10 +87,12 @@ struct PersonRow: View {
             NavigationLink { PublicProfileView(username: person.username) } label: {
                 HStack(spacing: 12) {
                     AvatarView(url: person.avatarUrl, name: person.displayName ?? person.username, size: 44)
+                        .founderRing(person.founderNumber != nil, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
                             Text(person.displayName ?? person.username).font(.subheadline.weight(.semibold)).lineLimit(1)
                             if person.isPrivate { Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary) }
+                            if let number = person.founderNumber { FounderChip(number: number, compact: true, name: person.displayName ?? person.username) }
                         }
                         Text(person.reasonAr ?? "@\(person.username)")
                             .font(.caption).foregroundStyle(person.reasonAr == nil ? Color.secondary : Brand.olive).lineLimit(1)

@@ -12,6 +12,9 @@ public struct RemoteProfile: Codable, Equatable, Sendable {
     /// What they picked at signup («وش تحب في قهوتك؟»); nil from older servers.
     public var tastePrefs: [String]? = nil
     public var brewPrefs: [String]? = nil
+    /// «مبدع مؤسس» and their linked accounts; nil from older servers.
+    public var founder: FounderBadge? = nil
+    public var socials: Socials? = nil
 }
 
 /// The signup taste question: flavour families and how they brew. The catalog's
