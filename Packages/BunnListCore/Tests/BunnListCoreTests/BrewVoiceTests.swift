@@ -97,4 +97,31 @@ final class BrewVoiceTests: XCTestCase {
         XCTAssertNil(BrewVoice.espressoLine(second: 28, target: 25...32))
         XCTAssertEqual(BrewVoice.prepSeconds, 5)
     }
+
+    func testRecordedClipsFollowTheCues() {
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 0), ["bloom", "pour_45"])
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 40), ["swirl"])
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 45), ["pour_150"])
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 75), ["wait_75"])
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 38), ["count_2"])
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 150), ["done"])
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 20), [])
+        // Every cue has clips or none; never clips without a cue.
+        for s in 0...151 where BrewVoice.cue(timeline: timeline, second: s) == nil {
+            XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: s), [])
+        }
+    }
+
+    func testLinesWithoutARecordingFallBackToSpeech() {
+        let odd = BrewTimeline(steps: [RemoteRecipeStep(kind: .pour, addedWaterGrams: 37.5, seconds: 20)])
+        XCTAssertEqual(BrewVoice.clips(timeline: odd, second: 0), [])
+        let ice = BrewTimeline(steps: [RemoteRecipeStep(kind: .serve, addedWaterGrams: 90, seconds: 10, addition: "ice")])
+        XCTAssertEqual(BrewVoice.clips(timeline: ice, second: 0), [])
+        let plan = BrewPlan(preset: BrewPreset.all.first { $0.id == "arabic-saudi" }!)
+        XCTAssertEqual(BrewVoice.clips(timeline: BrewTimeline(steps: plan.steps), second: 0, titles: BrewVoice.titles(plan: plan)), [])
+        XCTAssertEqual(BrewVoice.espressoClips(second: 25, target: 25...32), ["esp_25"])
+        XCTAssertEqual(BrewVoice.espressoClips(second: 32, target: 25...32), ["esp_stop"])
+        XCTAssertEqual(BrewVoice.espressoClips(second: 28, target: 25...32), [])
+        XCTAssertEqual(BrewVoice.countClips(3), ["count_3"])
+    }
 }

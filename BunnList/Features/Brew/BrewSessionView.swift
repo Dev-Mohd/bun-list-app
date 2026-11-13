@@ -107,7 +107,8 @@ struct EspressoShotView: View {
             if second != spokenSecond {
                 spokenSecond = second
                 if voiceOn, let line = BrewVoice.espressoLine(second: second, target: target) {
-                    speaker.play(.step(index: 0, line: line, mood: second == target.upperBound ? .wait : .pour))
+                    speaker.play(.step(index: 0, line: line, mood: second == target.upperBound ? .wait : .pour),
+                                 clips: BrewVoice.espressoClips(second: second, target: target))
                 }
             }
         }

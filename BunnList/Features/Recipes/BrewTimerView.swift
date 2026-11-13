@@ -137,7 +137,9 @@ struct BrewTimerView: View {
             let second = min(Int(elapsed), timeline.totalSeconds)
             if second != spokenSecond {
                 spokenSecond = second
-                if voiceOn, let cue = BrewVoice.cue(timeline: timeline, second: second, titles: titles) { speaker.play(cue) }
+                if voiceOn, let cue = BrewVoice.cue(timeline: timeline, second: second, titles: titles) {
+                    speaker.play(cue, clips: BrewVoice.clips(timeline: timeline, second: second, titles: titles))
+                }
             }
             if sceneState.isCueing, cuedStep != current.stepIndex {
                 cuedStep = current.stepIndex
@@ -447,13 +449,13 @@ struct BrewTimerView: View {
     private func beginPrep() {
         prepTask?.cancel()
         prepLeft = BrewVoice.prepSeconds
-        if voiceOn { speaker.play(.step(index: 0, line: BrewVoice.readyLine, mood: .act)) }
+        if voiceOn { speaker.play(.step(index: 0, line: BrewVoice.readyLine, mood: .act), clips: BrewVoice.readyClips) }
         prepTask = Task { @MainActor in
             for n in stride(from: BrewVoice.prepSeconds - 1, through: 0, by: -1) {
                 try? await Task.sleep(for: .seconds(1))
                 if Task.isCancelled { return }
                 withAnimation { prepLeft = n }
-                if (1...3).contains(n), voiceOn { speaker.play(.count(n)) }
+                if (1...3).contains(n), voiceOn { speaker.play(.count(n), clips: BrewVoice.countClips(n)) }
             }
             prepLeft = nil
             prepTask = nil

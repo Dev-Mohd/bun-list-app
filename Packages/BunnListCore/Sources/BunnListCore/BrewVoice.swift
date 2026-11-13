@@ -110,6 +110,55 @@ public enum BrewVoice {
         }
     }
 
+    // MARK: Recorded voice
+
+    /// The names of the recorded clips that say a cue, in the order to play them.
+    /// Empty when the line has no recording (an odd number, an Arabic-coffee stage,
+    /// an addition): the app then speaks the cue's text instead. The app also falls
+    /// back when a named clip isn't in the bundle, so the names here may run past
+    /// what was recorded.
+    public static func clips(timeline: BrewTimeline, second: Int, titles: [String?] = []) -> [String] {
+        guard !timeline.steps.isEmpty, second >= 0 else { return [] }
+        let position = timeline.position(at: second)
+        if position.isFinished { return second == timeline.totalSeconds ? ["done"] : [] }
+        let index = position.stepIndex
+        let step = timeline.steps[index]
+        if second == timeline.start(of: index) {
+            if titles.indices.contains(index), titles[index] != nil { return [] }
+            return clips(step: step, pourTo: position.pourTo)
+        }
+        if (1...3).contains(position.secondsLeftInStep), (step.seconds ?? 0) >= countdownMinSeconds {
+            return countClips(position.secondsLeftInStep)
+        }
+        return []
+    }
+
+    static func clips(step: RemoteRecipeStep, pourTo: Double?) -> [String] {
+        let seconds = step.seconds ?? 0
+        func pour() -> String? {
+            guard let pourTo, pourTo == pourTo.rounded(), pourTo > 0 else { return nil }
+            return "pour_\(Int(pourTo))"
+        }
+        switch step.kind {
+        case .bloom: return pour().map { ["bloom", $0] } ?? []
+        case .pour: return pour().map { [$0] } ?? []
+        case .wait: return seconds > 0 ? ["wait_\(seconds)"] : ["wait"]
+        case .swirl: return ["swirl"]
+        case .stir: return ["stir"]
+        case .press: return ["press"]
+        case .serve: return step.isAddition ? [] : ["serve"]
+        }
+    }
+
+    public static let readyClips = ["ready"]
+    public static func countClips(_ n: Int) -> [String] { (1...3).contains(n) ? ["count_\(n)"] : [] }
+
+    public static func espressoClips(second: Int, target: ClosedRange<Int>) -> [String] {
+        if second == target.lowerBound { return ["esp_\(second)"] }
+        if second == target.upperBound { return ["esp_stop"] }
+        return []
+    }
+
     /// What happens as the clock reaches `second`, if anything. At most one cue a
     /// second: the end, else a step's start, else the countdown.
     public static func cue(timeline: BrewTimeline, second: Int, titles: [String?] = []) -> Cue? {
