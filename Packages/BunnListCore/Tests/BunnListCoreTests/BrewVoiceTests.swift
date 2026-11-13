@@ -124,4 +124,26 @@ final class BrewVoiceTests: XCTestCase {
         XCTAssertEqual(BrewVoice.espressoClips(second: 28, target: 25...32), [])
         XCTAssertEqual(BrewVoice.countClips(3), ["count_3"])
     }
+
+    func testScriptedRecipesPlayTheirOwnRecordings() {
+        let plan = BrewPlan(preset: BrewPreset.all.first { $0.id == "arabic-saudi" }!)
+        let tl = BrewTimeline(steps: plan.steps)
+        XCTAssertEqual(BrewVoice.clips(timeline: tl, second: 0, titles: BrewVoice.titles(plan: plan), planID: plan.id), ["arabic-saudi_0"])
+        XCTAssertEqual(BrewVoice.clips(timeline: tl, second: tl.start(of: 2), titles: BrewVoice.titles(plan: plan), planID: plan.id), ["arabic-saudi_2"])
+        XCTAssertEqual(BrewVoice.stepClips(planID: "preset:cold-brew", stepIndex: 3), ["cold-brew_3"])
+        XCTAssertEqual(BrewVoice.stepClips(planID: "preset:v60-classic", stepIndex: 0), [])
+        XCTAssertEqual(BrewVoice.stepClips(planID: nil, stepIndex: 0), [])
+        // A V60 timeline is untouched by passing its id.
+        XCTAssertEqual(BrewVoice.clips(timeline: timeline, second: 45, planID: "preset:v60-classic"), ["pour_150"])
+        let cold = BrewPreset.all.first { $0.id == "cold-brew" }!
+        XCTAssertFalse(BrewVoice.checklistLine(step: BrewPlan(preset: cold).steps[0]).isEmpty)
+    }
+
+    func testShotResult() {
+        XCTAssertEqual(BrewVoice.shot(seconds: 20, target: 25...32), .fast)
+        XCTAssertEqual(BrewVoice.shot(seconds: 28, target: 25...32), .good)
+        XCTAssertEqual(BrewVoice.shot(seconds: 40, target: 25...32), .slow)
+        XCTAssertEqual(BrewVoice.shotClips(.fast), ["esp_fast"])
+        XCTAssertEqual(BrewVoice.espressoStartClips, ["esp_start"])
+    }
 }

@@ -138,7 +138,7 @@ struct BrewTimerView: View {
             if second != spokenSecond {
                 spokenSecond = second
                 if voiceOn, let cue = BrewVoice.cue(timeline: timeline, second: second, titles: titles) {
-                    speaker.play(cue, clips: BrewVoice.clips(timeline: timeline, second: second, titles: titles))
+                    speaker.play(cue, clips: BrewVoice.clips(timeline: timeline, second: second, titles: titles, planID: plan.id))
                 }
             }
             if sceneState.isCueing, cuedStep != current.stepIndex {

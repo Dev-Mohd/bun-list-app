@@ -117,13 +117,15 @@ public enum BrewVoice {
     /// an addition): the app then speaks the cue's text instead. The app also falls
     /// back when a named clip isn't in the bundle, so the names here may run past
     /// what was recorded.
-    public static func clips(timeline: BrewTimeline, second: Int, titles: [String?] = []) -> [String] {
+    public static func clips(timeline: BrewTimeline, second: Int, titles: [String?] = [], planID: String? = nil) -> [String] {
         guard !timeline.steps.isEmpty, second >= 0 else { return [] }
         let position = timeline.position(at: second)
         if position.isFinished { return second == timeline.totalSeconds ? ["done"] : [] }
         let index = position.stepIndex
         let step = timeline.steps[index]
         if second == timeline.start(of: index) {
+            let scripted = stepClips(planID: planID, stepIndex: index)
+            if !scripted.isEmpty { return scripted }
             if titles.indices.contains(index), titles[index] != nil { return [] }
             return clips(step: step, pourTo: position.pourTo)
         }
@@ -149,6 +151,43 @@ public enum BrewVoice {
         case .serve: return step.isAddition ? [] : ["serve"]
         }
     }
+
+    /// Recipes whose every step was recorded as its own sentence (Saudi coffee, cold brew).
+    static let scriptedPlans: Set<String> = ["arabic-saudi", "cold-brew", "cold-brew-ready"]
+
+    /// The recording for one step of a scripted recipe; empty for any other recipe.
+    public static func stepClips(planID: String?, stepIndex: Int) -> [String] {
+        guard let planID else { return [] }
+        let id = planID.hasPrefix("preset:") ? String(planID.dropFirst("preset:".count)) : planID
+        return scriptedPlans.contains(id) ? ["\(id)_\(stepIndex)"] : []
+    }
+
+    /// What to read for a checklist step (cold brew): its note, or failing that its kind.
+    public static func checklistLine(step: RemoteRecipeStep) -> String {
+        step.note.isEmpty ? line(step: step, pourTo: nil) : step.note
+    }
+
+    // MARK: Espresso
+
+    public static let espressoStartLine = "بدأ الاستخلاص"
+    public static let espressoStartClips = ["esp_start"]
+
+    /// How a shot's time sits against its target window.
+    public enum Shot: String, Equatable, Sendable { case fast, good, slow }
+
+    public static func shot(seconds: Int, target: ClosedRange<Int>) -> Shot {
+        seconds < target.lowerBound ? .fast : (seconds > target.upperBound ? .slow : .good)
+    }
+
+    public static func shotLine(_ shot: Shot) -> String {
+        switch shot {
+        case .good: return "ممتاز، ضمن الهدف"
+        case .fast: return "أسرع من الهدف. جرّب المرة الجاية طحنة أنعم شوي"
+        case .slow: return "أبطأ من الهدف. جرّب المرة الجاية طحنة أخشن شوي"
+        }
+    }
+
+    public static func shotClips(_ shot: Shot) -> [String] { ["esp_\(shot.rawValue)"] }
 
     public static let readyClips = ["ready"]
     public static func countClips(_ n: Int) -> [String] { (1...3).contains(n) ? ["count_\(n)"] : [] }

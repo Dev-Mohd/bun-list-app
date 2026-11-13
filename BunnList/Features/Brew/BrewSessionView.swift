@@ -207,9 +207,17 @@ struct EspressoShotView: View {
                     if startedAt == nil {
                         now = Date(); startedAt = now
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        if voiceOn {
+                            speaker.play(.step(index: 0, line: BrewVoice.espressoStartLine, mood: .pour), clips: BrewVoice.espressoStartClips)
+                        }
                     } else {
                         stoppedAt = elapsed
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        // The verdict, and the one change to try, without looking at the screen.
+                        if voiceOn {
+                            let shot = BrewVoice.shot(seconds: Int(elapsed.rounded()), target: target)
+                            speaker.play(.finished(line: BrewVoice.shotLine(shot)), clips: BrewVoice.shotClips(shot))
+                        }
                     }
                 } label: {
                     Label(startedAt == nil ? "ابدأ الاستخلاص" : "وقّف", systemImage: startedAt == nil ? "play.fill" : "stop.fill")
@@ -230,6 +238,9 @@ struct ChecklistBrewView: View {
     var onFinish: (Int) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var done = Set<Int>()
+    /// Reads the step to do now, then the next one as each is ticked (the timer's speaker setting).
+    @State private var speaker = BrewSpeaker()
+    @AppStorage("brew.voice") private var voiceOn = true
 
     var body: some View {
         NavigationStack {
@@ -241,7 +252,12 @@ struct ChecklistBrewView: View {
                 Section("الخطوات") {
                     ForEach(Array(plan.steps.enumerated()), id: \.offset) { index, step in
                         Button {
-                            if done.contains(index) { done.remove(index) } else { done.insert(index) }
+                            if done.contains(index) {
+                                done.remove(index)
+                            } else {
+                                done.insert(index)
+                                speakNext(after: index)
+                            }
                         } label: {
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: done.contains(index) ? "checkmark.circle.fill" : "circle")
@@ -265,10 +281,35 @@ struct ChecklistBrewView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() } }
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        voiceOn.toggle()
+                        if voiceOn { speak(plan.steps.indices.first { !done.contains($0) } ?? 0) } else { speaker.stop() }
+                    } label: { Image(systemName: voiceOn ? "speaker.wave.2.fill" : "speaker.slash.fill") }
+                        .accessibilityLabel(voiceOn ? "إيقاف الصوت" : "تشغيل الصوت")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("خلصت") { dismiss(); onFinish(0) }.disabled(done.isEmpty)
                 }
             }
+        }
+        .task { speak(0) }
+        .onDisappear { speaker.stop() }
+    }
+
+    private func speak(_ index: Int) {
+        guard voiceOn, plan.steps.indices.contains(index) else { return }
+        speaker.play(.step(index: index, line: BrewVoice.checklistLine(step: plan.steps[index]), mood: .act),
+                     clips: BrewVoice.stepClips(planID: plan.id, stepIndex: index))
+    }
+
+    /// The next step still to do after the one just ticked; the finish when none is left.
+    private func speakNext(after index: Int) {
+        guard voiceOn else { return }
+        if let next = plan.steps.indices.first(where: { $0 > index && !done.contains($0) }) {
+            speak(next)
+        } else if done.count == plan.steps.count {
+            speaker.play(.finished(line: BrewVoice.finishedLine), clips: ["done"])
         }
     }
 }
